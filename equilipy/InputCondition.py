@@ -1,0 +1,53 @@
+import numpy as np
+import equilipy.equilifort as fort
+import equilipy.variables as var
+
+def input_condition(units,comp):
+
+    '''----------------------------------------------------------------------------------------------------------------
+    Description
+    ===========
+    This function assgins values for input variables in Fortran
+
+
+    Revisions
+    =========
+
+     Date            Programmer      Description of change
+     ----            ----------      ---------------------
+     11/19/2020      S.Y. KWON       Original code
+
+
+    Variables
+    =========
+    units   : A list of units for temperature, pressure, mass e.g.['K','atm','moles']
+              Temperature units, 'K'/'C'/'F'/'R'
+              Pressure units, 'atm'/'psi'/'bar'/'Pa'/'kPa'
+              Mass units, 'mass fraction'/'kilograms'/'grams'/'pounds'/'mole fraction'/'atom fraction'/'atoms'/'moles'
+    el      : an integer array of atomic number
+    comp    : a composition matrix shape of (L,n+2) where L and n are the number of composition and elements each.
+    ----------------------------------------------------------------------------------------------------------------'''
+
+
+    #Assign units
+    # print(len("{:<15}".format(units[0])))
+    fort.modulethermoio.cinputunittemperature  = "{:<15}".format(units[0]) #Temperature
+    fort.modulethermoio.cinputunitpressure     = "{:<15}".format(units[1])    #Pressure
+    fort.modulethermoio.cinputunitmass         = "{:<15}".format(units[2])        #Mass
+    
+    #Assign values for temperature and pressure
+    fort.modulethermoio.dtemperature   = comp[0]
+    fort.modulethermoio.dpressure      = comp[1]
+    composition                        = comp[2:]
+    
+        #Rearanging the composition based on the order given by the database
+    if len(composition)>1: composition =   composition[var.iElementSysIndex]
+
+    #Assign values for mass
+    fort.modulethermoio.delementmass = np.zeros(119)
+    for i in range(len(var.iElementSys)):
+        fort.modulethermoio.delementmass[int(var.iElementSys[i])] = composition[i]
+
+    #Assign value for print option in Fortran
+    fort.modulethermoio.iprintresultsmode = 2
+    return None

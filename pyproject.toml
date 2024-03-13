@@ -1,0 +1,9 @@
+[tool.cibuildwheel]
+# before-all = ["conda install conda-forge::libpng -y"]
+build-verbosity = 1
+build-frontend = "pip"
+build = "cp39* cp310* cp311* cp312*"
+skip  = ["*-musllinux*","cp312-win*"]
+
+[build-system]
+requires = ["setuptools>=42", "wheel", "numpy>=1.21", "meson", "ninja", "cibuildwheel"]
