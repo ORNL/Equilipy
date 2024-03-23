@@ -72,7 +72,7 @@ class f2py_Build(build_ext):
             
 setup(
     name='equilipy',
-    version='0.1.0',
+    version='0.1.1',
     author='Sunyong Kwon',
     author_email='sunyong.kwon@mail.mcgill.ca',
     license='BSD-3',

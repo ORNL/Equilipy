@@ -36,7 +36,7 @@ subroutine PostProcess
 !
     implicit none
     integer:: i
-    real(8):: dSpeciesTotalMole
+    real(8):: dSpeciesTotalMole, dTemp
 !
     !1. Recalculate Elemental potential if nElement/=nElementSys
     !2. Calculate dMolesPhase, dMoleFraction, dPhaseActivity, dBondFraction, dTotalBonds
@@ -46,7 +46,6 @@ subroutine PostProcess
     dGibbsEnergySys  = 0d0
     dEnthalpySys     = 0d0
     dEntropySys      = 0d0
-    dHeatCapacitySys = 0d0
 !
 !
     ! Multiply the number of moles of all phases by the normalizing constant:
@@ -57,24 +56,21 @@ subroutine PostProcess
     dElementMass    = dElementMass  * dNormalizeInput
 !
     ! Compute the integral Gibbs energy of the system:
-    dGibbsEnergySys = dot_product(dElementPotential, dMolesElement) * dIdealConstant * dTemperature
-    ! dEnthalpySys =  dot_product(dPartialEnthalpy, dMolesSpecies) * dIdealConstant * dTemperature
-    ! dEntropySys =  dot_product(dPartialEntropy, dMolesSpecies)* dIdealConstant
-    ! dHeatCapacitySys =  dot_product(dPartialHeatCapacity, dMolesSpecies) * dIdealConstant
+    ! dGibbsEnergySys = dot_product(dElementPotential, dMolesElement) * dIdealConstant * dTemperature
+    do i =1,nElements
+        dGibbsEnergySys = dGibbsEnergySys +dElementPotential(i)*dMolesElement(i)
+    end do
 !
     do i =1,nSpecies
-        if (dMolesSpecies(i)>0D0) then
-            ! dSpeciesTotalMole = sum(dStoichSpecies(i,:))
-            ! dGibbsEnergySys= dGibbsEnergySys +dChemicalPotential(i)*dMolesSpecies(i)
-            dEnthalpySys = dEnthalpySys +dPartialEnthalpy(i)*dMolesSpecies(i)
-            dEntropySys = dEntropySys +dPartialEntropy(i)*dMolesSpecies(i)
-            dHeatCapacitySys = dHeatCapacitySys +dPartialHeatCapacity(i)*dMolesSpecies(i)
+        dTemp= dMolesSpecies(i)
+        if (dTemp>0D0) then
+            dEntropySys = dEntropySys +dPartialEntropy(i)*dTemp
+            dEnthalpySys = dEnthalpySys +dPartialEnthalpy(i)*dTemp
         end if
     end do
-    ! dGibbsEnergySys = dGibbsEnergySys* dIdealConstant * dTemperature
+    dGibbsEnergySys = dGibbsEnergySys* dIdealConstant * dTemperature
     dEnthalpySys = dEnthalpySys *dIdealConstant * dTemperature
     dEntropySys = dEntropySys *dIdealConstant 
-    dHeatCapacitySys = dHeatCapacitySys *dIdealConstant
 
     return
 !

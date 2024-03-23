@@ -4,9 +4,8 @@ from tqdm import tqdm
 import equilipy.equilifort as fort
 from .PostProcess import *
 from .EquilibSingle import _equilib_single
-
+from .Errors import *
 def scheil_cooling(LiquidPhaseName,database,units,condition,dT=20.0,IterMax=5000,ListOfPhases=None,progress=None,output=None):
-    
     # Calculate equilib
     _equilib_single(database,units,condition,ListOfPhases=ListOfPhases)
     
@@ -14,7 +13,7 @@ def scheil_cooling(LiquidPhaseName,database,units,condition,dT=20.0,IterMax=5000
     if progress is None and output is None:
         # Initialize the progress bar on the first call
         IterStart=int(np.min([int(1000/dT),IterMax]))
-        progress = tqdm(total=IterStart,colour='#8060ff',ascii="░▒▓",bar_format="{l_bar}{bar:50}{r_bar}")
+        progress = tqdm(total=IterStart,colour='#8060ff',ascii="░▒▓",bar_format="{l_bar}{bar:30}{r_bar}")
         
         # Set recursion limit
         sys.setrecursionlimit(IterStart*2)
@@ -52,7 +51,12 @@ def scheil_cooling(LiquidPhaseName,database,units,condition,dT=20.0,IterMax=5000
             progress.total = progress.n
             progress.close()
             return res
+        elif condition['T']<=0 and 'K' in units[0]:
+            #Base 2 of recursive: Liquid amount sufficiently small and it's no longer reducing
             
+            progress.total = progress.n
+            progress.close()
+            raise EquilibError('Scheil-Gulliver solidification results in melting point below 0K. Check phase selections.')
         else:
             #Get liquid composition
             ni=np.array(res.EquilibResult.Phases[LiquidPhaseName].xi[-1])*res.ScheilPhases[LiquidPhaseName][-1]

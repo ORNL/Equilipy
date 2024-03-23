@@ -50,12 +50,14 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
     !-------------------------------------------------------------------------------------------------------------
 !
     USE ModuleThermo
-    USE ModuleThermoIO, ONLY: INFOThermo
+    USE ModuleThermoIO!, ONLY: INFOThermo
     USE ModuleGEMSolver
 !
     implicit none
 !
     integer :: i, j, iSolnIndex, iFirst, iLast
+    real(8) :: dSpeciesTotalMole
+    
 !
 !
     ! Temporary variables used for convenience:
@@ -75,6 +77,8 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
     dPartialEnthalpy(iFirst:iLast)          = 0D0
     dPartialEntropy(iFirst:iLast)           = 0D0
     dPartialHeatCapacity(iFirst:iLast)      = 0D0
+
+    dSpeciesTotalMole = 0D0
     
     dPartialExcessGibbs(iFirst:iLast) = 0D0 !Added by SY
     dPartialEnthalpyXS(iFirst:iLast)  = 0D0 !Added by SY
@@ -138,11 +142,32 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
 !
             ! Compute the chemical potentials of each species and the molar Gibbs energy of the phase:
             do i = iFirst, iLast
+                
+                ! print*,dSpeciesTotalMole
                 dChemicalPotential(i)       = dChemicalPotential(i) + dPartialExcessGibbs(i) + dMagGibbsEnergy(i)
                 dPartialEnthalpy(i)         = dPartialEnthalpy(i) + dPartialEnthalpyXS(i) + dMagEnthalpy(i)
                 dPartialEntropy(i)          = dPartialEntropy(i)  + dPartialEntropyXS(i) + dMagEntropy(i)
                 dPartialHeatCapacity(i)     = dPartialHeatCapacity(i) + dPartialHeatCapacityXS(i) + dMagHeatCapacity(i)
                 dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+
+                dSpeciesTotalMole = MAX1(dSpeciesTotalMole,sum(dStoichSpecies(i,:)))
+                ! print*,dTemperature,cSolnPhaseName(iSolnIndex)
+                ! print*,cSpeciesName(i),dPartialHeatCapacityXS(i)*dIdealConstant,&
+                ! dMagHeatCapacity(i)*dIdealConstant
+                if (dSpeciesTotalMole>0D0) then
+                    dPartialEnthalpy(i)         = dPartialEnthalpy(i)/ dSpeciesTotalMole
+                    dPartialEntropy(i)          = dPartialEntropy(i)/ dSpeciesTotalMole
+                    dPartialHeatCapacity(i)     = dPartialHeatCapacity(i) /dSpeciesTotalMole
+                else 
+                    !Vacancy has no amount consider using another stoichimometric cofficients
+                    if(iLast>i+1) then
+                        dSpeciesTotalMole = MAX1(dSpeciesTotalMole,sum(dStoichSpecies(i,:)))
+                        dPartialEnthalpy(i)         = dPartialEnthalpy(i)/ dSpeciesTotalMole
+                        dPartialEntropy(i)          = dPartialEntropy(i)/ dSpeciesTotalMole
+                        dPartialHeatCapacity(i)     = dPartialHeatCapacity(i) /dSpeciesTotalMole
+                    end if
+                end if
+                
 
                 
             end do

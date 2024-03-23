@@ -64,7 +64,7 @@ def equilib_batch(Database:str,Unit:list,NTP:dict,ListOfPhases:list=None):
     except AttributeError:
         list_phases(Database,NTPheader[2:])
         
-    for i in tqdm(range(L),colour='#8060ff',ascii="░▒▓",bar_format="{l_bar}{bar:50}{r_bar}"):
+    for i in tqdm(range(L),colour='#8060ff',ascii="░▒▓",bar_format="{l_bar}{bar:30}{r_bar}"):
         
         # Revise input condition when some of the elements are zero
         condition=NTPvals[i,:]

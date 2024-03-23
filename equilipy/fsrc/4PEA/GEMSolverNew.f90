@@ -138,8 +138,7 @@ subroutine GEMSolverNew
         if(dPhasePotential(i)<500) iCandidate(i)=1
     end do
 !
-    deallocate(dAtomFractionSpeciesGEM,dChemicalPotentialGEM,dStoichSpeciesGEM,&
-    dMolesPhaseHistory,dMolFractionGEM,dMolesPhaseLast,dMolFractionOld)
+    
 !
 !
     return

@@ -48,7 +48,7 @@ def minimize():
     except Exception as e:  
         raise EquilibError(f'Equilifort gemsolvernew failed: infothermo={info}, Error: {e}')
 
-    # Refining process with Lagrangain will be implemented
+    # # Refining process with Lagrangain will be implemented
     # try:
     #     fort.gemsolver()
     # except Exception as e:  
@@ -57,9 +57,10 @@ def minimize():
     # Perform post-processing calculations of results:
     try:
         fort.postprocess()
+        # fort.postcompcp()
     except Exception as e:  
         raise EquilibError(f'Equilifort postprocess failed: infothermo={info}, Error: {e}')
-
+    
     if fort.modulegemsolver.dgemfunctionnorm>1E-5:
         raise EquilibError(f'Equilibrium calculation failed: dGEMFunctionNorm={fort.modulegemsolver.dgemfunctionnorm}')
 

@@ -18,10 +18,7 @@ brew install gcc
 ```
 for Windows, check out [MinGW-w64](https://www.mingw-w64.org/downloads/#mingw-builds).
 
-Equilipy also requires Python version 3.9 and above. The Fortran backend needs to be compiled through the f2py module in `numpy` which requires `meson` and `ninja`. The `wheel` library is used for packaging. These can both be installed through pip:
-```
-pip install numpy wheel meson ninja
-```
+Equilipy also requires Python version 3.9 and above. The Fortran backend needs to be compiled through the f2py module in `numpy` which requires `meson` and `ninja`. The `wheel` library is used for packaging. These can both be installed through pip.
 
 ## Installation
 Here is the procedure to install Equilipy:
@@ -29,7 +26,11 @@ Here is the procedure to install Equilipy:
 ```
 git clone https://github.com/ORNL/Equilipy.git
 ```
-2. Create wheels
+2. Install dependant packages using pip.
+```
+pip install numpy wheel meson ninja
+```
+3. Create wheels
 ```
 python setup.py bdist_wheel --dist-dir=./wheelhouse
 ```
@@ -37,7 +38,7 @@ Note that on macOS it may be necessary to explicitly use GNU `gcc` instead of th
 ```
 export CC=/usr/local/Cellar/gcc/*/bin/gcc-*
 ```
-3. Install from .whl file
+4. Install from .whl file
 ```
 pip install wheelhouse/equilipy-*.whl
 ```

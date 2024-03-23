@@ -21,15 +21,10 @@ PhasesAll=eq.list_phases(DB,list(NTP.keys())[2:])
 phases = ['LIQUID','FCC_A1','MG2SI(s)']
 # phases=PhasesAll[:2]+PhasesAll[10:]
 # Calculate Scheil cooling
-res=eq.scheil_cooling('LIQUID',DB,units,NTP,dT=1,ListOfPhases=phases)
+res=eq.scheil_cooling('LIQUID',DB,units,NTP,dT=10,ListOfPhases=phases)
 res.update_microconstituents()
 
-#Print MicroConstituents
-print(res.MicroConstituents)
-df=pl.DataFrame(res.to_dict())
-df.write_csv(f'Result/Ex06_Scheil.csv')
-
-# # Plot Phase amount as function of temperature
+# Plot Phase amount as function of temperature
 T= np.array(res.T)
 phases=list(res.ScheilPhases.keys())
 fig, ax = plt.subplots(figsize=(5,4))

@@ -9,6 +9,7 @@ from .PostProcess import Result
 from .ListPhases import list_phases
 import equilipy.variables as var
 from .ReadDict import read_dict
+from .Errors import *
 
 def _equilib_single(database,units,Condition,ListOfPhases=None):
     '''----------------------------------------------------------------------------------------------------------------
@@ -67,7 +68,9 @@ def _equilib_single(database,units,Condition,ListOfPhases=None):
     
     var.dConditionSys=condition
     input_condition(units,condition)
-    minimize()  
+    try: minimize()  
+    except EquilibError: pass
+        
     
     return None
 
@@ -132,8 +135,12 @@ def equilib_single(database,units,Condition,ListOfPhases=None):
     
     var.dConditionSys=condition
     input_condition(units,condition)
-    minimize()
-    res.append_output()
+    try: 
+        minimize()  
+        res.append_output()
+    except EquilibError:
+        res.append_error()
+    
     fort.resetthermo()        
     
     return res

@@ -245,8 +245,10 @@ class Result:
                 if ln_differ>0: self.N[el]=self.N[el]+list([float(0.0)]*ln_differ)
             
             PhasesBefore=list(self.Phases.keys())
-            if len(PhasesBefore)==0: lp_before = 0
-            else: lp_before= int(len(self.Phases[PhasesBefore[0]].Amount))
+            # print('PhasesBefore',PhasesBefore)
+            # if len(PhasesBefore)==0: lp_before = 0
+            # else: lp_before= int(len(self.Phases[PhasesBefore[0]].Amount))
+            lp_before = int(len(self.T))-1
             for i in range(len(var.iSys2DBSoln)+len(var.iSys2DBComp)):
                 new=Phase(i)
                 name=new.Name.strip()
@@ -371,7 +373,7 @@ class Result:
         df['G J']=self.G
         df['H J']=self.H
         df['S J/K']=self.S
-        df['Cp J/K']=self.Cp
+        # df['Cp J/K']=self.Cp
         df['StablePhaseNames']=[str(x) for x in self.StablePhases['Name']]
         df['StablePhaseIDs']=[str(x) for x in self.StablePhases['ID']]
         df['StablePhaseAmount']=[str(x) for x in self.StablePhases['Amount']]

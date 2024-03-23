@@ -21,7 +21,7 @@ NTP = dict({
 TargetPhase='LIQUID'
 
 # Calculate Scheil cooling
-res=eq.scheil_cooling(TargetPhase,DB,units,NTP,dT=1)
+res=eq.scheil_cooling(TargetPhase,DB,units,NTP,dT=10)
 
 # Plot Phase amount as function of temperature
 T= np.array(res.T)

@@ -69,7 +69,6 @@ subroutine CompFunctionNorm
         dGEMFunctionNorm = dGEMFunctionNorm + (dNormComponent)**(2)
     end do
     
-    
     ! Compute the residuals of the Gibbs energy difference between each solution phase and the element potentials:
     do l = 1, nSolnPhases
         k      = -iAssemblage(nElements - l + 1)       ! Absolute solution phase index
@@ -85,7 +84,6 @@ subroutine CompFunctionNorm
             dGEMFunctionNorm = dGEMFunctionNorm + (dNormComponent)**(2)
         end do
     end do
-    
     
     ! Compute the residuals of the chemical potentials of pure condensed phases and the element potentials:
     do i = 1, nConPhases
