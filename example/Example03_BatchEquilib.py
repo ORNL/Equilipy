@@ -2,33 +2,31 @@
 import polars as pl, time
 from datetime import timedelta
 import equilipy as eq
-
-system = 'AlCuMgSi'
-# system = 'AlCuMg'
-# system = 'AlCuSi'
-# system = 'AlMgSi'
-# system = 'CuMgSi'
-
-
-#Parse database
-datafile= './Database/AlCuMgSi_ORNL'
-DB=eq.read_dat(datafile+'.dat')
+if __name__ == "__main__":
+    system = 'AlCuMgSi'
+    # system = 'AlCuMg'
+    # system = 'AlCuSi'
+    # system = 'AlMgSi'
+    # system = 'CuMgSi'
 
 
-#Input data
-df_name= 'Input_ACMS.xlsx'
-units=['K','atm','moles']
-NTP=pl.read_excel(f'{df_name}',sheet_name=system).to_dict()
+    #Parse database
+    datafile= './Database/AlCuMgSi_ORNL'
+    DB=eq.read_dat(datafile+'.dat')
 
-starttime=time.time()
 
-res=eq.equilib_batch(DB,units,NTP)
+    #Input data
+    df_name= 'Input_ACMS.xlsx'
+    units=['K','atm','moles']
+    NTP=pl.read_excel(f'{df_name}',sheet_name=system).to_dict()
 
-duration= time.time()-starttime
-dftime=pl.DataFrame({'Time, s':duration})
+    starttime=time.time()
 
-print('Total processing time:',timedelta(seconds=duration))
+    res=eq.equilib_batch(DB,units,NTP,nCPU=1,nPerBatch=1)
+    duration= time.time()-starttime
+    dftime=pl.DataFrame({'Time, s':duration})
 
-df=pl.DataFrame(res.to_dict())
-# dftime.write_csv(f'Result/T8_{system}_t.csv')    
-df.write_csv(f'Result/Ex03_{system}.csv')
+    print('Total processing time:',timedelta(seconds=duration))
+    df=pl.DataFrame(res.to_dict())
+    # dftime.write_csv(f'Result/T8_{system}_t.csv')    
+    df.write_csv(f'Result/Ex03_{system}.csv')

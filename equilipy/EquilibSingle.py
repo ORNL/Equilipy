@@ -11,36 +11,7 @@ import equilipy.variables as var
 from .ReadDict import read_dict
 from .Errors import *
 
-def _equilib_single(database,units,Condition,ListOfPhases=None):
-    '''----------------------------------------------------------------------------------------------------------------
-    Description
-    ===========
-    This function conducts equilibrium calculations for one condition.
-
-
-    Revisions
-    =========
-
-     Date            Programmer      Description of change
-     ----            ----------      ---------------------
-     12/29/2023      S.Y. KWON       Original code
-
-
-    Variables
-    =========
-
-    Input
-    datafile : A string of 'Directory/databasename.dat'
-    units    : A list of units for temperature, pressure, mass e.g.['K','atm','moles'].
-               Temperature units, 'K'/'C'/'F'/'R'.
-               Pressure units, 'atm'/'psi'/'bar'/'Pa'/'kPa'.
-               Mass units, 'mass fraction'/'kilograms'/'grams'/'pounds'/'mole fraction'/'atom fraction'/'atoms'/'moles'.
-    Condition: Dictionary containing NTP ensemble {'T':[val], 'P': [val], 'Al': [val], ...}
-    
-    Output
-    Results dataclass
-    ----------------------------------------------------------------------------------------------------------------'''
-    
+def _preprocess_single(database,units,Condition,ListOfPhases=None):
     read_dict(database)
     # Get info from input condition
     NTPheader,NTPvals=_dict2np(Condition)
@@ -54,26 +25,36 @@ def _equilib_single(database,units,Condition,ListOfPhases=None):
         else: KeyError('Error: add a list of phases')
     except AttributeError:
         list_phases(var,NTPheader[2:])
-        
+    
     condition=NTPvals
     comp=np.array(NTPvals[2:])
+    
+    
     if 0 in comp:
         elements=np.array(NTPheader[2:])
         elements=list(elements[comp!=0]) 
         condition=list(comp[comp!=0])
         condition=np.array(list(NTPvals[:2])+condition)
         list_phases(var,elements)
+        if ListOfPhases!=None: 
+                phase_selection(ListOfPhases)
     else:
         list_phases(var,NTPheader[2:])
+        if ListOfPhases!=None: phase_selection(ListOfPhases)
     
     var.dConditionSys=condition
-    input_condition(units,condition)
+    input_condition(units,condition)        
+    
+    return None
+
+def _equilib_single(database,units,Condition,ListOfPhases=None):
+    _preprocess_single(database,units,Condition,ListOfPhases=ListOfPhases)
+    
     try: minimize()  
     except EquilibError: pass
         
     
     return None
-
 
 def equilib_single(database,units,Condition,ListOfPhases=None):
     '''----------------------------------------------------------------------------------------------------------------
@@ -105,43 +86,15 @@ def equilib_single(database,units,Condition,ListOfPhases=None):
     Output
     Results dataclass
     ----------------------------------------------------------------------------------------------------------------'''
-    
-    read_dict(database)
-    # Get info from input condition
-    NTPheader,NTPvals=_dict2np(Condition)
-    
-    NTPvals = np.squeeze(NTPvals)
-    
     res = Result()
-    
-    try: 
-        x=var.PhaseNameSys
-        # If this is successfull, systems are defined previously
-        if ListOfPhases!=None: phase_selection(ListOfPhases)
-        else: KeyError('Error: add a list of phases')
-    except AttributeError:
-        list_phases(var,NTPheader[2:])
-    
-    condition=NTPvals
-    comp=np.array(NTPvals[2:])
-    if 0 in comp:
-        elements=np.array(NTPheader[2:])
-        elements=list(elements[comp!=0]) 
-        condition=list(comp[comp!=0])
-        condition=np.array(list(NTPvals[:2])+condition)
-        list_phases(var,elements)
-    else:
-        list_phases(var,NTPheader[2:])
-    
-    var.dConditionSys=condition
-    input_condition(units,condition)
+    _preprocess_single(database,units,Condition,ListOfPhases=ListOfPhases)
     try: 
         minimize()  
         res.append_output()
     except EquilibError:
         res.append_error()
     
-    fort.resetthermo()        
+    fort.resetthermoall() 
     
     return res
 

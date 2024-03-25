@@ -13,7 +13,7 @@ def scheil_cooling(LiquidPhaseName,database,units,condition,dT=20.0,IterMax=5000
     if progress is None and output is None:
         # Initialize the progress bar on the first call
         IterStart=int(np.min([int(1000/dT),IterMax]))
-        progress = tqdm(total=IterStart,colour='#8060ff',ascii="░▒▓",bar_format="{l_bar}{bar:30}{r_bar}")
+        progress = tqdm(total=IterStart,colour='#8060ff',ascii="░▒▓",bar_format="{l_bar}{bar:50}{r_bar}")
         
         # Set recursion limit
         sys.setrecursionlimit(IterStart*2)
