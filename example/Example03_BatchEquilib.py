@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     starttime=time.time()
 
-    res=eq.equilib_batch(DB,units,NTP,nCPU=1,nPerBatch=1)
+    res=eq.equilib_batch(DB,units,NTP)
     duration= time.time()-starttime
     dftime=pl.DataFrame({'Time, s':duration})
 

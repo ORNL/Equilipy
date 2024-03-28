@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import numpy as np
 import equilipy.equilifort as fort
 import equilipy.variables as var
@@ -124,6 +124,16 @@ class Phase:
             self.Endmembers=list([var.cPhaseNameSys[iSys]])
             self.xi=list([1])
         return
+@dataclass
+class EmptyPhase:    
+    def __init__(self):
+        self.ID: int =field(default_factory=int)
+        self.Name: str =field(default_factory=str)
+        self.Amount: float = field(default_factory=float)
+        self.Stability: float = field(default_factory=float)
+        self.Endmembers: list[str] = field(default_factory=list)
+        self.xi: list[float] = field(default_factory=list)
+        return
 
 @dataclass
 class Result:
@@ -167,10 +177,9 @@ class Result:
         A method to append calculation results
         ''' 
         # When there is more than two conditions, change results type to list for the first calcuation
-        try: n=len(other.T)
-        except TypeError: n=0
-        if n<=1: lSinglePoint=True
+        if type(other.T)==float: lSinglePoint=True
         else: lSinglePoint=False
+        
         if type(self.T)==float:
             for el in list(self.N.keys()):
                 self.N[el]=list([self.N[el]])
@@ -203,6 +212,7 @@ class Result:
             else: self.N[el]=self.N[el]+other.N[el]
             ln_after = int(len(self.N[el]))
         
+        
         if lSinglePoint:
             self.T.append(other.T)
             self.P.append(other.P)
@@ -230,53 +240,50 @@ class Result:
             if ln_differ>0: self.N[el]=self.N[el]+list([float(0.0)]*ln_differ)
         
         PhasesBefore=list(self.Phases.keys())
-        # print('PhasesBefore',PhasesBefore)
-        # if len(PhasesBefore)==0: lp_before = 0
-        # else: lp_before= int(len(self.Phases[PhasesBefore[0]].Amount))
         
         lp_after= int(len(self.T))
         if lSinglePoint: 
             lp_before = lp_after-1
         else:
             lp_before = lp_after-len(other.T)
+        
         for Pname in list(other.Phases.keys()):
             new=other.Phases[Pname]
-            name=new.Name.strip()
+            
             # In case it has not appeared previously add padding
-            if name in PhasesBefore:
+            if Pname in PhasesBefore:
                 if lSinglePoint:
-                    self.Phases[name].Amount.append(new.Amount)
-                    self.Phases[name].Stability.append(new.Stability)
-                    self.Phases[name].xi.append(new.xi)
-                    self.Phases[name].Endmembers.append(new.Endmembers)
+                    self.Phases[Pname].Amount.append(new.Amount)
+                    self.Phases[Pname].Stability.append(new.Stability)
+                    self.Phases[Pname].xi.append(new.xi)
+                    self.Phases[Pname].Endmembers.append(new.Endmembers)
                 else:
-                    self.Phases[name].Amount=self.Phases[name].Amount + new.Amount
-                    self.Phases[name].Stability=self.Phases[name].Stability + new.Stability
-                    self.Phases[name].xi=self.Phases[name].xi + new.xi
-                    self.Phases[name].Endmembers=self.Phases[name].Endmembers + new.Endmembers
-                
+                    self.Phases[Pname].Amount=self.Phases[Pname].Amount + new.Amount
+                    self.Phases[Pname].Stability=self.Phases[Pname].Stability + new.Stability
+                    self.Phases[Pname].xi=self.Phases[Pname].xi + new.xi
+                    self.Phases[Pname].Endmembers=self.Phases[Pname].Endmembers + new.Endmembers
             else:
                 # Assign Nan for all previous calculations
-                self.Phases[name]=new #Initialize
-                self.Phases[name].Name = name
-                self.Phases[name].Amount=list([float(0.0)]*lp_before)
-                self.Phases[name].Stability=list([float(0.0)]*lp_before)
-                self.Phases[name].xi=list([[int(0) for i in range(len(new.Endmembers))]])*lp_before
-                self.Phases[name].Endmembers=list([[str('nan') for i in range(len(new.Endmembers))]])*lp_before
+                self.Phases[Pname] = EmptyPhase()
+                self.Phases[Pname].ID=new.ID #Initialize
+                self.Phases[Pname].Name = Pname
+                self.Phases[Pname].Amount=list([float(0.0)]*lp_before)
+                self.Phases[Pname].Stability=list([float(0.0)]*lp_before)
+                self.Phases[Pname].xi=list([[int(0) for i in range(len(new.Endmembers))]])*lp_before
+                self.Phases[Pname].Endmembers=list([[str('nan') for i in range(len(new.Endmembers))]])*lp_before
                 
                 # Assign values for current condition
                 if lSinglePoint:
-                    self.Phases[name].Amount.append(new.Amount)
-                    self.Phases[name].Stability.append(new.Stability)
-                    self.Phases[name].xi.append(new.xi)
-                    self.Phases[name].Endmembers.append(new.Endmembers)
+                    self.Phases[Pname].Amount.append(new.Amount)
+                    self.Phases[Pname].Stability.append(new.Stability)
+                    self.Phases[Pname].xi.append(new.xi)
+                    self.Phases[Pname].Endmembers.append(new.Endmembers)
                 else:
-                    self.Phases[name].Amount=self.Phases[name].Amount + new.Amount
-                    self.Phases[name].Stability=self.Phases[name].Stability + new.Stability
-                    self.Phases[name].xi=self.Phases[name].xi + new.xi
-                    self.Phases[name].Endmembers=self.Phases[name].Endmembers + new.Endmembers
-        
-        
+                    self.Phases[Pname].Amount=self.Phases[Pname].Amount + new.Amount
+                    self.Phases[Pname].Stability=self.Phases[Pname].Stability + new.Stability
+                    self.Phases[Pname].xi=self.Phases[Pname].xi + new.xi
+                    self.Phases[Pname].Endmembers=self.Phases[Pname].Endmembers + new.Endmembers
+
         # Check through all phases and add paddings
         for name in list(self.Phases.keys()):
             lp_differ= lp_after-len(self.Phases[name].Amount)
@@ -287,7 +294,9 @@ class Result:
                 self.Phases[name].Stability=self.Phases[name].Stability+list([float(0.0)]*lp_differ)
                 self.Phases[name].xi=self.Phases[name].xi+([[int(0) for i in range(nEndmembers)]])*lp_differ
                 self.Phases[name].Endmembers=self.Phases[name].Endmembers+list([[str('nan') for i in range(nEndmembers)]])*lp_differ
+
         return None
+        
     
     def append_output(self):
         '''
@@ -388,7 +397,8 @@ class Result:
                     
                 else:
                     # Assign Nan for all previous calculations
-                    self.Phases[name]=Phase(i) #Initialize
+                    self.Phases[name]=EmptyPhase()
+                    self.Phases[name].ID=new.ID
                     self.Phases[name].Name = name
                     self.Phases[name].Amount=list([float(0.0)]*lp_before)
                     self.Phases[name].Stability=list([float(0.0)]*lp_before)
@@ -500,7 +510,7 @@ class Result:
         df['G J']=self.G
         df['H J']=self.H
         df['S J/K']=self.S
-        df['Cp J/K']=self.Cp
+        # df['Cp J/K']=self.Cp
         df['StablePhaseNames']=[str(x) for x in self.StablePhases['Name']]
         df['StablePhaseIDs']=[str(x) for x in self.StablePhases['ID']]
         df['StablePhaseAmount']=[str(x) for x in self.StablePhases['Amount']]
