@@ -7,7 +7,6 @@ if __name__ == "__main__":
     DB=eq.read_dat(datafile+'.dat')
 
     #Set input data
-    units=['K','atm','moles']
 
     NTP = dict({
         'T':1000,
@@ -21,9 +20,13 @@ if __name__ == "__main__":
     phases = ['LIQUID','FCC_A1','MG2SI(s)']
     # phases=PhasesAll[:2]+PhasesAll[10:]
     # Calculate Scheil cooling
-    res=eq.scheil_cooling('LIQUID',DB,units,NTP,dT=10,ListOfPhases=phases)
-    res.update_microconstituents()
-
+    res=eq.scheil_cooling('LIQUID',DB,NTP,dT=10,ListOfPhases=phases)
+    print('Scheil Constituent information, mol. fr.:', res.ScheilConstituents)
+    
+    # Save data
+    df=pl.DataFrame(res.to_dict())  
+    df.write_csv(f'Result/Ex06_ACMS.csv')
+    
     # Plot Phase amount as function of temperature
     T= np.array(res.T)
     phases=list(res.ScheilPhases.keys())

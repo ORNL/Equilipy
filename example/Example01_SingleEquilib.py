@@ -8,7 +8,6 @@ if __name__ == "__main__":
     DB=eq.read_dat(datafile+'.dat')
 
     # Parse input data
-    units=['K','atm','moles']
     NTP = dict({
         'T':700,
         'P': 1,
@@ -16,7 +15,7 @@ if __name__ == "__main__":
         'Cu':0.42424242,
         'Si':0.515151515})
 
-    res=eq.equilib_single(DB,units,NTP)
+    res=eq.equilib_single(DB,NTP)
 
 
     #print all stable phases

@@ -11,8 +11,8 @@ import equilipy.variables as var
 from .ReadDict import read_dict
 from .Errors import *
 
-def _preprocess_single(database,units,Condition,ListOfPhases=None):
-    read_dict(database)
+def _preprocess_single(Database,Condition,Unit:list=['K','atm','moles'],ListOfPhases=None):
+    read_dict(Database)
     # Get info from input condition
     NTPheader,NTPvals=_dict2np(Condition)
     
@@ -43,12 +43,12 @@ def _preprocess_single(database,units,Condition,ListOfPhases=None):
         if ListOfPhases!=None: phase_selection(ListOfPhases)
     
     var.dConditionSys=condition
-    input_condition(units,condition)        
+    input_condition(Unit,condition)        
     
     return None
 
-def _equilib_single(database,units,Condition,ListOfPhases=None):
-    _preprocess_single(database,units,Condition,ListOfPhases=ListOfPhases)
+def _equilib_single(Database,Condition,Unit:list=['K','atm','moles'],ListOfPhases=None):
+    _preprocess_single(Database,Condition,Unit,ListOfPhases=ListOfPhases)
     
     try: minimize()  
     except EquilibError: pass
@@ -56,7 +56,7 @@ def _equilib_single(database,units,Condition,ListOfPhases=None):
     
     return None
 
-def equilib_single(database,units,Condition,ListOfPhases=None):
+def equilib_single(Database,Condition,Unit:list=['K','atm','moles'],ListOfPhases=None):
     '''----------------------------------------------------------------------------------------------------------------
     Description
     ===========
@@ -87,7 +87,7 @@ def equilib_single(database,units,Condition,ListOfPhases=None):
     Results dataclass
     ----------------------------------------------------------------------------------------------------------------'''
     res = Result()
-    _preprocess_single(database,units,Condition,ListOfPhases=ListOfPhases)
+    _preprocess_single(Database,Condition,Unit,ListOfPhases)
     try: 
         minimize()  
         res.append_output()

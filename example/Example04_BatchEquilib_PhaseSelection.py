@@ -13,7 +13,6 @@ if __name__ == "__main__":
 
     #Input data
     df_name= 'Input_ACMS.xlsx'
-    units=['K','atm','moles']
     NTP=pl.read_excel(f'{df_name}',sheet_name=system).to_dict()
 
     starttime=time.time()
@@ -28,7 +27,7 @@ if __name__ == "__main__":
 
     #Print All phases
     print(f'Following phases are selected: {phases} from {PhasesAll}')
-    res=eq.equilib_batch(DB,units,NTP,ListOfPhases=phases)
+    res=eq.equilib_batch(DB,NTP,ListOfPhases=phases)
 
     duration= time.time()-starttime
     dftime=pl.DataFrame({'Time, s':duration})

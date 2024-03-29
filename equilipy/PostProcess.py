@@ -547,7 +547,7 @@ class ResultScheil():
     
     Scheil constituent properties (Final cooling)
     ----------------------------
-    Microconstituents: dict({phase_config:amount})
+    ScheilConstituents: dict({phase_config:amount})
     Final amount of each phases: dict({phase_name: amount})
     
     '''
@@ -565,14 +565,14 @@ class ResultScheil():
     G: list[float] = field(default_factory=float)
     fl: list[float] = field(default_factory=float)
     fs: list[float] = field(default_factory=float)
-    # H: list[float] = field(default_factory=list)
-    # S: list[float] = field(default_factory=list)
+    H: list[float] = field(default_factory=list)
+    S: list[float] = field(default_factory=list)
     # Cp: list[float] = field(default_factory=list)
     
     # Phase properties
     PhaseLabel= list()
     ScheilPhases= dict({})
-    MicroConstituents= dict({})
+    ScheilConstituents= dict({})
     EquilibResult=Result()
     
     
@@ -583,6 +583,8 @@ class ResultScheil():
         self.T = self.EquilibResult.T
         self.P = self.EquilibResult.P
         self.G = self.EquilibResult.G
+        self.H = self.EquilibResult.H
+        self.S = self.EquilibResult.S
         
         # Store predicted stable phases
         CurrentPhases= self.EquilibResult.StablePhases['Name']
@@ -607,6 +609,8 @@ class ResultScheil():
         self.T = self.EquilibResult.T
         self.P = self.EquilibResult.P
         self.G = self.EquilibResult.G
+        self.H = self.EquilibResult.H
+        self.S = self.EquilibResult.S
         
         nrows = len(self.EquilibResult.T)
         
@@ -647,7 +651,7 @@ class ResultScheil():
                     self.ScheilPhases[name].append(vals[-1])
         fort.resetthermo()
     
-    def update_microconstituents(self):
+    def update_scheilconstituents(self):
         k=0
         for i,T in enumerate(self.T):
             constituents=self.PhaseLabel[i].split('+')
@@ -658,12 +662,12 @@ class ResultScheil():
                 cphase='+'.join(constituents)
                 k=i
             elif self.PhaseLabel[i]!=self.PhaseLabel[i-1] and k>0:
-                # 2. Store the data whenever different microconstituents appears
-                microconstituents=list(self.MicroConstituents.keys())
-                if cphase in microconstituents:
-                    self.MicroConstituents[cphase]=self.MicroConstituents[cphase]+self.fl[k]-self.fl[i]
+                # 2. Store the data whenever different scheilconstituents appears
+                scheilconstituents=list(self.ScheilConstituents.keys())
+                if cphase in scheilconstituents:
+                    self.ScheilConstituents[cphase]=self.ScheilConstituents[cphase]+self.fl[k]-self.fl[i]
                 else:
-                    self.MicroConstituents[cphase]=self.fl[k]-self.fl[i]
+                    self.ScheilConstituents[cphase]=self.fl[k]-self.fl[i]
                 k=i
                 if len(constituents)>0:
                     cphase='+'.join(constituents)
@@ -674,23 +678,23 @@ class ResultScheil():
                     cphase='+'.join(constituents)
             if i==len(self.T)-1:
                 fphase='+'.join(constituents)
-                microconstituents=list(self.MicroConstituents.keys())
+                scheilconstituents=list(self.ScheilConstituents.keys())
                 
                 if cphase != fphase:
-                    # Since the microconstituents are different it must have went through 2.
+                    # Since the scheilconstituents are different it must have went through 2.
                     # Only save the last part.
                     if fphase !='':
-                        if fphase in microconstituents:
-                            self.MicroConstituents[fphase]=self.MicroConstituents[fphase]+self.fl[k]
+                        if fphase in scheilconstituents:
+                            self.ScheilConstituents[fphase]=self.ScheilConstituents[fphase]+self.fl[k]
                         else:
-                            self.MicroConstituents[fphase]=self.fl[k]
+                            self.ScheilConstituents[fphase]=self.fl[k]
                     
                 else:
                 
-                    if cphase in microconstituents:
-                        self.MicroConstituents[cphase]=self.MicroConstituents[cphase]+self.fl[k]
+                    if cphase in scheilconstituents:
+                        self.ScheilConstituents[cphase]=self.ScheilConstituents[cphase]+self.fl[k]
                     else:
-                        self.MicroConstituents[cphase]=self.fl[k]
+                        self.ScheilConstituents[cphase]=self.fl[k]
         return None
     
     def to_dict(self):
@@ -698,7 +702,9 @@ class ResultScheil():
         df['T']=self.T
         df['P']=self.P
         df.update(self.N)
-        df['G J/mol']=self.G
+        df['G J']=self.G
+        df['H J']=self.H
+        df['S J']=self.S
         df['fl mol']=self.fl
         df['fs mol']=self.fs
         df['Label']=self.PhaseLabel

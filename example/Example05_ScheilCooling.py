@@ -8,7 +8,6 @@ if __name__ == "__main__":
     DB=eq.read_dat(datafile+'.dat')
 
     #Set input data
-    units=['K','atm','moles']
     system=['Al','Cu','Mg','Si']
     # NTP = [1000,1,0.75,0.05,0.1,0.1]
     NTP = dict({
@@ -22,7 +21,11 @@ if __name__ == "__main__":
     TargetPhase='LIQUID'
 
     # Calculate Scheil cooling
-    res=eq.scheil_cooling(TargetPhase,DB,units,NTP,dT=10)
+    res=eq.scheil_cooling(TargetPhase,DB,NTP,dT=10)
+    
+    # Save data
+    df=pl.DataFrame(res.to_dict())  
+    df.write_csv(f'Result/Ex05_ACMS.csv')
 
     # Plot Phase amount as function of temperature
     T= np.array(res.T)
@@ -35,6 +38,7 @@ if __name__ == "__main__":
     ax.legend(fontsize=14)
     ax.set_xlabel('Temperature, K', fontsize=16)
     ax.set_ylabel('Phase amount, mol', fontsize=16)
+    
 
     plt.tight_layout()
     plt.show()

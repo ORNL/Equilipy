@@ -7,7 +7,6 @@ if __name__ == "__main__":
     DB=eq.read_dat(datafile+'.dat')
 
     # Parse input data
-    units=['K','atm','moles']
     NTP = dict({
         'T':700,
         'P': 1,
@@ -23,7 +22,7 @@ if __name__ == "__main__":
     # List of phases to be considered
     phases = PhasesAll[:7]
     print(f'Selected phases: {phases}')
-    res=eq.equilib_single(DB,units,NTP, ListOfPhases=phases)
+    res=eq.equilib_single(DB,NTP, ListOfPhases=phases)
 
 
     #print all stable phases

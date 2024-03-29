@@ -2,7 +2,7 @@ import numpy as np
 import equilipy.equilifort as fort
 import equilipy.variables as var
 
-def input_condition(units,comp):
+def input_condition(Unit,Composition):
 
     '''----------------------------------------------------------------------------------------------------------------
     Description
@@ -31,14 +31,14 @@ def input_condition(units,comp):
 
     #Assign units
     # print(len("{:<15}".format(units[0])))
-    fort.modulethermoio.cinputunittemperature  = "{:<15}".format(units[0]) #Temperature
-    fort.modulethermoio.cinputunitpressure     = "{:<15}".format(units[1])    #Pressure
-    fort.modulethermoio.cinputunitmass         = "{:<15}".format(units[2])        #Mass
+    fort.modulethermoio.cinputunittemperature  = "{:<15}".format(Unit[0]) #Temperature
+    fort.modulethermoio.cinputunitpressure     = "{:<15}".format(Unit[1])    #Pressure
+    fort.modulethermoio.cinputunitmass         = "{:<15}".format(Unit[2])        #Mass
     
     #Assign values for temperature and pressure
-    fort.modulethermoio.dtemperature   = comp[0]
-    fort.modulethermoio.dpressure      = comp[1]
-    composition                        = comp[2:]
+    fort.modulethermoio.dtemperature   = Composition[0]
+    fort.modulethermoio.dpressure      = Composition[1]
+    composition                        = Composition[2:]
     
         #Rearanging the composition based on the order given by the database
     if len(composition)>1: composition =   composition[var.iElementSysIndex]

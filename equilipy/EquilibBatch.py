@@ -15,7 +15,7 @@ from multiprocessing import Pool
 from numba import njit
 
 
-def _equilib_batch(Database:str,Unit:list,NTP:dict,ListOfPhases:list=None):
+def _equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPhases:list=None):
     
     # Read Database saved in a dictionary
     read_dict(Database)
@@ -68,7 +68,7 @@ def _equilib_batch(Database:str,Unit:list,NTP:dict,ListOfPhases:list=None):
     return res
 
 
-def _batch_input(database,units,conditions,ListOfPhases,nPerBatch):
+def _batch_input(database,conditions,units,ListOfPhases,nPerBatch):
     """
     Break fullrange up into smaller sets of ranges that cover all
     the same numbers.
@@ -82,7 +82,7 @@ def _batch_input(database,units,conditions,ListOfPhases,nPerBatch):
         subcondition=dict({})
         for j, head in enumerate(header):
             subcondition[head] = NTP[i:min(i+nPerBatch, fullrange[1]),j]
-        res.append( [database,units,subcondition,ListOfPhases] ) 
+        res.append( [database,subcondition,units,ListOfPhases] ) 
     return res
 
 def _equilib_mpi(arg,nCPU):
@@ -94,7 +94,7 @@ def _equilib_mpi(arg,nCPU):
     pool.join()
     return res
 
-def equilib_batch(Database:str,Unit:list,NTP:dict,ListOfPhases:list=None,nCPU:int=os.cpu_count(),nPerBatch:int=1):
+def equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPhases:list=None,nCPU:int=os.cpu_count(),nPerBatch:int=1):
     '''
     Calculate phase equlibria for multiple NTP conditions.
     ----------------------------------------------------------------------------------------------------------------
@@ -130,7 +130,7 @@ def equilib_batch(Database:str,Unit:list,NTP:dict,ListOfPhases:list=None,nCPU:in
     
     '''
     # Get a batch input
-    arg =_batch_input(Database,Unit,NTP,ListOfPhases,nPerBatch)
+    arg =_batch_input(Database,NTP,Unit,ListOfPhases,nPerBatch)
     res_mpi=list(_equilib_mpi(arg,nCPU))
     res=res_mpi[0]
     for i,r in enumerate(res_mpi):

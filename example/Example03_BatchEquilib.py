@@ -17,12 +17,11 @@ if __name__ == "__main__":
 
     #Input data
     df_name= 'Input_ACMS.xlsx'
-    units=['K','atm','moles']
     NTP=pl.read_excel(f'{df_name}',sheet_name=system).to_dict()
 
     starttime=time.time()
 
-    res=eq.equilib_batch(DB,units,NTP)
+    res=eq.equilib_batch(DB,NTP)
     duration= time.time()-starttime
     dftime=pl.DataFrame({'Time, s':duration})
 
