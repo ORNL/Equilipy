@@ -30,13 +30,30 @@ subroutine SubMinNewton(iSolnPhaseIndex)
 !
 !
     ! Initialize variables:
+
     nEqn     = nVar + 1
     INFO     = 0
     iHessian = 0
     dHessian = 0D0
+    dRHSLast = dRHS
     dRHS     = -1D0
     m        = 1
+    dSubminGibbsEst =0D0
+    
 !
+    ! Calculate chemical potential bar and the chemical pontential deviates from elemental potential
+    !This will be used to remove zeroing species
+    do j = 1, nVar
+        i                 = iFirstSUB + j - 1 
+        dSubminGibbsEst=dSubminGibbsEst+(dChemicalPotential(i) - dChemicalPotentialStar(j))
+    end do
+    dSubminGibbsEst = dSubminGibbsEst/nVar
+
+    do j = 1, nVar
+        i                 = iFirstSUB + j - 1 
+        dPotentialVector(j) = dSubminGibbsEst-(dChemicalPotential(i)-dChemicalPotentialStar(j))
+    end do
+    dMaxPotentialVector = MAXVAL(DABS(dPotentialVector))
 !
     ! Construct diagonal and part of the arrow head:
     ! SY: Note that dRHS is not xi but (xi-yi)
@@ -73,6 +90,9 @@ subroutine SubMinNewton(iSolnPhaseIndex)
         INFOThermo = 28
         dRHS       = 0D0
     end if
+    !
+    !Damping the oscilation when it goes above a certain iteration
+    if (iterSubLG>10) dRHS = (0.6)*dRHSLast +(0.4)*dRHS
 !
 end subroutine SubMinNewton
 !

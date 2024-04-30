@@ -77,7 +77,7 @@ def phase_selection(ListOfPhases):
             iSys2DBSpecies.append(p_id)
         else:
             raise NameError(f'Error: PhaseSelection cannot identify type of {phase}')
-    # print(iSys2DBSpecies)
+    
 	#Allocate python variables:
     var.iSys2DBSoln 	= iSys2DBSoln
     var.iSys2DBComp 	= iSys2DBComp

@@ -31,8 +31,6 @@ subroutine SubMinChemicalPotential(iSolnPhaseIndex)
     dPartialEnthalpy(iFirstSUB:iLastSUB)  = 0D0
     dPartialEntropy(iFirstSUB:iLastSUB)  = 0D0
     dPartialHeatCapacity(iFirstSUB:iLastSUB)  = 0D0
-    ! SYMF
-    ! dPartialExcessGibbs(iFirstSUB:iLastSUB) = 0D0
 !
 !
     ! Compute excess terms based on solution phase type:

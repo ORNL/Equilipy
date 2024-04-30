@@ -25,21 +25,24 @@ subroutine SubMinLineSearch(iSolnPhaseIndex)
 !
     implicit none
 !
-    integer :: i, j, k, iSolnPhaseIndex
-    real(8) :: dStepLength, dTemp, dMaxChange
+    integer :: i, j, k, l,iSolnPhaseIndex
+    real(8) :: dStepLength, dTemp, dMaxChange,dEstMole
+    real(8),dimension(nVar):: dMolFractionLast, dChemicalPotentialSubmin
 !
 !
     ! Initialize variables:
     dStepLength = 1D0
     dMaxChange  = 0.2D0
-    ! print*,'dRHS',dRHS
+    dMolFractionLast =dMolFraction(iFirstSUB:iLastSUB)
+
     ! Initialize steplength (determine a steplength that prevents negative mole fractions
     ! and constrains maximum change):
     do j = 1, nVar
 !
         ! Absolute species index:
-        i = iFirstSUB + j - 1
+        i = iFirstSUB + j - 1 
 !
+        
         ! Check if the mole fraction of this constituent is driven to be negative:
         if (dMolFraction(i) + dRHS(j) <= 0D0) then
 !
@@ -66,27 +69,44 @@ subroutine SubMinLineSearch(iSolnPhaseIndex)
     do j = 1, nVar
 !
         ! Absolute species index:
-        i = iFirstSUB + j - 1
+        i = iFirstSUB + j - 1 
 !
         ! Apply step length:
-        dMolFraction(i) = dMolFraction(i) + dStepLength * dRHS(j)
+        dMolFraction(i) = dMolFractionLast(j) + dStepLength * dRHS(j)
 !
         ! Store maximum change to the mole fraction:
-        dTemp = DMAX1(dTemp, DABS(dRHS(j)))
+        dTemp = DMAX1(dTemp, DABS(dStepLength * dRHS(j)))
 !
     end do
-!
+    
     ! Iterate to satisfy Wolfe conditions:
     LOOP_WOLFE: do k = 1, 5
 !
         ! Exit if the minimum mole fraction of this phase is below a specified tolerance:
-        if (MINVAL(dMolFraction(iFirstSUB:iLastSUB)) < dMinMoleFraction) exit LOOP_WOLFE
+        do j = 1, nVar
+            i = iFirstSUB + j - 1 
+            if(dMolFraction(i)<0) then
+                ! dMolFraction(i) = 1D-50
+                if(dPotentialVector(j)<0) then         
+                    dMolFraction(i)= dMAX1(dMolFractionLast(j)*exp(dPotentialVector(j)),1D-100)
+                else
+                    dMolFraction(i)= dMAX1(dMolFractionLast(j)*exp(-dPotentialVector(j)),1D-100)
+                end if
+            end if
+        end do
+
+        !Update dMolFractionLast
+        dMolFractionLast =dMolFraction(iFirstSUB:iLastSUB)
 !
         ! Compute the chemical potentials of solution phase constituents:
         call SubMinChemicalPotential(iSolnPhaseIndex)
 !
         ! Compute the driving force of this solution phase:
         call SubMinDrivingForce
+        
+        dChemicalPotentialSubmin = dChemicalPotential(iFirstSUB:iLastSUB)-dChemicalPotentialStar
+        dSubminGibbsEst = sum(dChemicalPotentialSubmin)/nVar
+        dPotentialVector = dSubminGibbsEst-dChemicalPotentialSubmin
 !
         ! Check for a converging/diverging solution:
         if (dDrivingForce < dDrivingForceLast) then
@@ -95,7 +115,7 @@ subroutine SubMinLineSearch(iSolnPhaseIndex)
             exit LOOP_WOLFE
 !
         else
-            ! Divergence has been detected.  Dampen the sub-system:
+            ! Divergence has been detected.  Damping the sub-system:
             !SYMF
             dStepLength = dStepLength * 0.5D0
             dTemp       = 0D0
@@ -104,10 +124,10 @@ subroutine SubMinLineSearch(iSolnPhaseIndex)
             do j = 1, nVar
 !
                 ! Absolute species index:
-                i = iFirstSUB + j - 1
+                i = iFirstSUB + j - 1 
 !
                 ! Apply step length:
-                dMolFraction(i) = dMolFraction(i) - dStepLength * dRHS(j)
+                dMolFraction(i) = dMolFractionLast(j) - dStepLength * dRHS(j)
 !
                 ! Constrain the minimum mole fraction to an arbitrarily small value:
                 dMolFraction(i) = DMAX1(dMolFraction(i), 1D-100)
@@ -125,6 +145,7 @@ subroutine SubMinLineSearch(iSolnPhaseIndex)
 !
     ! Store the driving force from the last iteration:
     dDrivingForceLast = dDrivingForce
+    ! dMaxPotentialVectorLast = dMaxPotentialVector
 !
 end subroutine SubMinLineSearch
 !

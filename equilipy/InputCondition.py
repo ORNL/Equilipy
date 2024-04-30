@@ -30,7 +30,6 @@ def input_condition(Unit,Composition):
 
 
     #Assign units
-    # print(len("{:<15}".format(units[0])))
     fort.modulethermoio.cinputunittemperature  = "{:<15}".format(Unit[0]) #Temperature
     fort.modulethermoio.cinputunitpressure     = "{:<15}".format(Unit[1])    #Pressure
     fort.modulethermoio.cinputunitmass         = "{:<15}".format(Unit[2])        #Mass

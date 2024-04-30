@@ -93,7 +93,7 @@ subroutine GetNewAssemblage(iter)
     implicit none
 !
     integer                                :: i, j, k, m, n, INFO, iNewPhase, iter, iPhaseTypeOut, ipriori
-    integer,dimension(nElements)           :: iTempAssemblage, IPIV,idxpriori
+    integer,dimension(nElements)           :: iTempAssemblage, IPIV,idxpriori, iTempiPhaseGEM
     real(8),dimension(nElements)           :: dTempChemicalPotentialGEM, dMinValuedMolesPhase, dpriori
     real(8),dimension(nElements,nElements) :: A, dTempStoichSpeciesGEM, dTempAtomFractionSpeciesGEM
     real(8),dimension(nElements,nSpecies)  :: dTempMolFractionGEM
@@ -106,6 +106,7 @@ subroutine GetNewAssemblage(iter)
     dpriori= 0
 
     iTempAssemblage             = 0
+    iTempiPhaseGEM              = 0
     dTempChemicalPotentialGEM   = 0D0
     dTempStoichSpeciesGEM       = 0D0
     dTempAtomFractionSpeciesGEM = 0D0
@@ -123,6 +124,7 @@ subroutine GetNewAssemblage(iter)
     dTempStoichSpeciesGEM       = dStoichSpeciesGEM
     dTempAtomFractionSpeciesGEM = dAtomFractionSpeciesGEM
     dTempMolFractionGEM         = dMolFractionGEM
+    iTempiPhaseGEM = iPhaseGEM
    
     do i = 1, nElements
         j = iShuffled(i)
@@ -130,6 +132,7 @@ subroutine GetNewAssemblage(iter)
         dStoichSpeciesGEM(i,:)       = dTempStoichSpeciesGEM(j,:)
         dAtomFractionSpeciesGEM(i,:) = dTempAtomFractionSpeciesGEM(j,:)
         dMolFractionGEM(i,:)         = dTempMolFractionGEM(j,:)
+        iPhaseGEM(i)               = iTempiPhaseGEM(j)
     end do
 
     ! ! Store the indices of the estimated phase assemblage at each iteration
@@ -142,6 +145,8 @@ subroutine GetNewAssemblage(iter)
     dTempStoichSpeciesGEM       = dStoichSpeciesGEM
     dTempAtomFractionSpeciesGEM = dAtomFractionSpeciesGEM
     dTempMolFractionGEM         = dMolFractionGEM
+    iTempiPhaseGEM = iPhaseGEM
+
 
 !
     ! Loop through all "phases" in the current phase assemblage to determine which one should be
@@ -153,6 +158,8 @@ subroutine GetNewAssemblage(iter)
         dChemicalPotentialGEM(k)     = dChemicalPotential(iNewPhase)
         dStoichSpeciesGEM(k,:)       = dStoichSpeciesLevel(iNewPhase,:)
         dAtomFractionSpeciesGEM(k,:) = dAtomFractionSpecies(iNewPhase,:)
+        iPhaseGEM(k)                 = iPhaseLevel(iNewPhase)
+        
 
     
 
@@ -161,6 +168,7 @@ subroutine GetNewAssemblage(iter)
             m = nSpeciesPhase(j-1) + 1      ! First constituent in phase.
             n = nSpeciesPhase(j)            ! Last  constituent in phase.
             dMolFractionGEM(k,m:n)      = dMolFraction(m:n)
+            
         end if
 
         ! 2. Calculate phase amount
@@ -192,6 +200,7 @@ subroutine GetNewAssemblage(iter)
             dChemicalPotentialGEM   = dTempChemicalPotentialGEM
             dAtomFractionSpeciesGEM = dTempAtomFractionSpeciesGEM
             dMolFractionGEM         = dTempMolFractionGEM
+            iPhaseGEM               = iTempiPhaseGEM
         else
             ! if k=nElements and we didn't find the species to remove without resulting positive amount
             ! Revert to previous assemblage
@@ -200,6 +209,7 @@ subroutine GetNewAssemblage(iter)
             dChemicalPotentialGEM   = dTempChemicalPotentialGEM
             dAtomFractionSpeciesGEM = dTempAtomFractionSpeciesGEM
             dMolFractionGEM         = dTempMolFractionGEM
+            iPhaseGEM               = iTempiPhaseGEM
 
             !Check if the most possible assemblage has tolerable negative amount
             if((MINVAL(DABS(dMinValuedMolesPhase))<1D-3)) then
@@ -219,12 +229,14 @@ subroutine GetNewAssemblage(iter)
             dChemicalPotentialGEM(i)     = dChemicalPotential(iNewPhase)
             dStoichSpeciesGEM(i,:)       = dStoichSpeciesLevel(iNewPhase,:)
             dAtomFractionSpeciesGEM(i,:) = dAtomFractionSpecies(iNewPhase,:)
-
+            iPhaseGEM(i)                 = iPhaseLevel(iNewPhase)
+            
             j = iPhaseLevel(iNewPhase)
             if (j>0) then
                 m = nSpeciesPhase(j-1) + 1      ! First constituent in phase.
                 n = nSpeciesPhase(j)            ! Last  constituent in phase.
                 dMolFractionGEM(i,m:n)      = dMolFraction(m:n)
+                
             end if
 
             ! 2. Calculate phase amount

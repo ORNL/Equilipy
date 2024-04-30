@@ -3,11 +3,11 @@ import polars as pl, time
 from datetime import timedelta
 import equilipy as eq
 if __name__ == "__main__":
-    system = 'AlCuMgSi'
+    # system = 'AlCuMgSi'
     # system = 'AlCuMg'
     # system = 'AlCuSi'
     # system = 'AlMgSi'
-    # system = 'CuMgSi'
+    system = 'CuMgSi'
 
 
     #Parse database
@@ -28,4 +28,4 @@ if __name__ == "__main__":
     print('Total processing time:',timedelta(seconds=duration))
     df=pl.DataFrame(res.to_dict())
     # dftime.write_csv(f'Result/T8_{system}_t.csv')    
-    df.write_csv(f'Result/Ex03_{system}.csv')
+    df.write_csv(f'Result_Ex03_{system}.csv')

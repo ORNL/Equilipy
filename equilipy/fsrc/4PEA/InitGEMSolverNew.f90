@@ -28,6 +28,7 @@ subroutine InitGEMSolverNew
     if (allocated(iShuffled))               deallocate(iShuffled)
     if (allocated(dMolesPhaseHistory))      deallocate(dMolesPhaseHistory)
     if (allocated(dEffStoichSolnPhase))     deallocate(dEffStoichSolnPhase)
+    if (allocated(iPhaseGEM))               deallocate(iPhaseGEM)
     if (allocated(iCandidate))              deallocate(iCandidate)
     allocate(dMolesPhase(nElements),dElementPotential(nElements),dElementPotentialLast(nElements),&
         iAssemblage(nElements),dAtomFractionSpeciesOld(nSpecies,nElements),&
@@ -35,7 +36,7 @@ subroutine InitGEMSolverNew
         dStoichSpeciesLevel(nSpeciesLevel,nElements),iPhaseLevel(nSpeciesLevel),&
         dAtomFractionSpeciesGEM(nElements,nElements),dChemicalPotentialGEM(nElements),&
         dStoichSpeciesGEM(nElements,nElements),dMolFractionGEM(nElements,nSpecies),&
-        iShuffled(nElements),dMolesPhaseHistory(nElements,500),iCandidate(nSpecies))
+        iShuffled(nElements),dMolesPhaseHistory(nElements,500),iCandidate(nSpecies),iPhaseGEM(nElements))
     allocate(dEffStoichSolnPhase(l,nElements))
     
     ! Initialize allocatable variables:
@@ -44,6 +45,7 @@ subroutine InitGEMSolverNew
     iAssemblage       = 0
     iShuffled         = (/(i, i = 1,nElements, 1)/)
     iCandidate        = 0
+    iPhaseGEM         = 0
     dAtomFractionSpeciesOld = dAtomFractionSpecies
     dChemicalPotentialOld   = dChemicalPotential
     dMolFractionGEM   = 0D0
@@ -66,6 +68,8 @@ subroutine InitGEMSolverNew
     dStoichSpeciesGEM    = 0D0
     dAtomFractionSpeciesGEM= 0D0
     dChemicalPotentialGEM = 0D0
+    dGEMFunctionNorm     = 10D0
+    
 !
 !
     dAtomFractionSpecies(:nSpecies,:) = dAtomFractionSpeciesOld
@@ -76,6 +80,9 @@ subroutine InitGEMSolverNew
     ! Establish the very first phase assemblage:
     call GetFirstAssemblage
 !
+    do i =1,nElements
+        iPhaseGEM(i)= iPhaseLevel(iAssemblage(i))
+    end do
     ! Calculate the minimum point of each solution phase assuming zero ElementPotential
     call CompInitMinSolnPoint
 !

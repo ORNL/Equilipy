@@ -36,4 +36,4 @@ if __name__ == "__main__":
 
     df=pl.DataFrame(res.to_dict())
     # dftime.write_csv(f'Result/T9_{system}_t.csv')    
-    df.write_csv(f'Result/Ex04_{system}.csv')
+    df.write_csv(f'Result_Ex04_{system}.csv')

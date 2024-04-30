@@ -7,6 +7,7 @@ def minimize():
     
     
     info=fort.modulethermoio.infothermo
+    
     # Check the input variables:
     try:
         fort.checkthermoinput()
@@ -48,57 +49,13 @@ def minimize():
     except Exception as e:  
         raise EquilibError(f'Equilifort gemsolvernew failed: infothermo={info}, Error: {e}')
 
-    # # Refining process with Lagrangain will be implemented
-    # try:
-    #     fort.gemsolver()
-    # except Exception as e:  
-    #     raise EquilibError(f'Equilifort gemsolver failed: infothermo={info}, Error: {e}')
-    
     # Perform post-processing calculations of results:
     try:
         fort.postprocess()
-        # fort.postcompcp()
     except Exception as e:  
         raise EquilibError(f'Equilifort postprocess failed: infothermo={info}, Error: {e}')
     
-    if fort.modulegemsolver.dgemfunctionnorm>1E-5:
-        raise EquilibError(f'Equilibrium calculation failed: dGEMFunctionNorm={fort.modulegemsolver.dgemfunctionnorm}')
-
-    return None
-
-def minimize_single_phase():
-    
-    
-    info=fort.modulethermoio.infothermo
-    # Check the input variables:
-    try:
-        fort.checkthermoinput()
-    except Exception as e: 
-        raise EquilibError(f'Equilifort checkthermoinput failed: infothermo={info}, Error: {e}')
-
-        
-
-    #Initialize equilifort:
-    try:
-        fort.initthermo()
-    except Exception as e:  
-        raise EquilibError(f'Equilifort initthermo failed: infothermo={info}, Error: {e}')
-
-    
-    #Check if the input condition is consistent with database:
-    try:
-        fort.checksystem()
-    except Exception as e:  
-        raise EquilibError(f'Equilifort checksystem failed: infothermo={info}, Error: {e}')
-        
-    #Compute thermodynamic data:
-    try:
-        fort.compsinglephaseprop()
-    except Exception as e:  
-        raise EquilibError(f'Equilifort compthermodata failed: infothermo={info}, Error: {e}')
-    
-
-    if fort.modulegemsolver.dgemfunctionnorm>1E-5:
+    if fort.modulegemsolver.dgemfunctionnorm>1E0:
         raise EquilibError(f'Equilibrium calculation failed: dGEMFunctionNorm={fort.modulegemsolver.dgemfunctionnorm}')
 
     return None

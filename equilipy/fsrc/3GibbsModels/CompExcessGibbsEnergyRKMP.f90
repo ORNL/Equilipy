@@ -129,8 +129,8 @@ subroutine CompExcessGibbsEnergyRKMP(iSolnIndex)
 !
                 ! Binary parameter:
 !
-                ! Cycle if dx = 0 to prevent calculating either an INF or a NAN:
-                if (dx == 0D0) cycle LOOP_Param
+                ! Set to a small number when dx gets smaller
+                if (dx == 0D0) dx=1D-10
 !
                 iExponent = iRegularParam(iParam,4)
                 dxvmo     = dx**(iExponent-1)
@@ -167,7 +167,6 @@ subroutine CompExcessGibbsEnergyRKMP(iSolnIndex)
                     end if
 !
                 end do
-                
 !
             elseif (iRegularParam(iParam,1) == 3) then
 !

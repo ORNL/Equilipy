@@ -32,16 +32,21 @@ module ModuleSubMin
 !
     SAVE
 !
-    integer                                           ::  nVar, iFirstSUB, iLastSUB, iSolnPhaseIndexOther
-    integer, dimension(:),   allocatable::  iHessian
+    integer                             ::  nVar, iFirstSUB, iLastSUB, iSolnPhaseIndexOther, iterSub
+    integer                             ::  iterSubLg,iterSubAdam, iAdamNeg
+    integer, dimension(:),   allocatable::  iHessian, iRemovedSpecies
 !
-    real(8)                                           :: dDrivingForce, dDrivingForceLast, dSubMinFunctionNorm, dConverge, dSumPairs
-    real(8), parameter                         :: dSubMinTolerance = 1D-8, dMinMoleFraction = 1D-100
-    real(8), parameter                         :: dTolEuclideanNorm = 1D-2, dTolDrivingForceChange = 1D-3
-    real(8), dimension(:),   allocatable::  dChemicalPotentialStar, dRHS, dPseudoMoleFraction, dMoleFractionINDP
-    real(8), dimension(:),   allocatable::  dChemicalPotentialDiff, dSpeciesPerAtomMole
+    real(8)                             :: dDrivingForce, dDrivingForceLast, dSubMinFunctionNorm, dConverge, dSumPairs
+    real(8), parameter                  :: dSubMinTolerance = 1D-8, dMinMoleFraction = 1D-100
+    real(8), parameter                  :: dTolEuclideanNorm = 1D-2, dTolDrivingForceChange = 1D-3
+    real(8), parameter                  :: alpha = 0.01,beta1 = 0.9,beta2 = 0.99,epsilon = 1D-8
+    real(8)                             :: dSubminGibbsEst, dMaxPotentialVector
+    real(8), dimension(:),   allocatable::  dChemicalPotentialStar, dRHS, dPseudoMoleFraction, dMoleFractionINDP, dRHSLast
+    real(8), dimension(:),   allocatable::  dChemicalPotentialDiff, dSpeciesPerAtomMole, dPiDot,dPiLast,dPi
+    real(8), dimension(:),   allocatable::  dLambda,dLambdaLast, dvAdam, dsAdam, dvAdamLast, dsAdamLast, dxDot
+    real(8), dimension(:),   allocatable::  dPotentialVector
     real(8), dimension(:,:), allocatable::  dHessian
 !
-    logical                                           :: lSubMinConverged, lPseudoMinConverged              
+    logical                                           :: lSubMinConverged, lNegativeFraction
 !
 end module ModuleSubMin

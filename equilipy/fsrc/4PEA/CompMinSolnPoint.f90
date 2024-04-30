@@ -33,7 +33,7 @@ subroutine CompMinSolnPoint
     implicit none
 !
     integer :: i,j,k,l,m,n,nConstituents, iFloor
-    real(8):: log2iter
+    real(8):: log2iter,dNormComponent
     logical :: lAddPhase
 !
 !
@@ -71,7 +71,7 @@ subroutine CompMinSolnPoint
         !initialize variables
         m                = nSpeciesPhase(i-1) + 1      ! First constituent in phase.
         n                = nSpeciesPhase(i)            ! Last  constituent in phase.
-        nConstituents    = n - m + 2
+        nConstituents    = n - m + 1
         lAddPhase        = .False.        
 !
         if (.NOT.lMiscibility(i)) then
@@ -90,7 +90,13 @@ subroutine CompMinSolnPoint
             dStoichSpeciesLevel(nSpecies+i,:)  = dEffStoichSolnPhase(i,:)
             iPhaseLevel(nSpecies+i)            = i
             dChemicalPotential(nSpecies+i)     = dDrivingForceSoln(i) + &
-            dot_product(dEffStoichSolnPhase(i,:),dElementPotential(:))/sum(dEffStoichSolnPhase(i,:))
+            dot_product(dAtomFractionSpecies(nSpecies+i,:),dElementPotential(:))
+
+            do j = 1,nElements
+                if(iAssemblage(j)-nSpecies+1==i) then
+                    dMolFractionGEM(j,m:n) = dMolFraction(m:n)
+                end if
+            end do
 !
         else
             !Second phase when immiscibility is considered
@@ -99,7 +105,7 @@ subroutine CompMinSolnPoint
             iFloor = FLOOR(log2iter)
 !
             ! if((iterGlobal<5).OR.(imod==5).OR.(dMaxElementPotential<5D-4)) then
-            if((iterGlobal<3).OR.((log2iter-iFloor<1D-20).AND.(iFloor<4))) then
+            if((iterGlobal<16).OR.((log2iter-iFloor<1D-20).AND.(iFloor<4))) then
                 ! print*, 'iterGlobal',iterGlobal
                 call CheckMiscibilityGap(i,lAddPhase)
                 dAtomFractionSpecies(nSpecies+i,:) = dEffStoichSolnPhase(i,:)/sum(dEffStoichSolnPhase(i,:))
@@ -108,7 +114,7 @@ subroutine CompMinSolnPoint
                 
                 if(lAddPhase) then
                     dChemicalPotential(nSpecies+i)     = dDrivingForceSoln(i) + &
-                    dot_product(dEffStoichSolnPhase(i,:),dElementPotential(:))/sum(dEffStoichSolnPhase(i,:))
+                    dot_product(dAtomFractionSpecies(nSpecies+i,:),dElementPotential(:))
                     
                 else
                     dChemicalPotential(nSpecies+i)     = 9D5
@@ -117,6 +123,7 @@ subroutine CompMinSolnPoint
                 ! Perform subminimization:
                 call Subminimization(i, lAddPhase)
                 ! print*,'Composition',i,m,n,dMolFraction(m:n),dDrivingForceSoln(i)
+                
     !
                 call CompStoichSolnPhase(i)
     !
@@ -125,13 +132,43 @@ subroutine CompMinSolnPoint
                 dStoichSpeciesLevel(nSpecies+i,:)  = dEffStoichSolnPhase(i,:)
                 iPhaseLevel(nSpecies+i)            = i
                 dChemicalPotential(nSpecies+i)     = dDrivingForceSoln(i) + &
-                dot_product(dEffStoichSolnPhase(i,:),dElementPotential(:))/sum(dEffStoichSolnPhase(i,:))
+                dot_product(dAtomFractionSpecies(nSpecies+i,:),dElementPotential(:))
+
+                do j = 1,nElements
+                    if(iAssemblage(j)-nSpecies+1==i) then
+                        dMolFractionGEM(j,m:n) = dMolFraction(m:n)
+                    end if
+                end do
             end if
 !
             cycle LOOP_Soln
 !
         end if
     end do LOOP_Soln
+
+    ! Calculate functional norm: Mass balance 
+    dGEMFunctionNormLast = dGEMFunctionNorm
+    dGEMFunctionNorm=0D0
+    do j = 1, nElements
+        dNormComponent = dMolesElement(j)
+        do i = 1,nElements
+            dNormComponent = dNormComponent - dMolesPhase(i) * dStoichSpeciesGEM(i,j)
+        end do
+        dGEMFunctionNorm = dGEMFunctionNorm + (dNormComponent)**(2)
+    end do
+
+    ! Calculate chemical potential balance
+    do i = 1, nElements
+        k     = iAssemblage(i)
+        dNormComponent = 0D0
+        do j = 1, nElements
+            dNormComponent = dNormComponent + dElementPotential(j) * dAtomFractionSpeciesGEM(i,j)
+        end do
+        dNormComponent            = dNormComponent - dChemicalPotentialGEM(i)
+        dGEMFunctionNorm = dGEMFunctionNorm + (dNormComponent)**(2)
+    end do
+    dGEMFunctionNorm = dGEMFunctionNorm**(0.5)
+    
 !
     !After Subminimization, the chemical potential of solution components changes.
     !These need to be reverted back to pure

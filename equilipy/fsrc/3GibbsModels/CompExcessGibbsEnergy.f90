@@ -127,6 +127,7 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
                 dChemicalPotential(i)  = dStdGibbsEnergy(i) + DLOG(DMAX1(dMolFraction(i), 1D-75)) + dPartialExcessGibbs(i)&
                                         + dMagGibbsEnergy(i)
                 dPartialEnthalpy(i)    = dStdEnthalpy(i) + dPartialEnthalpyXS(i) + dMagEnthalpy(i)
+                
                 dPartialEntropy(i)     = dStdEntropy(i)  - DLOG(DMAX1(dMolFraction(i), 1D-75)) + dPartialEntropyXS(i)&
                                         + dMagEntropy(i)
                 dPartialHeatCapacity(i)     = dStdHeatCapacity(i) + dPartialHeatCapacityXS(i) + dMagHeatCapacity(i)
@@ -142,7 +143,6 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
 !
             ! Compute the chemical potentials of each species and the molar Gibbs energy of the phase:
             do i = iFirst, iLast
-                
                 ! print*,dSpeciesTotalMole
                 dChemicalPotential(i)       = dChemicalPotential(i) + dPartialExcessGibbs(i) + dMagGibbsEnergy(i)
                 dPartialEnthalpy(i)         = dPartialEnthalpy(i) + dPartialEnthalpyXS(i) + dMagEnthalpy(i)
@@ -151,23 +151,6 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
                 dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
 
                 dSpeciesTotalMole = MAX1(dSpeciesTotalMole,sum(dStoichSpecies(i,:)))
-                ! print*,dTemperature,cSolnPhaseName(iSolnIndex)
-                ! print*,cSpeciesName(i),dPartialHeatCapacityXS(i)*dIdealConstant,&
-                ! dMagHeatCapacity(i)*dIdealConstant
-                if (dSpeciesTotalMole>0D0) then
-                    dPartialEnthalpy(i)         = dPartialEnthalpy(i)/ dSpeciesTotalMole
-                    dPartialEntropy(i)          = dPartialEntropy(i)/ dSpeciesTotalMole
-                    dPartialHeatCapacity(i)     = dPartialHeatCapacity(i) /dSpeciesTotalMole
-                else 
-                    !Vacancy has no amount consider using another stoichimometric cofficients
-                    if(iLast>i+1) then
-                        dSpeciesTotalMole = MAX1(dSpeciesTotalMole,sum(dStoichSpecies(i,:)))
-                        dPartialEnthalpy(i)         = dPartialEnthalpy(i)/ dSpeciesTotalMole
-                        dPartialEntropy(i)          = dPartialEntropy(i)/ dSpeciesTotalMole
-                        dPartialHeatCapacity(i)     = dPartialHeatCapacity(i) /dSpeciesTotalMole
-                    end if
-                end if
-                
 
                 
             end do

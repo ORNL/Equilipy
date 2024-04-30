@@ -28,7 +28,7 @@ subroutine SubMinInit(iSolnPhaseIndex,iterSubMax)
 !
     USE ModuleThermo
     USE ModuleSubMin
-    USE ModuleGEMSolver, ONLY: lMiscibility, dDrivingForceSoln
+    USE ModuleGEMSolver!, ONLY: lMiscibility, dDrivingForceSoln
 !
     implicit none
 !
@@ -37,6 +37,7 @@ subroutine SubMinInit(iSolnPhaseIndex,iterSubMax)
 !
     ! Initialize variables:
     dDrivingForceLast = 10D0
+    ! dMaxPotentialVectorLast = 1D3
     lSubMinConverged  = .FALSE.
 !
     dDrivingForceSoln(iSolnPhaseIndex) = 0D0
@@ -45,34 +46,73 @@ subroutine SubMinInit(iSolnPhaseIndex,iterSubMax)
     ! Check if allocatable arrays are already allocated.  Deallocate if necessary:
     if (allocated(dChemicalPotentialStar)) deallocate(dChemicalPotentialStar)
     if (allocated(dRHS))                   deallocate(dRHS)
+    if (allocated(dRHSLast))               deallocate(dRHSLast)
     if (allocated(dHessian))               deallocate(dHessian)
     if (allocated(iHessian))               deallocate(iHessian)
-!
-    ! Allocate allocatable arrays:
-    allocate(dChemicalPotentialStar(nVar))
-!
+    if (allocated(dPi)) deallocate(dPi)
+    if (allocated(dPiLast)) deallocate(dPiLast)
+    if (allocated(dPiDot)) deallocate(dPiDot)
+    if (allocated(dLambda)) deallocate(dLambda)
+    if (allocated(dLambdaLast)) deallocate(dLambdaLast)
+    if (allocated(dvAdam)) deallocate(dvAdam)
+    if (allocated(dsAdam)) deallocate(dsAdam)
+    if (allocated(dvAdamLast)) deallocate(dvAdamLast)
+    if (allocated(dsAdamLast)) deallocate(dsAdamLast)
+    if (allocated(dxDot)) deallocate(dxDot)
+    if (allocated(dPotentialVector)) deallocate(dPotentialVector)
+
     ! Determine prefactor for allocating arrays (depends on whether the phase is ionic):
     if (iPhaseElectronID(iSolnPhaseIndex) == 0) then
         i = 1
     else
         i = 2
     end if
-!
+    
+    !We will revise this part with nVarSub to remove zeroing species
+    ! All variable related to Submin will be revised including dChemicalPotentialStar and variables for Adam
+    ! and dRHS,iHessian and dHessian
+
     ! Allocate allocatable arrays:
+    allocate(dChemicalPotentialStar(nVar),dPi(nVar+i),dPiDot(nVar+i),&
+    dLambda(nVar+i),dLambdaLast(nVar+i),dvAdam(nVar), dsAdam(nVar), dvAdamLast(nVar),&
+    dsAdamLast(nVar),dxDot(nVar),dPotentialVector(nVar))
     allocate(dRHS(nVar+i), iHessian(nVar+i), dHessian(nVar+i,nVar+i))
+    allocate(dRHSLast(nVar+i))
 !
     ! Initialize variables:
     dRHS                   = 0D0
+    dRHSLast               = 0D0
     dChemicalPotentialStar = 0D0
+    dPi         = 0D0
+    dPiDot      = 0D0
+    dLambda     = 0D0
+    dLambdaLast = 0D0
+    dvAdam      = 0D0
+    dsAdam      = 0D0
+    dvAdamLast  = 0D0
+    dsAdamLast  = 0D0
+    dxDot       = 0D0
+    dSubminGibbsEst = 0D0
+    dPotentialVector= 0D0
+    iAdamNeg = 0
+    lNegativeFraction = .FALSE.
 !
     ! Set a default value for iterSubMax if it is not specified:
-    iterSubMax = 100
-!
+    iterSub = 1
+    if(dMaxElementPotential>1D-1) then
+        dMaxPotentialTol = 1D-1
+    elseif(dMaxElementPotential>1D-2) then 
+        dMaxPotentialTol = 1D-3
+    else
+        dMaxPotentialTol = 1D-4
+    end if
+    iterSubMax = 1000
+    ! dMaxPotentialTol = 1D-3
     ! Loop through all constituents in this solution phase:
     do k = 1, nVar
 !
         ! Absolute species index:
-        i = nSpeciesPhase(iSolnPhaseIndex-1) + k
+        i = iFirstSUB + k -1 
 !
         ! Compute the chemical potentials of all constituents defined by the element potentials:
         dChemicalPotentialStar(k) = 0D0
@@ -83,33 +123,39 @@ subroutine SubMinInit(iSolnPhaseIndex,iterSubMax)
         end do
         dChemicalPotentialStar(k) = dChemicalPotentialStar(k) / DFLOAT(iParticlesPerMole(i))
 !
-        ! ! Mole fractions are often given before proceeding Subminimization.
-        ! ! Define the mole fractions in case they are not given or given as zeros.
-        ! if((MINVAL(DABS(dElementPotential))<1E-15).AND.&
-        ! (.NOT.lMiscibility(iSolnPhaseIndex)).AND.&
-        ! (MAXVAL(dMolfraction(iFirstSUB:iLastSUB))<1E-15)) then
-        !     !Subminimization during Leveling solver
-        !     dMolFraction(i) = DEXP(dChemicalPotentialStar(k) - dStdGibbsEnergy(i))
-        !     dMolFraction(i) = DMIN1(dMolFraction(i),1D0)
-        !     dMolFraction(i) = dMAX1(dMolFraction(i),1E-15)
-        ! else
-        !     ! Take the MolFraction as it is given
-        !     dMolFraction(i) = DMIN1(dMolFraction(i),1D0)
-        !     dMolFraction(i) = dMAX1(dMolFraction(i),1E-15)
-        ! end if
+        
+
         ! Initialize the mole fractions:
-        dMolFraction(i) = DMAX1(dMolFraction(i), 1D-15)
+        dMolFraction(i) = DMIN1(dMolFraction(i),1D0)
+        dMolFraction(i) = DMAX1(dMolFraction(i), 1D-50)
 !
 !
     end do
-    ! dMolFraction(iFirstSUB:iLastSUB)=dMolFraction(iFirstSUB:iLastSUB)/sum(dMolFraction(iFirstSUB:iLastSUB))
-!
+
+    
+
+    dMolFraction(iFirstSUB:iLastSUB)=dMolFraction(iFirstSUB:iLastSUB)/sum(dMolFraction(iFirstSUB:iLastSUB))
+    
     ! Compute the chemical potentials of solution phase constituents:
     call SubMinChemicalPotential(iSolnPhaseIndex)
+
 !
     ! Compute the driving force of this solution phase:
     call SubMinDrivingForce
 !
+    
+    do j = 1, nVar
+        i                 = iFirstSUB + j - 1 
+        dSubminGibbsEst = dSubminGibbsEst+(dChemicalPotential(i)-dChemicalPotentialStar(j))
+    end do
+    dSubminGibbsEst = dSubminGibbsEst/nVar
+
+    do j = 1, nVar
+        i                 = iFirstSUB + j - 1
+        dPotentialVector(j) = dSubminGibbsEst-(dChemicalPotential(i)-dChemicalPotentialStar(j))
+    end do
+    dMaxPotentialVector = MAXVAL(DABS(dPotentialVector))
+
     ! If this phase contains a miscibility gap, determine the absolute index of the corresponding
     ! solution phase with the miscibility gap:
     if (lMiscibility(iSolnPhaseIndex)) then

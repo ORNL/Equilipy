@@ -132,10 +132,20 @@ def equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPhas
     # Get a batch input
     arg =_batch_input(Database,NTP,Unit,ListOfPhases,nPerBatch)
     res_mpi=list(_equilib_mpi(arg,nCPU))
+    
+    #Concatenate all results
     res=res_mpi[0]
     for i,r in enumerate(res_mpi):
         if i==0: continue
-        # if ph in list(r.Phases.keys()): print(i,'r',r.Phases[ph].Amount)
         res.append(r)
-        # if ph in list(r.Phases.keys()): print(i,'res',res.Phases[ph].Amount)
+        
+    # Convert the datatype into numpy
+    res.T = np.array(res.T)
+    res.P = np.array(res.P)
+    res.G = np.array(res.G)
+    res.H = np.array(res.H)
+    res.S = np.array(res.S)
+    res.Cp = np.array(res.Cp)
+    
+    
     return res

@@ -127,6 +127,8 @@ subroutine CheckThermoInput
     end select
 !
     cInputUnitTemperature = 'K'
+    !Revised temperature for the numerical Cp calculation
+    dTemperature = dTemperature - dTemperatureDiff
 !
     ! Check that the absolute temperature [K] is within an acceptable range and real:
     if ((dTemperature < 295D0).OR.(dTemperature > 6000D0).OR.(dTemperature /= dTemperature)) then

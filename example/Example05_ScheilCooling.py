@@ -23,9 +23,11 @@ if __name__ == "__main__":
     # Calculate Scheil cooling
     res=eq.scheil_cooling(TargetPhase,DB,NTP,dT=10)
     
+    print('Scheil Constituent information, mol. fr.:', res.ScheilConstituents)
+    
     # Save data
     df=pl.DataFrame(res.to_dict())  
-    df.write_csv(f'Result/Ex05_ACMS.csv')
+    df.write_csv(f'Result_Ex05_ACMS.csv')
 
     # Plot Phase amount as function of temperature
     T= np.array(res.T)

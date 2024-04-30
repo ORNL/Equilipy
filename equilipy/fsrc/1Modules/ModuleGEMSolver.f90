@@ -66,9 +66,11 @@ module ModuleGEMSolver
 !
     real(8)                                            :: dGEMFunctionNorm, dGEMFunctionNormLast, dMaxSpeciesChange, dMinGibbs
     real(8)                                            :: dMinDrivingForceStoich, dMinDrivingForceSoln, dSpeciesRemove, dPlateau
-    real(8)                                            :: xT, dGParam, dHParam, dSParam, dCpParam
+    real(8)                                            :: xT, dGParam, dHParam, dSParam, dCpParam,dMaxPotentialTol
     real(8), dimension(:),   allocatable :: dSumMolFractionSoln, dMolesPhaseLast, dUpdateVar, dDrivingForceSoln
     real(8), dimension(:),   allocatable :: dPartialExcessGibbs, dPartialExcessGibbsLast, dGibbsEnergySysHist
+    real(8), dimension(:),   allocatable :: dDeltaSpecies, dDeltaPotential, dUpdateVarLast
+    real(8), dimension(:),   allocatable :: dPartialEnthalpyXSLast, dPartialEntropyXSLast, dPartialHeatCapacityXSLast
     real(8), dimension(:),   allocatable :: dMolesSpeciesLast, dElementPotentialLast !Added by S.Y. Kwon
     real(8), dimension(:),   allocatable :: dPartialGParam, dPartialHParam, dPartialSParam,dPartialCpParam
     ! real(8), dimension(:,:), allocatable ::  dEffStoichSolnPhase, dMolFractionGEM

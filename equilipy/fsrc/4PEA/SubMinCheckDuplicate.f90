@@ -33,23 +33,28 @@ subroutine SubMinCheckDuplicate(lDuplicate)
         return
     end if
 !
-    ! Compute the Euclidean norm between the two mole fraction vectors:
-    do k = 1, nVar
-!
-        ! Absolute species index:
-        i = iFirstSUB      + k - 1    ! Absolute index for first species in iSolnPhaseIndex
-        j = iFirstSUBOther + k - 1    ! Absolute index for first species in iSolnPhaseIndexOther
-!
-        dTemp = dTemp + DABS(dMolfraction(i) - dMolfraction(j))
-!
-    end do
+!     ! Compute the Euclidean norm between the two mole fraction vectors:
+!     do k = 1, nVar
+! !
+!         ! Absolute species index:
+!         i = iFirstSUB      + k - 1    ! Absolute index for first species in iSolnPhaseIndex
+!         j = iFirstSUBOther + k - 1    ! Absolute index for first species in iSolnPhaseIndexOther
+! !
+!         dTemp = dTemp + DABS(dMolfraction(i) - dMolfraction(j))
+! !
+!     end do
+
+    dTemp = MAXVAL(DABS(MATMUL(dMolfraction(iFirstSUB:iLastSUB),dStoichSpecies(iFirstSUB:iLastSUB,:)) -&
+    MATMUL(dMolfraction(iFirstSUBOther:iLastSUBOther),dStoichSpecies(iFirstSUBOther:iLastSUBOther,:))))
+
 !
     ! Compute the normalized Euclidean norm between the mole fraction vectors between the two "phases":
-    dTemp = ( dTemp ) / DFLOAT(nVar)
+    ! dTemp = ( dTemp ) / DFLOAT(nVar)
 !
 !
     ! Check if the normalized Euclidean norm is less than a specified tolerance:
-    if (dTemp < dTolEuclideanNorm) lDuplicate = .TRUE.
+    ! if (dTemp < dTolEuclideanNorm) lDuplicate = .TRUE.
+    if (dTemp < 5D-2) lDuplicate = .TRUE.
 !
 end subroutine SubMinCheckDuplicate
 !

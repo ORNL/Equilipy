@@ -65,7 +65,7 @@ subroutine CheckMiscibilityGap(iSolnPhaseIndex,lAddPhase)
     iFirst           = nSpeciesPhase(iSolnPhaseIndex-1) + 1
     iLast            = nSpeciesPhase(iSolnPhaseIndex)
     nConstituents    = iLast - iFirst + 1
-    dMinMoleFraction = 1D-3
+    dMinMoleFraction = 1D-5
     dMaxMoleFraction = 1D0 - dMinMoleFraction * DFLOAT(nConstituents-1)
     dMaxMoleFraction = DMAX1(dMaxMoleFraction, 0.9D0)
     lAddPhase        = .FALSE.
@@ -76,7 +76,6 @@ subroutine CheckMiscibilityGap(iSolnPhaseIndex,lAddPhase)
         ! Initialize the mole fractions:
         ! iMaxMoleIndex= MAXLOC(dStoichSpecies(iFirst:iLast,i)/sum(dStoichSpecies(iFirst:iLast,:),dim=2),dim=1)
         dMolFraction(iFirst:iLast) = dMinMoleFraction
-        ! dMolFraction(iFirst+iMaxMoleIndex-1)   = dMaxMoleFraction
         dMolFraction(iFirst+i-1)   = dMaxMoleFraction
 !
         ! Perform subminimization:

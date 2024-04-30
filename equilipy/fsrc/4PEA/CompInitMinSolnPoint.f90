@@ -69,8 +69,8 @@ subroutine CompInitMinSolnPoint
         !initialize variables
         m                = nSpeciesPhase(i-1) + 1      ! First constituent in phase.
         n                = nSpeciesPhase(i)            ! Last  constituent in phase.
-        nConstituents    = n - m + 2
-        dMinMoleFraction = 1D-15
+        nConstituents    = n - m + 1
+        dMinMoleFraction = 1D-5
         dMaxMoleFraction = 1D0 - dMinMoleFraction
 !
         lAddPhase        = .False.        
@@ -93,13 +93,8 @@ subroutine CompInitMinSolnPoint
             ! Perform subminimization multiple times by initializing from all extremums of the domain space:
             LOOP_Constituents1: do j = 1, nConstituents
 !
-                ! Initialize the mole fractions:
-                if (j==1)then
-                    dMolFraction(m:n)   = 0D0
-                else
-                    dMolFraction(m:n)   = dMinMoleFraction
-                    dMolFraction(m+j-1) = dMaxMoleFraction
-                end if
+                dMolFraction(m:n)   = dMinMoleFraction
+                dMolFraction(m+j-1) = dMaxMoleFraction
 !
 !
                 ! Perform subminimization:

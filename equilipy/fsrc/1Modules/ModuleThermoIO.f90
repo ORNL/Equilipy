@@ -49,27 +49,28 @@ implicit none
     SAVE
 !
     ! INPUT VARIABLES:
-    integer                                  :: iCounter, iPrintResultsMode
-    real(8)                                   :: dTemperature, dPressure
-    real(8),       dimension(0:118)          :: dElementMass
-    logical,       dimension(0:118)          :: lPreset = .FALSE.
-    character(15)                             :: cInputUnitTemperature, cInputUnitPressure, cInputUnitMass
-    character(120)                           :: cThermoFileName
-    logical                                       :: lReinitAvailable = .FALSE., lReinitLoaded = .FALSE., lReinitRequested = .FALSE.
+    integer                          :: iCounter, iPrintResultsMode
+    real(8)                          :: dTemperature, dPressure
+    real(8), parameter               :: dTemperatureDiff = 5D-1
+    real(8),       dimension(0:118)  :: dElementMass
+    logical,       dimension(0:118)  :: lPreset = .FALSE.
+    character(15)                    :: cInputUnitTemperature, cInputUnitPressure, cInputUnitMass
+    character(120)                   :: cThermoFileName
+    logical                          :: lReinitAvailable = .FALSE., lReinitLoaded = .FALSE., lReinitRequested = .FALSE.
 !
     ! Compound variables:
-    integer                                               :: nCompounds = 0
-    real(8),       dimension(118)                :: dCompoundMass
-    real(8),       dimension(118,0:118)      :: dCompoundStoich
-    character*12,  dimension(118)            :: cCompoundNames
-    logical                                               :: lCompoundStoichCalculated = .FALSE.
+    integer                              :: nCompounds = 0
+    real(8),       dimension(118)        :: dCompoundMass
+    real(8),       dimension(118,0:118)  :: dCompoundStoich
+    character*12,  dimension(118)        :: cCompoundNames
+    logical                              :: lCompoundStoichCalculated = .FALSE.
 !
     ! OUTPUT VARIABLES:
-    integer                                                  :: INFOThermo, nSolnPhasesOut, nPureConPhaseOut, nSpeciesOut
-    real(8)                                                   :: dGibbsEnergySys, dEnthalpySys, dEntropySys, dHeatCapacitySys
-    real(8), dimension(:), allocatable           :: dSolnPhaseMolesOut, dPureConPhaseMolesOut, dSpeciesMoleFractionOut, dPair
+    integer                                  :: INFOThermo, nSolnPhasesOut, nPureConPhaseOut, nSpeciesOut
+    real(8)                                  :: dGibbsEnergySys, dEnthalpySys, dEntropySys, dHeatCapacitySys
+    real(8), dimension(:), allocatable       :: dSolnPhaseMolesOut, dPureConPhaseMolesOut, dSpeciesMoleFractionOut, dPair
     character(25), dimension(:), allocatable :: cSolnPhaseNameOut, cPureConPhaseNameOut, cSpeciesNameOut, cSpeciesPhaseOut
     character(30), dimension(:), allocatable :: cPair
-    logical, dimension(:), allocatable           :: lSpeciesStable
+    logical, dimension(:), allocatable       :: lSpeciesStable
 !
 end module ModuleThermoIO

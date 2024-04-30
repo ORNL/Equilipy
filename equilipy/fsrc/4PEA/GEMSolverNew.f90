@@ -123,8 +123,8 @@ subroutine GEMSolverNew
         if((MINVAL(iAssemblage)==MAXVAL(iAssemblage)).AND.(MAXVAL(dMolesPhase)>=1000)) exit LOOP_GEM
 
         ! Global minimum
-        if ((MINVAL(dPhasePotential) >dToleranceLevel).AND.&
-        (dMaxElementPotential<1D-4)) exit LOOP_GEM
+        if ((MINVAL(dPhasePotential) >=dToleranceLevel).AND.&
+        (dMaxElementPotential<1D-5).AND.(dGEMFunctionNorm<1D-5)) exit LOOP_GEM
 !
     end do LOOP_GEM
 !
@@ -135,7 +135,7 @@ subroutine GEMSolverNew
 
     ! Define Candidate phases to be added 
     do i =1,nSpecies
-        if(dPhasePotential(i)<500) iCandidate(i)=1
+        if(dPhasePotential(i)<1D-3) iCandidate(i)=1
     end do
 !
     

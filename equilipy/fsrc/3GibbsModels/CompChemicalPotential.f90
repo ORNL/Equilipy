@@ -57,17 +57,11 @@ subroutine CompChemicalPotential(lCompEverything)
 !
 !
     ! Initialize variables:
-    dChemicalPotential  = 0D0
-    dPartialEnthalpy    = 0D0
-    dPartialEntropy     = 0D0
-    dPartialHeatCapacity= 0D0
-    dGibbsSolnPhase     = 0D0
-
-    ! ! They are allocated in CompMinSolnPoint
-    dPartialExcessGibbs = 0D0
-    dPartialEnthalpyXS  = 0D0
-    dPartialEntropyXS   = 0D0
-    dPartialHeatCapacityXS = 0D0
+    dGibbsSolnPhase       = 0D0
+    dChemicalPotential    = dStdGibbsEnergy
+    dPartialEnthalpy      = dStdEnthalpy
+    dPartialEntropy       = dStdEntropy
+    dPartialHeatCapacity  = dStdHeatCapacity
 !
     ! Compute the mole fractions of species in solution phases expected to be stable:
     do j = 1, nSolnPhases

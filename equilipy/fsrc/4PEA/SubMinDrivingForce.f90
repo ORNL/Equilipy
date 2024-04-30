@@ -49,6 +49,7 @@ subroutine SubMinDrivingForce
 !
     ! Normalize the driving force as to one mole of atom
     dDrivingForce=dDrivingForce/dTemp
+    
 !
 end subroutine SubMinDrivingForce
 !

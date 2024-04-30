@@ -123,8 +123,10 @@ subroutine Subminimization(iSolnPhaseIndex,lPhasePass)
 !
     implicit none
 !
-    integer :: iterSub,    iSolnPhaseIndex, iterSubMax
+    integer :: iSolnPhaseIndex, iterSubMax, i,j, k, l
     logical :: lPhasePass, lDuplicate
+    real(8), dimension(:,:),allocatable:: dMFdummy
+    real(8),dimension(:),allocatable:: dMVdummy
 !
     ! Initialize local variables:
     lPhasePass = .FALSE.
@@ -135,44 +137,74 @@ subroutine Subminimization(iSolnPhaseIndex,lPhasePass)
     iFirstSUB            = nSpeciesPhase(iSolnPhaseIndex-1) + 1
     iLastSUB             = nSpeciesPhase(iSolnPhaseIndex)
     nVar                 = iLastSUB - iFirstSUB + 1
+    iterSubLg =0
+    iterSubAdam =0
+    
 !
+    
+
     ! Initialize the subminimization subroutine:
     call SubMinInit(iSolnPhaseIndex,iterSubMax)
+    
+    if(allocated(dMVdummy)) deallocate(dMVdummy)
+    if(allocated(dMFdummy)) deallocate(dMFdummy)
+    allocate(dMVdummy(iterSubMax),dMFdummy(iterSubMax,nVar))
+    dMVdummy = 0D0
+    dMFdummy = 0D0
 !
+
     ! Subminimization iteration loop:
     LOOP_IterSub: do iterSub = 1, iterSubMax
-!
-        ! Compute the direction vector:
-        call SubMinNewton(iSolnPhaseIndex)
-!
-        ! Compute an appropriate step length:
-        call SubMinLineSearch(iSolnPhaseIndex)
-!
+        !To plot oscillation graph
+        do j =1,nVar
+            i   = iFirstSUB + j - 1
+            dMFdummy(iterSub,j) = dMolFraction(i)
+        end do
+
+        if((nVar>1)&
+        .and.(.NOT.lNegativeFraction)&
+        .and.(dMaxElementPotential>1D-1)) then
+            ! Update next iteration
+            call SubMinAdam(iSolnPhaseIndex)
+            iterSubAdam = iterSubAdam +1
+        else
+            ! Compute the direction vector:
+            call SubMinNewton(iSolnPhaseIndex)
+
+            ! Compute an appropriate step length:
+            call SubMinLineSearch(iSolnPhaseIndex)
+            iterSubLg = iterSubLg+1
+        end if
+        
+        !To plot oscillation graph
+        dMVdummy(iterSub) = dMaxPotentialVector
+
         ! Compute the functional norm:
         call SubMinFunctionNorm(iSolnPhaseIndex)
 !
-        ! Check if the minimum mole fraction is below a certain tolerance:
+        ! In case when handling zeroing species fails, exit the loop:
         if (MINVAL(dMolFraction(iFirstSUB:iLastSUB)) < dMinMoleFraction) exit LOOP_IterSub
-!
+        
+
         ! Only check for convergence if the functional norm is below tolerance:
-        if (dSubMinFunctionNorm < dTolerance(1)) then!
-            ! Check convergence:
-            if ((dDrivingForce <= dTolerance(4)).AND.(.NOT.lMiscibility(iSolnPhaseIndex))) lSubMinConverged = .TRUE.
-!
-            ! if (.NOT.(lMiscibility(iSolnPhaseIndex))) lSubMinConverged = .TRUE.
-        end if
-!
-        ! Exit if the subminimization has converged:
-        if ((lSubMinConverged).OR.(INFOThermo /= 0)) exit LOOP_IterSub
-!
+        if ((dSubMinFunctionNorm < dTolerance(1)) &
+        .and.(dMaxPotentialVector<dMaxPotentialTol)&
+        .and.(iterSubLg>0)&
+        ) lSubMinConverged = .TRUE.
+
         ! Check if the solution phases represening the miscibility gap duplicate one another:
         if (lMiscibility(iSolnPhaseIndex)) call SubMinCheckDuplicate(lDuplicate)
 !
         ! Exit if the subminimization has converged:
         if (lDuplicate) exit LOOP_IterSub
 !
+        ! Exit if the subminimization has converged:
+        if ((lSubMinConverged).OR.(INFOThermo /= 0)) exit LOOP_IterSub
+
+        
+
     end do LOOP_IterSub
-!
+
     ! If the composition of phases representing a miscibility gap duplicate one another (i.e., they have virtually
     ! the same composition), then set the driving force to zero to prevent this phase from being added to the system.
     if (lDuplicate) dDrivingForce = 9D5

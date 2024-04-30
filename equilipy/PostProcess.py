@@ -164,9 +164,9 @@ class Result:
     T: float = None
     P: float = None
     G: float = field(default_factory=float)
-    H: list[float] = field(default_factory=list)
-    S: list[float] = field(default_factory=list)
-    Cp: list[float] = field(default_factory=list)
+    H: float = field(default_factory=float)
+    S: float = field(default_factory=float)
+    Cp: float = field(default_factory=float)
     
     # Phase properties
     StablePhases:dict = field(default_factory=dict)
@@ -381,9 +381,6 @@ class Result:
                 if ln_differ>0: self.N[el]=self.N[el]+list([float(0.0)]*ln_differ)
             
             PhasesBefore=list(self.Phases.keys())
-            # print('PhasesBefore',PhasesBefore)
-            # if len(PhasesBefore)==0: lp_before = 0
-            # else: lp_before= int(len(self.Phases[PhasesBefore[0]].Amount))
             lp_before = int(len(self.T))-1
             for i in range(len(var.iSys2DBSoln)+len(var.iSys2DBComp)):
                 new=Phase(i)
@@ -510,7 +507,7 @@ class Result:
         df['G J']=self.G
         df['H J']=self.H
         df['S J/K']=self.S
-        # df['Cp J/K']=self.Cp
+        df['Cp J/K']=self.Cp
         df['StablePhaseNames']=[str(x) for x in self.StablePhases['Name']]
         df['StablePhaseIDs']=[str(x) for x in self.StablePhases['ID']]
         df['StablePhaseAmount']=[str(x) for x in self.StablePhases['Amount']]
@@ -630,7 +627,7 @@ class ResultScheil():
                     vals= self.ScheilPhases[name]
                     self.ScheilPhases[name].append(vals[-1]+float(self.EquilibResult.StablePhases['Amount'][-1][i]))
             else:
-                self.ScheilPhases[name]= list([float(0.0)]*int(nrows-1))
+                self.ScheilPhases[name]= [float(0.0)]*int(nrows-1)
                 self.ScheilPhases[name].append(float(self.EquilibResult.StablePhases['Amount'][-1][i]))
         
         # Update PhaseLabel (precipitating phases)
@@ -653,6 +650,7 @@ class ResultScheil():
     
     def update_scheilconstituents(self):
         k=0
+        
         for i,T in enumerate(self.T):
             constituents=self.PhaseLabel[i].split('+')
             constituents=[x for x in constituents if 'LIQ' not in x.upper() and x != '']
@@ -690,7 +688,6 @@ class ResultScheil():
                             self.ScheilConstituents[fphase]=self.fl[k]
                     
                 else:
-                
                     if cphase in scheilconstituents:
                         self.ScheilConstituents[cphase]=self.ScheilConstituents[cphase]+self.fl[k]
                     else:
