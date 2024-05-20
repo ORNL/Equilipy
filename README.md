@@ -8,20 +8,38 @@ Equilipy is an open-source python package that offers multicomponent multiphase 
 |Python     | 3.9+     | Yes      | numpy, wheel, meson, ninja
 
 ## Before installation
-Because Equilipy uses Fortran subroutines a Fortran compiler needs to be available in the local envirionment. To install GNU Fortran, following command may be used for Ubuntu and Debian,
+Equilipy requires a Fortran compiler and MPI in the local envirionment. To install GNU Fortran and OpenMPI in Linux using `conda`
+
 ```
-sudo apt-get install gfortran
+conda install -c conda-forge gfortran_linux-64 openmpi mpi4py
+```
+or in MacOS
+```
+conda install -c conda-forge gfortran_osx-64 openmpi mpi4py
+```
+
+Alternatively, following command may be used for Ubuntu and Debian,
+```
+sudo apt-get install gfortran libopenmpi-dev
 ```
 for MacOS,
 ```
-brew install gcc
+brew install gcc open-mpi
 ```
-for Windows, check out [MinGW-w64](https://www.mingw-w64.org/downloads/#mingw-builds).
+for Windows, MS-MPI is pre-installed. For GNU Fortran, check out [MinGW-w64](https://www.mingw-w64.org/downloads/#mingw-builds).
 
 Equilipy also requires Python version 3.9 and above. The Fortran backend needs to be compiled through the f2py module in `numpy` which requires `meson` and `ninja`. The `wheel` library is used for packaging. These can both be installed through pip.
 
 ## Installation
-Here is the procedure to install Equilipy:
+
+### Pypi
+Installation using `pip` is available for Equilipy. Please ensure OpenMPI (or MPICH) is preinstalled:
+```
+pip install equilipy
+```
+
+### Install from the source
+Here is the procedure to install Equilipy from the source:
 1. Clone the repository
 ```
 git clone https://github.com/ORNL/Equilipy.git
