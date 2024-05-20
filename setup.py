@@ -33,9 +33,9 @@ class f2py_Build(build_ext):
             
         # Copy the shared object file to the build directory
         if sys.platform.startswith('win'):
-            os.system(f'cd equilipy&& f2py -c {self.slist} -m equilifort --backend distutils')
+            os.system(f'cd equilipy&& f2py -c {self.slist} -m equilifort --backend distutils --fcompiler=gnu95')
         else:
-            os.system(f'cd equilipy; f2py -c {self.slist} -m equilifort --backend meson')
+            os.system(f'cd equilipy; f2py -c {self.slist} -m equilifort --backend meson --fcompiler=gnu95')
         
         lib_name = self.get_ext_filename('equilipy/equilifort')
         
@@ -51,6 +51,7 @@ class f2py_Build(build_ext):
             newdlls=[newdll]
             self.copy_file(f'equilipy\\{newdll}', os.path.join(build_lib, f'equilipy\\{newdll}'))
             for ext in self.extensions:
+                ext.include_package_data=True,
                 ext.package_data=dict({'equilipy':newdlls})
 
         # Continue with the build process
@@ -89,6 +90,7 @@ setup(
         "xlsx2csv",
         "matplotlib",
         "tqdm",
+        "mpi4py",
         ],
     ext_modules=[f2py_Extension('equilipy',['equilipy/fsrc'])],  # Include the Fortran extension
     entry_points={

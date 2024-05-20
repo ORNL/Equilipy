@@ -56,3 +56,14 @@ Running the first example is as simple as:
 cd example/
 python Example01_SingleEquilib.py
 ```
+
+## Additional note
+Examples in Equilipy uses `polars` dataframe for fast data processing. If you are using old CPUs, install
+```
+pip install polars-lts-cpu
+```
+If you are using large dataset (> 4billion), install 
+```
+pip install polars-u64-idx
+```
+For details, check out [polars](https://docs.pola.rs/).

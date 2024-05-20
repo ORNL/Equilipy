@@ -3,11 +3,11 @@ import polars as pl, time
 from datetime import timedelta
 import equilipy as eq
 if __name__ == "__main__":
-    # system = 'AlCuMgSi'
+    system = 'AlCuMgSi'
     # system = 'AlCuMg'
     # system = 'AlCuSi'
     # system = 'AlMgSi'
-    system = 'CuMgSi'
+    # system = 'CuMgSi'
 
 
     #Parse database
