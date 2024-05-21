@@ -53,9 +53,9 @@ our community a poisitive experiences for everyone.
 [^1]: de Capitani, C. and Brown, T.H., *Geochimica et Cosmochimica Acta* 51, (1987): 2639-2652.
 
 [equilipy]: https://github.com/ORNL/Equilipy
-[CALPHAD method]: https://www-sciencedirect-com.ornl.idm.oclc.org/journal/calphad/about/aims-and-scope
+[CALPHAD method]: https://calphad.org
 [Thermochimica]: https://github.com/ORNL-CEES/thermochimica
-[preinstall]: https://ornl.github.com/Equilipy/blob/main/docs/preinstal.mdl
-[install]: https://ornl.github.com/Equilipy/blob/main/docs/install.md
-[features]: https://ornl.github.com/Equilipy/blob/main/docs/features.md
+[preinstall]: https://github.com/ORNL/Equilipy/blob/main/docs/preinstal.mdl
+[install]: https://github.com/ORNL/Equilipy/blob/main/docs/install.md
+[features]: https://github.com/ORNL/Equilipy/blob/main/docs/features.md
 [polars]: https://docs.pola.rs/
