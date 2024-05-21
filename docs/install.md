@@ -1,8 +1,7 @@
 ---
-layout: default
+layouts: default
 title: Install
 nav_order: 2
-description: "Installtion descrition"
 ---
 
 # Installation

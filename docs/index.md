@@ -1,5 +1,5 @@
 ---
-layout: default
+layouts: default
 title: Home
 nav_order: 1
 description: "Quick description"
