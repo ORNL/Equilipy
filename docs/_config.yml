@@ -1,0 +1,9 @@
+title: Equilipy
+description: A starter template for a Jeykll site using the Just the Docs theme!
+theme: just-the-docs
+
+url: https://ornl.github.io/equilipy
+baseurl: "/docs"
+
+aux_links:
+  Template Repository: https://github.com/ORNL/Equilipy
