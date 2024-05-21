@@ -1,0 +1,53 @@
+---
+layout: default
+title: Install
+nav_order: 2
+description: "Installtion descrition"
+---
+
+# Installation
+
+{: .warning }
+> Equilipy requires a Fortran compiler in the local environment. To install a Fortran compiler, please follow [Preinstall][preinstall].
+
+## PIP
+Installation using `pip` is available for `equilipy`. 
+To install `equilipy` in your **desktop/laptop**:
+```
+pip install equilipy
+```
+
+For **HPC environment**, use `equilipy-hpc` instead of `equilipy`
+```
+pip install equilipy-hpc
+```
+
+{: .warning }
+> `equilipy-hpc` uses `mpi4py` to interface with MPI tools. MPI tools such as OpenMPI or MPICH must be preinstalled. To install To install OpenMPI and mpi4py, check out [Preinstall][preinstall].
+
+## Install from the source
+[GitHub repository][equilipy] provides source codes to build `equilipy`.
+To install `equilipy` from the source:
+1. Clone the repository
+```
+git clone https://github.com/ORNL/Equilipy.git
+```
+2. Install dependant packages using pip.
+```
+pip install numpy wheel meson ninja
+```
+3. Create wheels
+```
+python setup.py bdist_wheel --dist-dir=./wheelhouse
+```
+Note that on macOS it may be necessary to explicitly use GNU `gcc` instead of the Apple clang `gcc`. For example, with a brew installation, export `CC` before calling `setup.py`:
+```
+export CC=/usr/local/Cellar/gcc/*/bin/gcc-*
+```
+4. Install from .whl file
+```
+pip install wheelhouse/equilipy-*.whl
+```
+
+[preinstall]: https://ornl.github.com/Equilipy/docs/preinstall
+[equilipy]: https://github.com/ORNL/Equilipy

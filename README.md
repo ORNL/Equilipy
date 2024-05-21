@@ -9,7 +9,7 @@ Equilipy is an open-source python package that offers multicomponent multiphase 
 
 ## Before installation
 ### Single computing nodes (desktop/laptop)
-Equilipy requires a Fortran compiler in the local envirionment.
+Equilipy requires a Fortran compiler in the local environment.
 To install gfortran using `conda`,
 for **Linux**:
 ```
@@ -113,11 +113,7 @@ The following features are currently available.
 - Phase selection
 
 For details, check out the example directory.
-Running the first example is as simple as:
-```
-cd example/
-python Example01_SingleEquilib.py
-```
+
 
 ## Additional note
 Examples in Equilipy uses `polars` dataframe for fast data processing. If you are using old CPUs, install
