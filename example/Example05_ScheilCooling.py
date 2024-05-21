@@ -3,13 +3,12 @@ import numpy as np, matplotlib.pyplot as plt, polars as pl
 import equilipy as eq
 
 if __name__ == "__main__":
-    #Parse database
+    # Step 1: Parse database
     datafile= './Database/AlCuMgSi_ORNL'
     DB=eq.read_dat(datafile+'.dat')
 
-    #Set input data
+    # Step 2: Set input data
     system=['Al','Cu','Mg','Si']
-    # NTP = [1000,1,0.75,0.05,0.1,0.1]
     NTP = dict({
         'T':1000,
         'P': 1,
@@ -18,14 +17,12 @@ if __name__ == "__main__":
         'Mg':0.1,
         'Si': 0.1})
 
+    # Step 3: Calculate Scheil cooling based on LIQUID as target phase
     TargetPhase='LIQUID'
-
-    # Calculate Scheil cooling
     res=eq.scheil_cooling(TargetPhase,DB,NTP,dT=10)
     
+    # Step 4: Post processing
     print('Scheil Constituent information, mol. fr.:', res.ScheilConstituents)
-    
-    # Save data
     df=pl.DataFrame(res.to_dict())  
     df.write_csv(f'Result_Ex05_ACMS.csv')
 

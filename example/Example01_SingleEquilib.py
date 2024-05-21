@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 import equilipy as eq
 
-
 if __name__ == "__main__":
-    #Parse database
+    # Step 1: Parse database
     datafile=f'./Database/AlCuMgSi_ORNL'
     DB=eq.read_dat(datafile+'.dat')
 
-    # Parse input data
+    # Step 2: Parse input data
     NTP = dict({
         'T':700,
         'P': 1,
@@ -15,14 +14,16 @@ if __name__ == "__main__":
         'Cu':0.42424242,
         'Si':0.515151515})
 
+    # Step 3: Calculate equilibrium
     res=eq.equilib_single(DB,NTP)
 
-
-    #print all stable phases
+    # Step 4: Post process
+    
+    # 4.1: print all stable phases
     print(res.StablePhases['Name'])
     print(res.StablePhases['Amount'])
 
-    #print all phases
+    # 4.2: print all phases
     PhasesAll=list(res.Phases.keys())
 
     for i,ph in enumerate(PhasesAll):

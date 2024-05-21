@@ -49,5 +49,5 @@ export CC=/usr/local/Cellar/gcc/*/bin/gcc-*
 pip install wheelhouse/equilipy-*.whl
 ```
 
-[preinstall]: https://ornl.github.com/Equilipy/docs/preinstall
+[preinstall]: https://github.com/ORNL/Equilipy/blob/main/docs/preinstall.md
 [equilipy]: https://github.com/ORNL/Equilipy
