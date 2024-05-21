@@ -11,8 +11,8 @@ from .ListPhases import list_phases
 from .Errors import *
 from .ReadDict import read_dict
 import equilipy.variables as var
-from mpi4py.futures import MPIPoolExecutor
-from mpi4py import MPI
+# from mpi4py.futures import MPIPoolExecutor
+# from mpi4py import MPI
 from multiprocessing import Pool
 from numba import njit
 
@@ -94,11 +94,11 @@ def _equilib_singlenode(arg,nCPU):
         res = pool.starmap(_equilib_batch, tqdm(arg,colour='#8060ff',ascii="░▒▓",bar_format="{l_bar}{bar:50}{r_bar}"))
     return res
 
-def _equilib_multinodes(arg,nCPU):
-    print(f'Process with mpi: {nCPU} processors')
-    with MPIPoolExecutor(max_workers=nCPU) as pool:
-        res = pool.starmap(_equilib_batch, arg)
-    return res
+# def _equilib_multinodes(arg,nCPU):
+#     print(f'Process with mpi: {nCPU} processors')
+#     with MPIPoolExecutor(max_workers=nCPU) as pool:
+#         res = pool.starmap(_equilib_batch, arg)
+#     return res
 
 def equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPhases:list=None,nCPU:int=os.cpu_count(),nPerBatch:int=1):
     '''
@@ -138,11 +138,14 @@ def equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPhas
     # Get a batch input
     arg =_batch_input(Database,NTP,Unit,ListOfPhases,nPerBatch)
     
-    # Check if it is on a single node with multiple processors
-    if(MPI.COMM_WORLD.Get_size()==1):
-        res_mpi=list(_equilib_singlenode(arg,nCPU))
-    else:
-        res_mpi=list(_equilib_multinodes(arg,MPI.COMM_WORLD.Get_size()))
+    
+    res_mpi=list(_equilib_singlenode(arg,nCPU))
+    
+    # For HPC, Check if it is on a single node with multiple processors
+    # if(MPI.COMM_WORLD.Get_size()==1):
+    #     res_mpi=list(_equilib_singlenode(arg,nCPU))
+    # else:
+    #     res_mpi=list(_equilib_multinodes(arg,MPI.COMM_WORLD.Get_size()))
     
     #Concatenate all results
     res=res_mpi[0]

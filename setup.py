@@ -90,7 +90,6 @@ setup(
         "xlsx2csv",
         "matplotlib",
         "tqdm",
-        "mpi4py",
         ],
     ext_modules=[f2py_Extension('equilipy',['equilipy/fsrc'])],  # Include the Fortran extension
     entry_points={
