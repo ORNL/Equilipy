@@ -1,7 +1,7 @@
 title: Equilipy
 description: A python package for calculating chemical equilibria using CALPHAD approach
 url: https://ornl.github.io/equilipy/
-baseurl: "/docs"
+baseurl: "/Equilipy/docs"
 
 # Build settings
 markdown: kramdown
@@ -16,13 +16,13 @@ just_the_docs:
   # Enable the sidebar
   nav:
     - title: "Home"
-      url: /index/
+      url: /Equilipy/docs/index/
     - title: "Preinstall"
-      url: /preinstall/
+      url: /Equilipy/docs/preinstall/
     - title: "Install"
-      url: /install/
+      url: /Equilipy/docs/install/
     - title: "Features and Examples"
-      url: /features/
+      url: /Equilipy/docs/features/
 
   # Enable search
   search_enabled: true
