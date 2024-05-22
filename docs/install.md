@@ -13,6 +13,7 @@ To install `equilipy` in your **desktop/laptop**:
 ```
 pip install equilipy
 ```
+
 {: .warning }
 `equilipy` requires a Fortran compiler in the local environment. To install a Fortran compiler, please follow [Preinstall][preinstall].
 

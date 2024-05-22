@@ -119,6 +119,7 @@ Phase selection can also be used to calculation batch equilibrium and Scheil-Gul
 
 ## Batch equilibrium
 Calculating multiple NTP conditions are also available using a batch process. By default, `equilipy` uses all available processors in the computing node via `multiprocessing`. 
+
 {: .warning }
 `multiprocessing` calls python script multiple times. Users should ensure using `if __name__ == "__main__":` in their main script.
 
