@@ -2,7 +2,7 @@
 layout: default
 title: Features and Examples
 nav_enabled: true
-nav_order: 3
+nav_order: 4
 ---
 
 # Features and examples
@@ -14,15 +14,12 @@ The following features are currently available.
 Examples of using each features are demonstraed here. The corresponding python script files are accessible in [Examples][examples].
 
 ## Simple equilibrium (Single condition)
-Equilibrium calculation based on the CALPHAD approach requires a thermochemical database and NTP ensemble (N: elemental composition, T: temperature, P: pressure). Currently, `equilipy` only supports ChemSage data format `.dat`, available from FactSage 7.3.
+Equilibrium calculation based on the CALPHAD approach requires a thermochemical database and NTP ensemble (N: elemental composition, T: temperature, P: pressure). In general, calculating equilibrium by the CALPHAD approach is a four-step process. An example of calculating a single NTP condition is given in [Example01][example01].
 
-In general, calculating equilibrium by the CALPHAD approach is a four-step process
-1. Step 1: Parse thermochemical database
-2. Step 2: Define NPT ensemble
-3. Step 3: Calculate phase equilibria
-4. Step 4: Post process
+### Step 1: Parse thermochemical database
+First, a thermochemical database must be provided. Currently, `equilipy` only supports ChemSage data format `.dat`, available from FactSage 7.3.
 
-An example of calculating a single NTP condition is given in [Example01][example01].
+To read a `.dat` database in a python script:
 
 ```
 import equilipy as eq
@@ -30,25 +27,36 @@ import equilipy as eq
 # Step 1: Parse database
 datafile=f'./Database/AlCuMgSi_ORNL'
 DB=eq.read_dat(datafile+'.dat')
+```
 
-# Step 2: Parse input data
+### Step 2: Define NPT ensemble
+Once providing a database, users should define a NTP condition for input variable. The input condition in `equilipy` is defined as a python dictionary:
+
+```
 NTP = dict({
     'T':700,
     'P': 1,
     'Al':0.060606061,
     'Cu':0.42424242,
     'Si':0.515151515})
+```
 
-# Step 3: Calculate equilibrium
+### Step 3: Calculate equilibrium
+For a single NPT condition, `equilib_sinlge()` function is used to calculate phase equilibria. Note that both a database `DB` and NTP condition `NTP` must be given as arguments:
+
+```
 res=eq.equilib_single(DB,NTP)
+```
 
-# Step 4: Post process
+### Step 4: Post process
+The calculated results are than stored in a result object `res`. Users can access to the information through class methods:
 
-# 4.1: print all stable phases
+```
+# 4.1: To print all stable phases
 print(res.StablePhases['Name'])
 print(res.StablePhases['Amount'])
 
-# 4.2: print all phases
+# 4.2: To print all relevant phases
 PhasesAll=list(res.Phases.keys())
 
 for i,ph in enumerate(PhasesAll):
@@ -112,7 +120,7 @@ Phase selection can also be used to calculation batch equilibrium and Scheil-Gul
 ## Batch equilibrium
 Calculating multiple NTP conditions are also available using a batch process. By default, `equilipy` uses all available processors in the computing node via `multiprocessing`. 
 {: .warning }
-> `multiprocessing` calls python script multiple times. Users should ensure using `if __name__ == "__main__":` in their main script.
+`multiprocessing` calls python script multiple times. Users should ensure using `if __name__ == "__main__":` in their main script.
 
 An example of calculating batch equilibrium is given in [Example03][example03]. [Polars][polars] is used for reading large input data from an `Excel` file.
 
@@ -152,7 +160,7 @@ if __name__ == "__main__":
 ```
 
 ## Scheil-Gulliver solidification
-Equilipy offers phase stability calculations during Scheil-Gulliver solidification. The calculation procedure is similar to that of phase equilibrium calculation except for Step 3. The example is given in [Example05][example05]
+`equilipy` offers phase stability calculations during Scheil-Gulliver solidification. The calculation procedure is similar to that of phase equilibrium calculation except for Step 3. The example is given in [Example05][example05]
 
 ```
 import numpy as np, matplotlib.pyplot as plt, polars as pl

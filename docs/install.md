@@ -2,13 +2,10 @@
 layout: default
 title: Install
 nav_enabled: true
-nav_order: 2
+nav_order: 3
 ---
 
 # Installation
-
-{: .warning }
-> Equilipy requires a Fortran compiler in the local environment. To install a Fortran compiler, please follow [Preinstall][preinstall].
 
 ## PIP
 Installation using `pip` is available for `equilipy`. 
@@ -16,6 +13,8 @@ To install `equilipy` in your **desktop/laptop**:
 ```
 pip install equilipy
 ```
+{: .warning }
+`equilipy` requires a Fortran compiler in the local environment. To install a Fortran compiler, please follow [Preinstall][preinstall].
 
 For **HPC environment**, use `equilipy-hpc` instead of `equilipy`
 ```
@@ -23,7 +22,7 @@ pip install equilipy-hpc
 ```
 
 {: .warning }
-> `equilipy-hpc` uses `mpi4py` to interface with MPI tools. MPI tools such as OpenMPI or MPICH must be preinstalled. To install To install OpenMPI and mpi4py, check out [Preinstall][preinstall].
+`equilipy-hpc` uses `mpi4py` to interface with MPI tools. MPI tools such as OpenMPI or MPICH must be preinstalled. To install To install OpenMPI and mpi4py, check out [Preinstall][preinstall].
 
 ## Install from the source
 [GitHub repository][equilipy] provides source codes to build `equilipy`.

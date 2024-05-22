@@ -2,12 +2,12 @@
 layout: default
 title: Preinstall
 nav_enabled: true
-nav_order: 4
+nav_order: 2
 ---
 
 # Before installation
 ## Single computing nodes (desktop/laptop)
-Equilipy requires a Fortran compiler in the local environment.
+`equilipy` requires a Fortran compiler in the local environment.
 To install gfortran using `conda`,
 for **Linux**:
 ```
@@ -41,10 +41,10 @@ To install gfortran on **Windows**,
 5. Click **Path** in System variables dialog to display **Edit environment variable** window
 6. Click **New** and add `C:\mingw\bin` to the path
 
-Equilipy also requires Python version 3.9 and above. The Fortran backend needs to be compiled through the f2py module in `numpy` which requires `meson` and `ninja`. The `wheel` library is used for packaging. These can both be installed through pip.
+`equilipy` also requires Python version 3.9 and above. The Fortran backend needs to be compiled through the f2py module in `numpy` which requires `meson` and `ninja`. The `wheel` library is used for packaging. These can both be installed through pip.
 
 ## Multiple computing nodes (HPC) on Linux
-Equilipy uses `mpi4py` to interface with MPI tools. 
+`equilipy` uses `mpi4py` to interface with MPI tools. 
 To install OpenMPI, mpi4py, and gfortran without using **sudo** privilage, we recommand install gfortran, OpenMPI, and mpi4py using `conda`:
 ```
 conda install -c conda-forge gfortran_linux-64 openmpi mpi4py
