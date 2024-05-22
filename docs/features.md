@@ -1,8 +1,8 @@
 ---
-layouts: default
+layout: default
 title: Features and Examples
+nav_enabled: true
 nav_order: 3
-description: "Feature and example"
 ---
 
 # Features and examples

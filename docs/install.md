@@ -1,6 +1,7 @@
 ---
-layouts: default
+layout: default
 title: Install
+nav_enabled: true
 nav_order: 2
 ---
 

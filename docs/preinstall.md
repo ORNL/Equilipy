@@ -1,8 +1,8 @@
 ---
-layouts: default
+layout: default
 title: Preinstall
+nav_enabled: true
 nav_order: 4
-description: "Before installation"
 ---
 
 # Before installation

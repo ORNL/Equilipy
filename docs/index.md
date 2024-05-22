@@ -1,8 +1,8 @@
 ---
-layouts: default
+layout: default
 title: Home
+nav_enabled: true
 nav_order: 1
-description: "Quick description"
 ---
 
 # Computing multicomponent multiphase equilibria
