@@ -55,7 +55,7 @@ our community a poisitive experiences for everyone.
 [equilipy]: https://github.com/ORNL/Equilipy
 [CALPHAD method]: https://calphad.org
 [Thermochimica]: https://github.com/ORNL-CEES/thermochimica
-[preinstall]: https://github.com/ORNL/Equilipy/blob/main/docs/preinstal.mdl
+[preinstall]: https://github.com/ORNL/Equilipy/blob/main/docs/preinstal.md
 [install]: https://github.com/ORNL/Equilipy/blob/main/docs/install.md
 [features]: https://github.com/ORNL/Equilipy/blob/main/docs/features.md
 [polars]: https://docs.pola.rs/
