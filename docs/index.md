@@ -12,12 +12,6 @@ nav_order: 1
 [View Equilipy on GitHub][equilipy]{: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
 
 ---
-
-## Getting started
-
-For details, check out [Features and example][features].
-Running the first example is as simple as:
-
 ## Quick Installation
 
 Installation using `pip` is available for `equilipy`.
@@ -33,6 +27,17 @@ For detailed information, please see [Install][install].
 
 {: .warning }
 `equilipy` requires a Fortran compiler in the local environment. To install a Fortran compiler, please follow [Preinstall][preinstall].
+
+
+## Getting started
+Example python scripts are given in [Example][examples]. Running the example files are as simple as
+
+```
+python Example01_SingleEquilib.py
+```
+
+For details, check out [Features and example][features].
+
 
 ## About the project
 
@@ -59,3 +64,4 @@ our community a poisitive experiences for everyone.
 [install]: https://ornl.github.io/Equilipy/install.html
 [features]: https://ornl.github.io/Equilipy/features.html
 [polars]: https://docs.pola.rs/
+[examples]: https://github.com/ORNL/Equilipy/blob/main/example
