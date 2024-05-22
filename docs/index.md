@@ -19,10 +19,6 @@ Installation using `pip` is available for `equilipy`.
 pip install equilipy
 ```
 
-{: .note }
-Examples in `equilipy` uses `polars` dataframe for fast data processing. If you are using old CPUs, use ```pip install polars-lts-cpu```. If you are using large dataset (> 4billion), use 
-```pip install polars-u64-idx```. For details, check out [Polars][polars].
-
 For detailed information, please see [Install][install].
 
 {: .warning }
@@ -38,6 +34,9 @@ python Example01_SingleEquilib.py
 
 For details, check out [Features and example][features].
 
+{: .note }
+Examples in `equilipy` uses `polars` dataframe for fast data processing. If you are using old CPUs, use ```pip install polars-lts-cpu```. If you are using large dataset (> 4billion), use 
+```pip install polars-u64-idx```. For details, check out [Polars][polars].
 
 ## About the project
 
