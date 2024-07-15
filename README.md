@@ -28,12 +28,17 @@ For details, check out the example directory and [Features and Examples](https:/
 
 
 ## Additional note
-Examples in Equilipy uses `polars` dataframe for fast data processing. If you are using old CPUs, install
+Examples in Equilipy uses `polars` dataframe for fast data processing. In particular, example 3 requires `fastexcel` as the optional dependancy in `polars`. 
+Install `fastexcel` via 
 ```
-pip install polars-lts-cpu
+pip install fastexcel
 ```
-If you are using large dataset (> 4billion), install 
+Additionally, if you are using large dataset (> 4billion), install 
 ```
 pip install polars-u64-idx
 ```
-For details, check out [polars](https://docs.pola.rs/).
+If you are using old CPUs, install
+```
+pip install polars-lts-cpu
+```
+For details, check out [polars dependencies](https://docs.pola.rs/api/python/stable/reference/api/polars.show_versions.html).

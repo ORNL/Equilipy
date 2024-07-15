@@ -123,7 +123,11 @@ Calculating multiple NTP conditions are also available using a batch process. By
 {: .warning }
 `multiprocessing` calls python script multiple times. Users should ensure using `if __name__ == "__main__":` in their main script.
 
-An example of calculating batch equilibrium is given in [Example03][example03]. [Polars][polars] is used for reading large input data from an `Excel` file.
+An example of calculating batch equilibrium is given in [Example03][example03]. 
+
+{: .note }
+[Polars][polars] is used for reading large input data from an `Excel` file, which requires `fastexcel` as the optional dependancy. Install `fastexcel` via 
+```pip install fastexcel```
 
 
 ```

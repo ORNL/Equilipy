@@ -40,11 +40,11 @@ Examples in `equilipy` uses `polars` dataframe for fast data processing. If you 
 
 ## About the project
 
-Euqilipy is &copy; 2024-{{ "now" | date: "%Y" }} by [U.S. Department of Energy](https://doi.org/10.11578/dc.20240312.4).
+Equilipy is &copy; 2024-{{ "now" | date: "%Y" }} by [U.S. Department of Energy](https://doi.org/10.11578/dc.20240312.4).
 
 ### License
 
-Euqilipy is distributed by an [BSD 3-Clause License](https://github.com/ORNL/Equilipy/blob/main/LICENSE).
+Equilipy is distributed by an [BSD 3-Clause License](https://github.com/ORNL/Equilipy/blob/main/LICENSE).
 
 ### Code of Conduct
 

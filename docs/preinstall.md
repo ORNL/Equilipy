@@ -6,7 +6,7 @@ nav_order: 2
 ---
 
 # Before installation
-## Single computing nodes (desktop/laptop)
+## Install Compilers in Single computing nodes (desktop/laptop)
 `equilipy` requires a Fortran compiler in the local environment.
 To install gfortran using `conda`,
 for **Linux**:
@@ -43,7 +43,7 @@ To install gfortran on **Windows**,
 
 `equilipy` also requires Python version 3.9 and above. The Fortran backend needs to be compiled through the f2py module in `numpy` which requires `meson` and `ninja`. The `wheel` library is used for packaging. These can both be installed through pip.
 
-## Multiple computing nodes (HPC) on Linux
+## Install Compilers in Multiple computing nodes (HPC) on Linux
 `equilipy` uses `mpi4py` to interface with MPI tools. 
 To install OpenMPI, mpi4py, and gfortran without using **sudo** privilage, we recommand install gfortran, OpenMPI, and mpi4py using `conda`:
 ```
@@ -66,3 +66,20 @@ for **Fedora** and **Red Hat Enterprise Linux**
 sudo dnf install gcc-fortran
 sudo dnf install openmpi openmpi-devel
 ```
+
+
+## Depenancy to Polars
+`equilipy` uses `polars` dataframe for fast data processing. To process excel data, `polars` requires `fastexcel` as an optional dependancy. 
+Install `fastexcel` via 
+```
+pip install fastexcel
+```
+Additionally, if you are using large dataset (> 4billion), install 
+```
+pip install polars-u64-idx
+```
+If you are using old CPUs, install
+```
+pip install polars-lts-cpu
+```
+For details, check out [polars dependencies](https://docs.pola.rs/api/python/stable/reference/api/polars.show_versions.html).
