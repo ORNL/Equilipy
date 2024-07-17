@@ -131,7 +131,7 @@ Note that there is no general consensus on thermochemical database format. Each 
 | [HeFESTo](https:sites.epss.ucla.edu/lithgow-bertelloni/hefesto) | Non-commercial                     | [@HeFESTo:2011]                                                             |
 +=================================================================+====================================+=============================================================================+
 | ‡Software that use the CALPHAD approach for free energy descriptions .                                                                                                             |
-| *THERMOCALC calculates the composition of a given phase assemblage ; however, it does not ensure if the given assemblage is thermodynamically stable.                              |                                                                                                    |
+| *THERMOCALC calculates the composition of a given phase assemblage ; however, it does not ensure if the given assemblage is thermodynamically stable [@Lanari:2019].               |
 +=================================================================+====================================+=============================================================================+
 
 # Limitation and future plan
