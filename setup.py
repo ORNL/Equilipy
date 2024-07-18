@@ -33,9 +33,9 @@ class f2py_Build(build_ext):
             
         # Copy the shared object file to the build directory
         if sys.platform.startswith('win'):
-            os.system(f'cd equilipy&& f2py -c {self.slist} -m equilifort --backend distutils --fcompiler=gnu95')
+            os.system(f'cd equilipy&& f2py -c {self.slist} -m equilifort --backend distutils')
         else:
-            os.system(f'cd equilipy; f2py -c {self.slist} -m equilifort --backend meson --fcompiler=gnu95')
+            os.system(f'cd equilipy; f2py -c {self.slist} -m equilifort --backend meson')
         
         lib_name = self.get_ext_filename('equilipy/equilifort')
         
@@ -79,17 +79,17 @@ setup(
     license='BSD-3',
     packages=find_packages(),
     install_requires=[
-        'numpy',
+        'numpy>=1.21,<2.0',
         "glob2",
         "regex",
         "numba",
         "dataclasses",
         "meson",
         "ninja",
-        "polars",
+        "polars>=0.20.15",
         "xlsx2csv",
         "matplotlib",
-        "tqdm",
+        "tqdm"
         ],
     ext_modules=[f2py_Extension('equilipy',['equilipy/fsrc'])],  # Include the Fortran extension
     entry_points={
