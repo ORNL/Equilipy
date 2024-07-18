@@ -1,0 +1,95 @@
+name: Build
+
+on: [push, pull_request]
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest,ubuntu-latest,macos-12]
+        include:
+          - os: ubuntu-latest
+            python-version: '3.12'
+            toolchain: {compiler: gcc, version: 13}
+          - os: macos-12
+            python-version: '3.12'
+            toolchain: {compiler: gcc, version: 13}
+          - os: windows-latest
+            python-version: '3.11'
+            toolchain: {compiler: gcc, version: 13}
+            
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Fortran compiler for Unix
+        if: runner.os != 'Windows'
+        uses: awvwgk/setup-fortran@v1
+        with:
+          compiler: ${{ matrix.toolchain.compiler }}
+          version: ${{ matrix.toolchain.version }}
+
+      - name: Install Fortran compiler on Windows
+        if: runner.os == 'Windows'
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+          choco install gcc
+          choco install make
+        shell: pwsh
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.16.5
+        env:
+          PYTHONIOENCODING: utf-8
+          CIBW_ARCHS_WINDOWS: x86 auto64
+          CIBW_ARCHS_MACOS: x86_64
+        with:
+          package-dir: .
+          output-dir: wheelhouse
+          config-file: "./pyproject.toml"
+
+      - name: Install Wheel
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          python -m venv venv
+          if [ $RUNNER_OS = 'Windows' ]; then
+            .\\venv\\Scripts\\activate
+          else
+            source venv/bin/activate
+          fi
+          for wheel in wheelhouse/*.whl; do
+            if ! pip install "$wheel"; then
+              echo "Failed to install $wheel, skipping..."
+            fi
+          done
+        shell: bash
+
+      - name: Run tests
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          if [ $RUNNER_OS = 'Windows' ]; then
+            .\\venv\\Scripts\\activate
+          else
+            source venv/bin/activate
+          fi
+          cd test 
+          for test in Test*.py; do
+            python "$test"
+          done
+        shell: bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          path: ./wheelhouse/*.whl
