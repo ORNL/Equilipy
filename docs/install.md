@@ -17,6 +17,9 @@ pip install equilipy
 {: .warning }
 `equilipy` requires a Fortran compiler in the local environment. To install a Fortran compiler, please follow [Preinstall][preinstall].
 
+{: .note }
+The test suite in the `./test/*` directory is integrated into the build process for .whl files using GitHub Actions. No further testing is necessary when installing via pip.
+
 For **HPC environment**, use `equilipy-hpc` instead of `equilipy`
 ```
 pip install equilipy-hpc
@@ -48,6 +51,9 @@ export CC=/usr/local/Cellar/gcc/*/bin/gcc-*
 ```
 pip install wheelhouse/equilipy-*.whl
 ```
+
+{: .note }
+When building equilipy from the source, consider running the test suite located in the `./test/*` directory. This test suite ensures the reliability of the core functions in equilipy.
 
 [preinstall]: https://github.com/ORNL/Equilipy/blob/main/docs/preinstall.md
 [equilipy]: https://github.com/ORNL/Equilipy
