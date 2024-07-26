@@ -45,7 +45,7 @@ Given these limitations and the pressing need for more effective alloy design pr
 # Software overview
 Equilipy is designed to compute thermodynamically stable phases from a specified *NPT* ensemble (i.e., *N*: elemental composition, *P*: pressure, *T*: temperature). The four-step process for calculating phase equilibria is illustrated in \autoref{Fig2}. This process closely mirrors experimental procedures; thus, it is highly intuitive even for the users primarily experienced in experimental work. Calculating phase equilibria involves minimizing a set of Gibbs energy functions for all relevant phases. Therefore, utilizing Equilipy necessitates a Gibbs energy database developed through the CALPHAD approach.
 
-![The workflow of calculating phase equilibria with Equilipy.\label{Fig2}](figures/Fig2.svg){ width=95% }
+![The workflow of calculating phase equilibria with Equilipy.\label{Fig2}](figures/Fig2.pdf){ width=95% }
 
 
 # Features
