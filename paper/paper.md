@@ -50,7 +50,7 @@ Equilipy is designed to compute thermodynamically stable phases from a specified
 
 # Features
 
-Equilipy 0.1 incorporates several key features:
+Equilipy (0.1.4) incorporates several key features:
 
 - Phase equilibrium calculation for a single *NPT* input condition,
 - Parallel computations for multiple *NPT* input conditions,
