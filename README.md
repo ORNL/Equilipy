@@ -26,6 +26,8 @@ The following features are currently available.
 
 For details, check out the example directory and [Features and Examples](https://ornl.github.io/Equilipy/features.html)
 
+## Contributing
+We encourage you to contribute to Equilipy. Please see [contributing guidelines](CONTRIBUTING.md).
 
 ## Additional note
 Examples in Equilipy uses `polars` dataframe for fast data processing. In particular, example 3 requires `fastexcel` as the optional dependancy in `polars`. 

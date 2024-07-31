@@ -10,12 +10,12 @@ if __name__ == "__main__":
     # Step 2: Set input data
     system=['Al','Cu','Mg','Si']
     NTP = dict({
-        'T':1000,
+        'T':900,
         'P': 1,
-        'Al':0.75,
-        'Cu': 0.05,
-        'Mg':0.1,
-        'Si': 0.1})
+        'Al':0.89260,
+        'Cu': 0.01745,
+        'Mg':0.00114,
+        'Si': 0.0881})
 
     # Step 3: Calculate Scheil cooling based on LIQUID as target phase
     TargetPhase='LIQUID'

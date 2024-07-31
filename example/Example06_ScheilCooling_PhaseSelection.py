@@ -9,15 +9,15 @@ if __name__ == "__main__":
     #Set input data
 
     NTP = dict({
-        'T':1000,
+        'T':900,
         'P': 1,
-        'Al':0.8,
-        'Cu': 0.05,
-        'Mg':0.1,
-        'Si': 0.05})
+        'Al':0.89260,
+        'Cu': 0.01745,
+        'Mg':0.00114,
+        'Si': 0.0881})
     #Phase selection
     PhasesAll=eq.list_phases(DB,list(NTP.keys())[2:])
-    phases = ['LIQUID','FCC_A1','MG2SI(s)']
+    phases = [x for x in PhasesAll if 'FCC_A1' not in x]
     
     # Calculate Scheil cooling
     res=eq.scheil_cooling('LIQUID',DB,NTP,dT=10,ListOfPhases=phases)
