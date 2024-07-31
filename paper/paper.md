@@ -50,7 +50,7 @@ Equilipy is designed to compute thermodynamically stable phases from a specified
 
 # Features
 
-Equilipy (0.1.4) incorporates several key features:
+Equilipy (0.1.5) incorporates several key features:
 
 - Phase equilibrium calculation for a single *NPT* input condition,
 - Parallel computations for multiple *NPT* input conditions,
@@ -135,7 +135,7 @@ For geological applications, the Gibbs energies of non-ideal solution phases are
 Note that there is no general consensus on a thermochemical database format. Each software often has its own format. The database format used in Equilipy (`.dat`) is compatible in FactSage [@FactSage:2016], PyCalphad [@PyCALPHAD:2017], and Thermochimica [@Thermochimica:2013].
 
 # Limitation and future plan
-The current version of Equilipy (0.1.4) is specifically designed for metallic systems and currently lacks the capability to handle calculations for systems composed of non-elemental species, such as oxides, sulfides, carbides, nitrides, etc. Integration of these calculations with non-elemental species is planned for the upcoming version. Additionally, the existing thermochemical database parser in Equilipy is compatible only with the older ChemSage data format `.dat`, available from FactSage 7.3. It's important to note that Equilipy does not support the newer ChemSage `.dat` data format introduced in FactSage 8.0 or later, nor the `.tdb` data format used by Thermo-Calc and Pandat. Enhancements to incorporate parsers for these newer database structures are also planned for the next release of Equilipy.
+The current version of Equilipy (0.1.5) is specifically designed for metallic systems and currently lacks the capability to handle calculations for systems composed of non-elemental species, such as oxides, sulfides, carbides, nitrides, etc. Integration of these calculations with non-elemental species is planned for the upcoming version. Additionally, the existing thermochemical database parser in Equilipy is compatible only with the older ChemSage data format `.dat`, available from FactSage 7.3. It's important to note that Equilipy does not support the newer ChemSage `.dat` data format introduced in FactSage 8.0 or later, nor the `.tdb` data format used by Thermo-Calc and Pandat. Enhancements to incorporate parsers for these newer database structures are also planned for the next release of Equilipy.
 
 # Acknowledgements
 
