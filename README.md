@@ -26,6 +26,12 @@ The following features are currently available.
 
 For details, check out the example directory and [Features and Examples](https://ornl.github.io/Equilipy/features.html)
 
+## Citing Equilipy
+
+If you use Equilipy in your work, please cite the following [paper](CITATION.bib).
+In addition, cite the current release or version used from
+[Zenodo](https://zenodo.org/doi/10.5281/zenodo.13157231).
+
 ## Contributing
 We encourage you to contribute to Equilipy. Please see [contributing guidelines](CONTRIBUTING.md).
 
