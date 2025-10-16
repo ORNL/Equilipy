@@ -16,7 +16,7 @@
 
 #Custom folders
 archive/
-database/
+# database/
 literature/
 notes/
 presentations/

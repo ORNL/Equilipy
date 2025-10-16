@@ -13,6 +13,8 @@ authors = [
     {name = "Sunyong Kwon", email = "kwons@ornl.gov"},
 ]
 license = {text = "BSD-3"}
+description = "A Gibbs energy minimization based on the CALPHAD approach"
+readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "numpy>=1.23",
@@ -30,3 +32,7 @@ dependencies = [
 
 [project.scripts]
 equilipy = "equilipy.__main__:main"
+
+[project.urls]
+"documentation" = "https://ornl.github.io/Equilipy/"
+"source" = "https://github.com/ORNL/Equilipy/"
