@@ -72,78 +72,20 @@ subroutine CompMinSolnPoint
         m                = nSpeciesPhase(i-1) + 1      ! First constituent in phase.
         n                = nSpeciesPhase(i)            ! Last  constituent in phase.
         nConstituents    = n - m + 1
-        lAddPhase        = .False.        
+        lAddPhase        = .False.      
+        ! Perform subminimization:
+        call Subminimization(i, lAddPhase)
+        ! print*,'Composition',i,m,n,dMolFraction(m:n),dDrivingForceSoln(i)
 !
-        if (.NOT.lMiscibility(i)) then
-            ! Normal soln or first soln phase when immiscibility is considered
-            ! Initial mole fraction is given from previous iteration
-!
-!
-            ! Perform subminimization:
-            call Subminimization(i, lAddPhase)
-            ! print*,'Composition',i,m,n,dMolFraction(m:n),dDrivingForceSoln(i)
-!
-            call CompStoichSolnPhase(i)
+        call CompStoichSolnPhase(i)
 !
 !
-            dAtomFractionSpecies(nSpecies+i,:) = dEffStoichSolnPhase(i,:)/sum(dEffStoichSolnPhase(i,:))
-            dStoichSpeciesLevel(nSpecies+i,:)  = dEffStoichSolnPhase(i,:)
-            iPhaseLevel(nSpecies+i)            = i
-            dChemicalPotential(nSpecies+i)     = dDrivingForceSoln(i) + &
-            dot_product(dAtomFractionSpecies(nSpecies+i,:),dElementPotential(:))
-
-            do j = 1,nElements
-                if(iAssemblage(j)-nSpecies+1==i) then
-                    dMolFractionGEM(j,m:n) = dMolFraction(m:n)
-                end if
-            end do
-!
-        else
-            !Second phase when immiscibility is considered
-            ! imod = INT(10*log(float(iterGlobal))/log(2.0))
-            log2iter=log(float(iterGlobal))/log(2.0)
-            iFloor = FLOOR(log2iter)
-!
-            ! if((iterGlobal<5).OR.(imod==5).OR.(dMaxElementPotential<5D-4)) then
-            if((iterGlobal<16).OR.((log2iter-iFloor<1D-20).AND.(iFloor<4))) then
-                ! print*, 'iterGlobal',iterGlobal
-                call CheckMiscibilityGap(i,lAddPhase)
-                dAtomFractionSpecies(nSpecies+i,:) = dEffStoichSolnPhase(i,:)/sum(dEffStoichSolnPhase(i,:))
-                dStoichSpeciesLevel(nSpecies+i,:)  = dEffStoichSolnPhase(i,:)
-                iPhaseLevel(nSpecies+i)            = i
-                
-                if(lAddPhase) then
-                    dChemicalPotential(nSpecies+i)     = dDrivingForceSoln(i) + &
-                    dot_product(dAtomFractionSpecies(nSpecies+i,:),dElementPotential(:))
-                    
-                else
-                    dChemicalPotential(nSpecies+i)     = 9D5
-                end if
-            else
-                ! Perform subminimization:
-                call Subminimization(i, lAddPhase)
-                ! print*,'Composition',i,m,n,dMolFraction(m:n),dDrivingForceSoln(i)
-                
-    !
-                call CompStoichSolnPhase(i)
-    !
-    !
-                dAtomFractionSpecies(nSpecies+i,:) = dEffStoichSolnPhase(i,:)/sum(dEffStoichSolnPhase(i,:))
-                dStoichSpeciesLevel(nSpecies+i,:)  = dEffStoichSolnPhase(i,:)
-                iPhaseLevel(nSpecies+i)            = i
-                dChemicalPotential(nSpecies+i)     = dDrivingForceSoln(i) + &
-                dot_product(dAtomFractionSpecies(nSpecies+i,:),dElementPotential(:))
-
-                do j = 1,nElements
-                    if(iAssemblage(j)-nSpecies+1==i) then
-                        dMolFractionGEM(j,m:n) = dMolFraction(m:n)
-                    end if
-                end do
-            end if
-!
-            cycle LOOP_Soln
-!
-        end if
+        dAtomFractionSpecies(nSpecies+i,:) = dEffStoichSolnPhase(i,:)/sum(dEffStoichSolnPhase(i,:))
+        dStoichSpeciesLevel(nSpecies+i,:)  = dEffStoichSolnPhase(i,:)
+        iPhaseLevel(nSpecies+i)            = i
+        dChemicalPotential(nSpecies+i)     = dDrivingForceSoln(i) + &
+        dot_product(dAtomFractionSpecies(nSpecies+i,:),dElementPotential(:))  
+        
     end do LOOP_Soln
 
     ! Calculate functional norm: Mass balance 

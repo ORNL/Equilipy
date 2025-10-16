@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-import polars as pl, time
+import polars as pl, time, os
 import numpy as np
 from datetime import timedelta
 import equilipy as eq
-
+pl.Config.set_tbl_cols(20)
+pl.Config.set_tbl_rows(100)
 if __name__ == "__main__":
-    system = 'AlCuMgSi'
 
 
     #Parse database
-    datafile= './Database/AlCuMgSi_SK'
-    DB=eq.read_dat(datafile+'.dat')
+    fpath=os.path.dirname(os.path.abspath(__file__))
+    path ='/'.join(fpath.split('/')[:-1])
+    datafile=f'{path}/database/AlCuMgSi_ORNL_FS83'
+    DB=eq.read_dat(datafile+'.dat',FactSage8Plus=True)
 
 
     #Input data
     grid=eq.simplex_grid(4,5)
+    # grid=grid[30:40,:]
     l,_=grid.shape
     NTP={
         'T': 700*np.ones(l),

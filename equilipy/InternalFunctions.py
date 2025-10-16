@@ -37,15 +37,15 @@ def _pyvar2fvar(var):
 	fort.moduleparsecs.nsolnphasessyscs  = var.nSolnPhasesSysCS
 	fort.moduleparsecs.ncountsublatticecs= var.nCountSublatticeCS
 	fort.moduleparsecs.nmaxspeciesphasecs= var.nMaxSpeciesPhaseCS
-	fort.moduleparsecs.nparamcs          = var.nParamCS
-	fort.moduleparsecs.nmagparamcs       = var.nMagParamCS
+	# fort.moduleparsecs.nparamcs          = var.nParamCS		#Could not find the use of this in fortran scripts
+	# fort.moduleparsecs.nmagparamcs       = var.nMagParamCS	#Could not find the use of this in fortran scripts
 	
 	# Dimension(:)
 	fort.moduleparsecs.iphasecs		      = var.iPhaseCS  # This might cause an issue
-	fort.moduleparsecs.iparticlespermolecs = var.iParticlesPerMoleCS
+	fort.moduleparsecs.iparticlespermolecs = var.iParticlesPerMoleCS #
 	fort.moduleparsecs.ngibbseqspecies	  = var.nGibbsEqSpecies
-	fort.moduleparsecs.nsublatticephasecs  = var.nSublatticePhaseCS
-	fort.moduleparsecs.iphasesublatticecs  = var.iPhaseSublatticeCS
+	fort.moduleparsecs.nsublatticephasecs  = var.nSublatticePhaseCS #
+	fort.moduleparsecs.iphasesublatticecs  = var.iPhaseSublatticeCS #
 	fort.moduleparsecs.datomicmasscs		  = var.dAtomicMass
 	
 	if var.nParamCS==0:

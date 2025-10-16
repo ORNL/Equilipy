@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import numpy as np, matplotlib.pyplot as plt, polars as pl
 import equilipy as eq
+import os
 
 if __name__ == "__main__":
     # Step 1: Parse database
-    datafile= './Database/AlCuMgSi_ORNL'
-    DB=eq.read_dat(datafile+'.dat')
+    fpath=os.path.dirname(os.path.abspath(__file__))
+    path ='/'.join(fpath.split('/')[:-1])
+    datafile=f'{path}/database/AlCuMgSi_ORNL_FS73'
+    DB=eq.read_dat(datafile+'.dat',FactSage8Plus=False)
 
     # Step 2: Set input data
     system=['Al','Cu','Mg','Si']
@@ -19,12 +22,12 @@ if __name__ == "__main__":
 
     # Step 3: Calculate Scheil cooling based on LIQUID as target phase
     TargetPhase='LIQUID'
-    res=eq.scheil_cooling(TargetPhase,DB,NTP,dT=10)
+    res=eq.scheil_cooling(TargetPhase,DB,NTP,dT=1,UnitIn=['C','atm','g'],UnitOut=['K','atm','mol'])
     
     # Step 4: Post processing
     print('Scheil Constituent information, mol. fr.:', res.ScheilConstituents)
     df=pl.DataFrame(res.to_dict())  
-    df.write_csv(f'Result_Ex05_ACMS.csv')
+    df.write_csv(f'{fpath}/Result_Ex05_ACMS.csv')
 
     # Plot Phase amount as function of temperature
     T= np.array(res.T)

@@ -47,14 +47,6 @@ subroutine CheckLevelingIterHistory(iter,lPhasePass)
             exit LOOP_Iter
         end if
         
-        ! if(sum(iabs(iAssemblage-iterHistoryLevel(:,i)))<=0) then
-        !     ! print*, 'Inter History'
-        !     if(sum(dabs(dMolesPhase-dMolesPhaseHistory(:,i)))<1D-20) then
-        !         lPhasePass = .FALSE.
-        !         ! print*,'i,iter',i,iter,sum(dabs(dMolesPhase-dMolesPhaseHistory(:,i)))
-        !         exit LOOP_Iter
-        !     end if
-        ! end if
     end do LOOP_Iter
 !
 

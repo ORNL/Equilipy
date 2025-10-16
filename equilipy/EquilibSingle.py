@@ -2,29 +2,31 @@
 import numpy as np
 import equilipy.equilifort as fort
 from .PhaseSelection import phase_selection
-from .InternalFunctions import _dict2np
+from .utils import _dict2np
 from .InputCondition import input_condition
 from .Minimize import minimize
-from .PostProcess import Result
+from .PostProcess import Result, check_output_units
 from .ListPhases import list_phases
 import equilipy.variables as var
 from .ReadDict import read_dict
 from .Errors import *
 
-def _preprocess_single(Database,Condition,Unit:list=['K','atm','moles'],ListOfPhases=None):
+def _preprocess_single(Database:dict,Condition,UnitIn:list=['K','atm','moles'],ListOfPhases=None,CalcHeatCapacity=True):
     read_dict(Database)
     # Get info from input condition
     NTPheader,NTPvals=_dict2np(Condition)
     
     NTPvals = np.squeeze(NTPvals)
+    list_phases(var,NTPheader[2:])
+    if ListOfPhases!=None: phase_selection(ListOfPhases)
     
-    try: 
-        x=var.PhaseNameSys
-        # If this is successfull, systems are defined previously
-        if ListOfPhases!=None: phase_selection(ListOfPhases)
-        else: KeyError('Error: add a list of phases')
-    except AttributeError:
-        list_phases(var,NTPheader[2:])
+    # try: 
+    #     x=var.PhaseNameSys
+    #     # If this is successfull, systems are defined previously
+    #     if ListOfPhases!=None: phase_selection(ListOfPhases)
+    #     else: KeyError('Error: add a list of phases')
+    # except AttributeError:
+    #     list_phases(var,NTPheader[2:])
     
     condition=NTPvals
     comp=np.array(NTPvals[2:])
@@ -43,20 +45,25 @@ def _preprocess_single(Database,Condition,Unit:list=['K','atm','moles'],ListOfPh
         if ListOfPhases!=None: phase_selection(ListOfPhases)
     
     var.dConditionSys=condition
-    input_condition(Unit,condition)        
+    input_condition(UnitIn,condition,CalcHeatCapacity)        
     
     return None
 
-def _equilib_single(Database,Condition,Unit:list=['K','atm','moles'],ListOfPhases=None):
-    _preprocess_single(Database,Condition,Unit,ListOfPhases=ListOfPhases)
+def _equilib_single(Database:dict,Condition,UnitIn:list=['K','atm','moles'],UnitOut:list=None,ListOfPhases=None,CalcHeatCapacity=True):
+    if UnitOut==None:
+        UnitOut = UnitIn.copy() 
+    _preprocess_single(Database,Condition,UnitIn,ListOfPhases=ListOfPhases,CalcHeatCapacity=CalcHeatCapacity)
     
-    try: minimize()  
+    try: 
+        minimize()
+        check_output_units(UnitOut)
+
     except EquilibError: pass
         
     
     return None
 
-def equilib_single(Database,Condition,Unit:list=['K','atm','moles'],ListOfPhases=None):
+def equilib_single(Database:dict,Condition,UnitIn:list=['K','atm','moles'],UnitOut:list=None,ListOfPhases=None,CalcHeatCapacity=True):
     '''----------------------------------------------------------------------------------------------------------------
     Description
     ===========
@@ -87,13 +94,18 @@ def equilib_single(Database,Condition,Unit:list=['K','atm','moles'],ListOfPhases
     Results dataclass
     ----------------------------------------------------------------------------------------------------------------'''
     res = Result()
-    _preprocess_single(Database,Condition,Unit,ListOfPhases)
+    # As a default, synchronize UnitIn and UnitOut
+    if UnitOut==None:
+        UnitOut = UnitIn.copy() 
+    _preprocess_single(Database,Condition,UnitIn,ListOfPhases,CalcHeatCapacity)
     try: 
-        minimize()  
+        minimize()
+        check_output_units(UnitOut)
+
         res.append_output()
     except EquilibError:
         res.append_error()
-    
+        
     fort.resetthermoall() 
     
     return res

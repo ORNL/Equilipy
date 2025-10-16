@@ -45,14 +45,22 @@ subroutine CompDrivingForceAll
 !
     implicit none
 !
-    integer :: i, j, idummy(1), m, n
-    real(8) :: dTemp
-    logical :: ldummy
+    integer :: i, j,k,  m, n, nConstituents, nElementOrConstituent
+    real(8) :: dTemp, dMinMoleFraction,dMaxMoleFraction
+    integer, dimension(:), allocatable:: iIndex, iEndmemberPotential
+    real(8), dimension(:), allocatable :: dDrivingForceTemp, dEndmemberPotential
+    real(8), dimension(:,:), allocatable :: dChemicalPotentialTemp, dMolFractionTemp, dPhasePotentialTemp
+    logical :: ldummy, lAddPhase
+
 !
     dPhasePotential = 0d0
+    
+    
+
 !
     m = nSpeciesPhase(nSolnPhasesSys) + 1
     n = nSpecies - nDummySpecies
+
 !
     ! Calculate driving force of all stoichiometric phases:
     do i = m, n
@@ -77,33 +85,91 @@ subroutine CompDrivingForceAll
     end do
 !
     !Store the most stable stoichiometric phase to be added
-    idummy                 = MINLOC(dPhasePotential)
-    iMinDrivingForceStoich = idummy(1)
-    dMinDrivingForceStoich = dPhasePotential(iMinDrivingForceStoich)
+    dMinMoleFraction = 1D-5
 !
     ! Calculate driving force of all solution phases:
     LOOP_SolnPhaseSys: do i = 1, nSolnPhasesSys
+        !initialize variables
+        m                = nSpeciesPhase(i-1) + 1      ! First constituent in phase.
+        n                = nSpeciesPhase(i)            ! Last  constituent in phase.
+        nConstituents    = n - m + 1
+        dMaxMoleFraction = 1D0 - dMinMoleFraction * DFLOAT(nConstituents-1)
+        dMaxMoleFraction = DMAX1(dMaxMoleFraction, 0.9D0)
+        nElementOrConstituent = MIN(nElements,nConstituents)
+        ! if (nElementOrConstituent<=1) cycle LOOP_SolnPhaseSys
+        lAddPhase        = .FALSE.     
+        if (.NOT.lMiscibility(i)) then
+            if(allocated(iIndex)) deallocate(iIndex)
+            if(allocated(dDrivingForceTemp)) deallocate(dDrivingForceTemp)
+            if(allocated(dChemicalPotentialTemp)) deallocate(dChemicalPotentialTemp)
+            if(allocated(dPhasePotentialTemp)) deallocate(dPhasePotentialTemp)
+            if(allocated(dMolFractionTemp)) deallocate(dMolFractionTemp)
+            if(allocated(dEndmemberPotential)) deallocate(dEndmemberPotential)
+            if(allocated(iEndmemberPotential)) deallocate(iEndmemberPotential)
+            
+            allocate(dEndmemberPotential(nConstituents),iEndmemberPotential(nConstituents))
+            allocate(&
+            iIndex(nElementOrConstituent+1),&
+            dDrivingForceTemp(nElementOrConstituent+1),&
+            dChemicalPotentialTemp(nElementOrConstituent+1,nConstituents),&
+            dMolFractionTemp(nElementOrConstituent+1, nConstituents),&
+            dPhasePotentialTemp(nElementOrConstituent+1, nConstituents))
+            dEndmemberPotential= dStdGibbsEnergy(m:n)- MATMUL(dStoichSpecies(m:n,:),dElementPotential)/iParticlesPerMole(m:n)
+            call Qsort(dEndmemberPotential,iEndmemberPotential,nConstituents)
+
+            iIndex             = 1
+            dDrivingForceTemp  = 9E5
+            dMolFractionTemp   = 0D0
+            do j = 1, nElementOrConstituent+1
+            
+                if(j==1) then
+                    dMolFraction(m:n)   = dMolFraction(m:n)/sum(dMolFraction(m:n))
+                else
+                    dMolFraction(m:n)   = dMinMoleFraction
+                    dMolFraction(m+iEndmemberPotential(j-1)-1) = dMaxMoleFraction
+                end if
+                ! Perform subminimization:
+                call Subminimization(i, lAddPhase)
+    !
+                ! Store info of all local minima
+                call CompStoichSolnPhase(i)
+                
+                dDrivingForceTemp(j)   = dDrivingForceSoln(i)
+                dMolFractionTemp(j,:)  = dMolFraction(m:n)
+                dChemicalPotentialTemp(j,:) = dChemicalPotential(m:n)
+                dPhasePotentialTemp(j,:)    = dPhasePotential(m:n)
+            end do
+
+            !Sort the results according to the driving force (ascending order)
+            ! note that output dDrivingForceTemp is the sorted version
+            call Qsort(dDrivingForceTemp,iIndex,nElementOrConstituent+1)
+
+            dMolFraction(m:n)       = dMolFractionTemp(iIndex(1),:)
+            dDrivingForceSoln(i)    = dDrivingForceTemp(1)
+            dChemicalPotential(m:n) = dChemicalPotentialTemp(iIndex(1),:)
+            dPhasePotential(m:n)    = dPhasePotentialTemp(iIndex(1),:)
+
+            LOOP_immiscibleSoln: do j = 2, nElementOrConstituent
+                k = i + j - 1
+                m  = nSpeciesPhase(k-1) + 1      ! First constituent in phase.
+                n  = nSpeciesPhase(k)            ! Last  constituent in phase.
 !
-        ! Skip this phase if it is already predicted to be stable:
-        if (lSolnPhases(i)) cycle LOOP_SolnPhaseSys
+                !The following solution phases must have True value for lMiscibility
+                if (lMiscibility(k).AND.(k<=nSolnPhasesSys).AND.(cSolnPhaseName(i)==cSolnPhaseName(k))) then
 !
+                    ! Store the local minima if it is not equal to global minimum
+                    dMolFraction(m:n)       = dMolFractionTemp(iIndex(j),:)
+                    dDrivingForceSoln(k)    = dDrivingForceTemp(j)
+                    dChemicalPotential(m:n) = dChemicalPotentialTemp(iIndex(j),:)
+                    dPhasePotential(m:n)    = dPhasePotentialTemp(iIndex(j),:)
+                end if
 !
-        ! Compute the mole fractions of all constituents in this solution phase:
-        call CompMolFraction(i)
-!
-        ! Skip this phase if it is not the first "phase" in a phase with a miscibility gap:
-        if (lMiscibility(i)) then
-            call CheckMiscibilityGap(i,ldummy)
-            ! print*,'miscibility',i,ldummy
-            cycle LOOP_SolnPhaseSys
+            end do LOOP_immiscibleSoln
+
         end if
 !
     end do LOOP_SolnPhaseSys
-!
-    !Store the most stable solution phase to be added
-    idummy                 = MINLOC(dPhasePotential(:m))
-    iMinDrivingForceSoln   = idummy(1)
-    dMinDrivingForceSoln   = dPhasePotential(iMinDrivingForceSoln)
+    
 !
     return
 !

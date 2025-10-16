@@ -1,3 +1,7 @@
+![PyPI - Version](https://img.shields.io/pypi/v/equilipy)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/equilipy)
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.06875/status.svg)](https://doi.org/10.21105/joss.06875)
+
 # Equilipy
 Equilipy is an open-source python package that offers multicomponent multiphase equilibrium calculations based on the CALPHAD (CALculation of PHAse Diagram) approach. With a set of Gibbs energy description (Thermochemical database) and input conditions (Composition, temperature, pressure), equilibrium phase configureation, amount, composition, and thermochemical properties can be obtained. Equilipy uses the Gibbs energy descriptions furnished by THERMOCHIMICA with the modified Gibbs energy minimization algorithm initially proposed by de Capitani, C. and Brown, T.H. (1987).
 
@@ -23,6 +27,7 @@ The following features are currently available.
 - Batch equilibrium calculations
 - Scheil-Gulliver solidification
 - Phase selection
+Hehehe
 
 For details, check out the example directory and [Features and Examples](https://ornl.github.io/Equilipy/features.html)
 

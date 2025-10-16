@@ -58,6 +58,8 @@ subroutine CheckMiscibilityGap(iSolnPhaseIndex,lAddPhase)
 !
     integer::  i, iFirst, iLast, nConstituents, iSolnPhaseIndex,iMaxMoleIndex
     real(8)::  dMinMoleFraction, dMaxMoleFraction
+    real(8), dimension(:), allocatable:: dEndmemberPotential
+    integer, dimension(:), allocatable:: iEndmemberPotential
     logical::  lAddPhase
 !
     ! Initialize variables:
@@ -69,15 +71,24 @@ subroutine CheckMiscibilityGap(iSolnPhaseIndex,lAddPhase)
     dMaxMoleFraction = 1D0 - dMinMoleFraction * DFLOAT(nConstituents-1)
     dMaxMoleFraction = DMAX1(dMaxMoleFraction, 0.9D0)
     lAddPhase        = .FALSE.
-!
+
+    if(allocated(dEndmemberPotential)) deallocate(dEndmemberPotential)
+    if(allocated(iEndmemberPotential)) deallocate(iEndmemberPotential)
+    allocate(dEndmemberPotential(nConstituents),iEndmemberPotential(nConstituents))
+    dEndmemberPotential= dStdGibbsEnergy(iFirst:iLast)- MATMUL(dAtomFractionSpecies(iFirst:iLast,:),dElementPotential)
+    
+    call Qsort(dEndmemberPotential,iEndmemberPotential,nConstituents)
+
     ! Perform subminimization multiple times by initializing from all extremums of the domain space:
-    LOOP_Constituents: do i = 1, nConstituents
+    LOOP_Constituents: do i = 1, nElements
 !
         ! Initialize the mole fractions:
         ! iMaxMoleIndex= MAXLOC(dStoichSpecies(iFirst:iLast,i)/sum(dStoichSpecies(iFirst:iLast,:),dim=2),dim=1)
         dMolFraction(iFirst:iLast) = dMinMoleFraction
-        dMolFraction(iFirst+i-1)   = dMaxMoleFraction
+        dMolFraction(iFirst+iEndmemberPotential(i)-1)   = dMaxMoleFraction
 !
+        ! print*,'Checking miscibility gap in ',cSolnPhaseName(iSolnPhaseIndex),&
+        ! i,'/',nElements
         ! Perform subminimization:
         call Subminimization(iSolnPhaseIndex, lAddPhase)
 !

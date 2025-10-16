@@ -147,12 +147,12 @@ subroutine GetElementName(cElementNamePT)
     cElementNamePT(110) = 'Ds'
     cElementNamePT(111) = 'Rg'
     cElementNamePT(112) = 'Cn'
-    cElementNamePT(113) = 'Uut'
-    cElementNamePT(114) = 'Uuq'
-    cElementNamePT(115) = 'Uup'
-    cElementNamePT(116) = 'Uuh'
-    cElementNamePT(117) = 'Uus'
-    cElementNamePT(118) = 'Uuo'
+    cElementNamePT(113) = 'Nh'
+    cElementNamePT(114) = 'Fl'
+    cElementNamePT(115) = 'Mc'
+    cElementNamePT(116) = 'Lv'
+    cElementNamePT(117) = 'Ts'
+    cElementNamePT(118) = 'Og'
 !
     return
 !

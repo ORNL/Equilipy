@@ -177,15 +177,21 @@ subroutine CheckSystem
             if (cElementNameCS(j) == cElementNamePT(i)) then
                 ! Convert the mass of each element to moles:
                 select case (cInputUnitMass)
-                case ('mass fraction','kilograms','grams','pounds','lbs','g','kg')
-                        ! Convert mass unit to moles:
-                        dElementMass(i) = dElementMass(i) / dAtomicMassCS(j)
-                    case ('mole fraction','atom fraction','atoms','moles','mol','gram-atoms')
-                        ! Do nothing
-                    case default
-                        ! The character string representing input units is not recognized.
-                        INFOThermo = 4
-                        return
+                case ('grams','g','mass fraction','weight fraction','wt%','wt.%')
+                    ! Convert mass unit to moles:
+                    dElementMass(i) = dElementMass(i) / dAtomicMassCS(j)
+                case ('kilograms','kg')
+                    ! Convert mass unit to moles:
+                    dElementMass(i) = 1000*dElementMass(i) / dAtomicMassCS(j)
+                case ('pounds','lbs')
+                    dElementMass(i) = 453.59237*dElementMass(i) / dAtomicMassCS(j)
+                case ('moles','mol','atoms','gram-atoms','gram-moles',&
+                    'mole fraction','atom fraction','mol%','at%')
+                    ! Do nothing
+                case default
+                    ! The character string representing input units is not recognized.
+                    INFOThermo = 4
+                    return
                 end select
                 iElementSystem(j) = i
                 dSum = dSum + dElementMass(i)
@@ -258,7 +264,7 @@ subroutine CheckSystem
             print *, "WARNING: Element ", cElementNamePT(i), " not in database and therefore omitted from calculation"
         end if
     end do LOOP_checkElements
-!
+
     ! The system requires a minimum of two elements in order to be considered:
     ! SY: when nElements==1, no result is given. Add a function that print and terminate the calculations in CheckThermoData
     if (nElements < 1 + k) then
@@ -274,6 +280,10 @@ subroutine CheckSystem
             if (iSolnPS(o)>0) then
                 i=o
             else
+                if ((cSolnPhaseTypeCS(o) == 'SUBL').OR.(cSolnPhaseTypeCS(o) == 'SUBLM').OR.&
+                    (cSolnPhaseTypeCS(o) == 'SUBG').OR.(cSolnPhaseTypeCS(o) == 'SUBQ')) then
+                    nCountSublatticeTemp = nCountSublatticeTemp + 1
+                end if
                 cycle
             end if
         else
@@ -303,7 +313,7 @@ subroutine CheckSystem
                 if (iCon4 > 0) iConstituentPass(k,2,iCon4) = 1
             end if
         end do LOOP_SpeciesInSolnPhase
-!
+
         ! For electrons, there have to be species with positive and negative stoichiometries still in the system.
         ! Otherwise, remove the species that use that electron.
         do k = 1, nElementsCS
@@ -325,7 +335,7 @@ subroutine CheckSystem
                 end if
             end if
         end do
-!
+
         ! Store temporary counter for the number of charged phases from the CS data-file:
         if ((cSolnPhaseTypeCS(i) == 'SUBL').OR.(cSolnPhaseTypeCS(i) == 'SUBLM')) then
             nCountSublatticeTemp = nCountSublatticeTemp + 1

@@ -1,8 +1,32 @@
 [tool.cibuildwheel]
 build-verbosity = 1
 build-frontend = "pip"
-build = "cp39* cp310* cp311* cp312*"
-skip  = ["*-musllinux*","cp312-win*"]
+build = "cp39* cp310* cp311* cp312* cp313*"
 
 [build-system]
-requires = ["setuptools>=42", "wheel", "numpy>=1.21,<2.0", "meson", "ninja", "cibuildwheel"]
+requires = ["setuptools>=42", "wheel", "numpy>=1.23", "meson", "ninja", "cibuildwheel"]
+
+[project]
+name = "equilipy"
+version = "0.1.6"
+authors = [
+    {name = "Sunyong Kwon", email = "kwons@ornl.gov"},
+]
+license = {text = "BSD-3"}
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.23",
+    "regex",
+    "numba",
+    "dataclasses",
+    "meson",
+    "ninja",
+    "polars>=0.20.15",
+    "xlsx2csv",
+    "matplotlib",
+    "tqdm",
+    "fastexcel",
+]
+
+[project.scripts]
+equilipy = "equilipy.__main__:main"

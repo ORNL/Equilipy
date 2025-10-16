@@ -33,31 +33,43 @@ subroutine PostProcessPEA
     !
         implicit none
     !
-        integer                             :: i,j,k,l,m,n,o,p,q,r,s, nTempSolnPhases,iMiscIndex,iImmiscIndex
-        integer,dimension(nElements)        :: iAssemblageLast, iAssemblageNew
+        integer                             :: i,j,k,l,m,n,o,p,q,r,s,t,u,v, nTempSolnPhases,iMiscIndex,iImmiscIndex,INFO
+        integer, dimension (nElements)      :: iAssemblageLast
         real(8),dimension(nSpecies)         :: dTempPhasePotential,dMolesPerSpecies
         real(8)                             :: dTemp
+        real(8), dimension (nElements)      :: dDummy
         logical                             :: lStableAssemblage, lCompEveryPhases, lDuplicate
 
-        lCompEveryPhases =.FALSE.
+        lCompEveryPhases =.True.
         lSolnPhases = .FALSE.
+        INFO = 0
+
+
+        if (allocated(iAssemblageGEM)) deallocate(iAssemblageGEM)
+        allocate(iAssemblageGEM(nElements))
+        iAssemblageGEM         = iAssemblage
+        
 
         ! 1. Remove small fraction of negative phase amount: set to zero
         if (MINVAL(dMolesPhase)<0D0) then
             dMolesPhase(MINLOC(dMolesPhase,dim=1))=0
         end if
+        
 
         ! 2. Remove the assemblage that has zero amount
         do i=1,nElements
-            if (dMolesPhase(i)<1D-50) then
+            if (dMolesPhase(i)<1D-15) then
                 iAssemblage(i)=0
             end if
         end do
+        iAssemblageLast = iAssemblage
+        
 
         ! Memory allocation for the post processing
+        
         if (allocated(dMolesPhaseLast)) deallocate(dMolesPhaseLast)
         allocate(dMolesPhaseLast(nElements))
-        iAssemblageLast         = iAssemblage
+        
         dMolesPhaseLast         = dMolesPhase
         dTempPhasePotential     = 0D0
         nConPhases              = 0
@@ -89,7 +101,12 @@ subroutine PostProcessPEA
             elseif ((l > 0).AND.(nConPhases + nSolnPhases <= nElements)) then
                 ! Solution phases
                 m = nSpeciesPhase(l-1) + 1      ! First constituent in phase.
-                n = nSpeciesPhase(l)            ! Last  constituent in phase.             
+                n = nSpeciesPhase(l)            ! Last  constituent in phase.
+                
+                ! !Check if the dMolFractionGEM is correctly defined
+                ! dDummy=MATMUL(dMolFractionGEM(i,m:n),dStoichSpecies(m:n,:))
+                ! dTemp = sum(dDummy/sum(dDummy)-dStoichSpeciesGEM(i,:))
+                ! print*,i, sum(dMolFractionGEM(i,m:n))
                 
                 ! Get Soln index of miscible phase
                 loop_misc1:do p = l, 1, -1
@@ -109,22 +126,51 @@ subroutine PostProcessPEA
                     
                     !Check if the immiscibility is considered in the system
                     ! When the solution phase is already stored, check duplicate:
-                    lDuplicate = .TRUE.
+                    lDuplicate = .False.
                         
                     p = nSpeciesPhase(r-1) + 1      ! First constituent in phase.
                     q = nSpeciesPhase(r)            ! Last  constituent in phase.     
 
-                    dTemp = MAXVAL(DABS(MATMUL(dMolFractionGEM(i,m:n),dStoichSpecies(m:n,:))-&
-                    MATMUL(dMolFraction(p:q),dStoichSpecies(p:q,:))))
-                    ! print*, 'Processing ', l, cSolnPhaseName(l), MATMUL(dMolFractionGEM(i,m:n),dStoichSpecies(m:n,:))
-                    ! print*, 'Comparing with', r, cSolnPhaseName(r), MATMUL(dMolFraction(p:q),dStoichSpecies(p:q,:))
+                    dTemp = sum(DABS(MATMUL(dMolFractionGEM(i,m:n),dStoichSpecies(m:n,:))-&
+                    MATMUL(dMolFraction(p:q),dStoichSpecies(p:q,:))))/DFLOAT(n-m)
+                    ! dTemp = sum(DABS(dMolFractionGEM(i,m:n)-dMolFraction(p:q)))/DFLOAT(n-m)
+                    
+                    iImmiscIndex = iMiscIndex+1
+                    do s= 1, nSolnPhases
+                        o = nElements - s + 1
+                        if(iAssemblage(o)==-iImmiscIndex) iImmiscIndex = iImmiscIndex+1
+                    end do
+                    
+                    ! Check if the current phase is duplicated before
+                    if((dTemp < 5D-2) .or.(cSolnPhaseName(iMiscIndex) /= cSolnPhaseName(iImmiscIndex))) then
+                        lDuplicate = .True.
+                        ! dMolFractionGEM(i,m:n)=dMolFraction(p:q)
 
-                    Immiscibility: do o = iMiscIndex, nSolnPhasesSys
-                        if(lMiscibility(o).and.dTemp > 5D-2) then
-                            lDuplicate = .FALSE.
-                            exit Immiscibility
-                        end if
-                    end do Immiscibility
+                    end if
+
+                    if(.not.lDuplicate) then
+                        ! Check if there is another phase that needs to be checked
+                        Dup:do t =1,nSolnPhases
+                            s = -iAssemblage(nElements - t + 1)
+                            if (cSolnPhaseName(s) /= cSolnPhaseName(l).or. t==j) cycle Dup
+
+                            u = nSpeciesPhase(s-1) + 1      ! First constituent in phase.
+                            v = nSpeciesPhase(s)            ! Last  constituent in phase.   
+                            ! dTemp = sum(DABS(dMolFractionGEM(i,m:n)-dMolFraction(u:v)))/DFLOAT(n-m)
+                            dTemp = sum(DABS(MATMUL(dMolFractionGEM(i,m:n),dStoichSpecies(m:n,:))-&
+                            MATMUL(dMolFraction(u:v),dStoichSpecies(u:v,:))))/DFLOAT(n-m)
+                            if(dTemp < 5D-2) then
+                                p = u
+                                q = v
+                                k = nElements - t + 1
+                                lDuplicate = .True.
+                                ! dMolFractionGEM(i,m:n)=dMolFraction(p:q)
+                            end if
+                        end do Dup
+                        
+                    end if
+
+                    ! print*, i, k, dTemp, lDuplicate
 
                     if (lDuplicate) then
                         ! Phase are duplicated. Just add them to previous one
@@ -132,10 +178,12 @@ subroutine PostProcessPEA
                             ! Minimum points
                             dMolesPhase(k) = dMolesPhase(k)+dMolesPhaseLast(i)
                             dMolesSpecies(p:q)=dMolesSpecies(p:q)+dMolFractionGEM(i,m:n)*dMolesPhaseLast(i)
+                            dMolFraction(p:q) = dMolFractionGEM(i,m:n)
                         else
                             ! Pure species in solution phase
                             dMolesPhase(k)                    = dMolesPhase(k)+dMolesPhaseLast(i)
                             dMolesSpecies(p+iAssemblageLast(i)-m) = dMolesSpecies(iAssemblageLast(i))+dMolesPhaseLast(i)
+                            dMolFraction(p:q) = dMolFractionGEM(i,m:n)
                         end if
 
                         cycle LOOP_AddPhase
@@ -143,12 +191,7 @@ subroutine PostProcessPEA
                         ! when the phase is not duplicated through out all stored sln phases, create immiscible phase
                         ! When the immiscible phase actually has different compositions, treat the phase as if it has not been stored.
                         
-                        iImmiscIndex = iMiscIndex+1
-
-                        do s= 1, nSolnPhases
-                            o = nElements - nSolnPhases + 1
-                            if(iAssemblage(o)==-iImmiscIndex) iImmiscIndex = iImmiscIndex+1
-                        end do
+                        
                         nSolnPhases = nSolnPhases + 1
                         o = nElements - nSolnPhases + 1
 
@@ -158,13 +201,18 @@ subroutine PostProcessPEA
                         
                         if (iAssemblageLast(i)>nSpecies) then
                             ! Minimum points
+                            ! print*,'>nSpecies',i,l
                             dMolesPhase(o) = dMolesPhaseLast(i)
                             dMolesSpecies(p:q)=dMolFractionGEM(i,m:n)*dMolesPhaseLast(i)
+                            dMolFraction(p:q) = dMolFractionGEM(i,m:n)
         
                         else
                             ! Pure species in solution phase
+                            ! print*,'<=nSpecies',i,l
                             dMolesPhase(o)                    = dMolesPhaseLast(i)
-                            dMolesSpecies(p) = dMolesPhaseLast(i)
+                            dMolesSpecies(p+iAssemblageLast(i)-m) = dMolesPhaseLast(i)
+                            dMolFraction(p:q) =0D0
+                            dMolFraction(p+iAssemblageLast(i)-m) =1D0
                         end if
         
                         lSolnPhases(o) = .TRUE.
@@ -191,6 +239,8 @@ subroutine PostProcessPEA
                         ! Pure species in solution phase
                         dMolesPhase(j)                    = dMolesPhaseLast(i)
                         dMolesSpecies(iAssemblageLast(i)) = dMolesPhaseLast(i)
+                        dMolFraction(m:n)= 0D0
+                        dMolFraction(iAssemblageLast(i))= 1D0
                     end if
 
                     lSolnPhases(l) = .TRUE.
@@ -224,19 +274,6 @@ subroutine PostProcessPEA
                 end if
             end if
         end do LOOP_AddPhase
-
-        ! 4. Re-calculate mole fraction based on dMolesSpecies, which makes it more accurate
-        do i = 1, nSolnPhases
-            j = -iAssemblage(nElements - i + 1)       ! Absolute solution phase index
-            m = nSpeciesPhase(j-1) + 1
-            n = nSpeciesPhase(j) 
-            dTemp = sum(dMolesSpecies(m:n))
-            if (dTemp>0D0) dMolFraction(m:n)=dMolesSpecies(m:n)/dTemp
-            if(MINVAL(dMolesSpecies(m:n))<1D-100) then
-                ! print*, 'Skip LG:', cSolnPhaseName(j)
-                lSkipLagrange = .True.
-            end if
-        end do
         
     
         !Revert back modified variables
@@ -246,22 +283,38 @@ subroutine PostProcessPEA
 
         dAtomFractionSpecies = dAtomFractionSpeciesOld
         dPhasePotential      = dTempPhasePotential  
-        iterUBC = iterGlobal
+
+
+        ! 4. Re-calculate mole fraction based on dMolesSpecies, which makes it more accurate
+        do i = 1, nSolnPhases
+            j = -iAssemblage(nElements - i + 1)       ! Absolute solution phase index
+            m = nSpeciesPhase(j-1) + 1
+            n = nSpeciesPhase(j) 
+            dTemp = sum(dMolesSpecies(m:n))
+            if (dTemp>0D0) dMolFraction(m:n)=dMolesSpecies(m:n)/dTemp
+            
+            if(MINVAL(dMolesSpecies(m:n))<1D-100) then
+                lSkipLagrange = .True.
+            end if
+        end do
 
         !Calculate chemical potentials based on mole fraction
         call CompChemicalPotential(lCompEveryPhases)
-        !Double check duplicate and combine them again
 
         call CompFunctionNorm
+        ! dChemicalPotential = matmul(dStoichSpecies,dElementPotential)/DFLOAT(iParticlesPerMole)
         dGEMFunctionNormLast=dGEMFunctionNorm
+
+
+
 
         ! dChemicalPotential = MATMUL(dStoichSpecies,dElementPotential)/FLOAT(iParticlesPerMole)
         ! dPartialEnthalpy=dPartialEnthalpy*dSpeciesTotalAtoms
         ! dPartialEntropy=dPartialEntropy*dSpeciesTotalAtoms
         ! dPartialHeatCapacity=dPartialHeatCapacity*dSpeciesTotalAtoms
 
-        deallocate(dAtomFractionSpeciesGEM,dChemicalPotentialGEM,dStoichSpeciesGEM,iPhaseGEM,&
-        dMolesPhaseHistory,dMolFractionGEM,dMolesPhaseLast,dMolFractionOld,iPhaseLevel,dStoichSpeciesLevel)
+        ! deallocate(dAtomFractionSpeciesGEM,dChemicalPotentialGEM,dStoichSpeciesGEM,iPhaseGEM,dMolFractionGEM,&
+        deallocate(dMolesPhaseHistory,dMolesPhaseLast,dMolFractionOld,iPhaseLevel,dStoichSpeciesLevel)
         ! if(dGEMFunctionNormLast<1D-5) lSkipLagrange = .True.
 
     end subroutine PostProcessPEA

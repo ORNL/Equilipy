@@ -56,28 +56,27 @@ module ModuleGEMSolver
 !
     SAVE
 !
-    integer                                           ::  iterLast,  iterStep, iterRevert,  iterGlobal, iterUBC, iterLG
+    integer                                           ::  iterLast,  iterStep, iterRevert,  iterGlobal, iterPEA, iterLG
     integer                                           ::  iterLastCon,   iterLastSoln, iterSwap, iterLastMiscGapCheck
     integer                                           ::  iConPhaseLast, iSolnPhaseLast, iSolnSwap,  iPureConSwap
     integer                                           ::  iMinDrivingForceStoich, iMinDrivingForceSoln, iSpeciesRemove
-    integer, parameter                         ::  iterGlobalMax = 500
-    integer, dimension(:),   allocatable ::  iAssemblageTest !Added by S.Y. Kwon
+    integer, parameter                         ::  iterGlobalMax = 1000
+    integer, dimension(:),   allocatable ::  iAssemblageGEM, iAssemblageGEMinit !Added by S.Y. Kwon
     integer, dimension(:,:), allocatable ::  iterHistory
 !
     real(8)                                            :: dGEMFunctionNorm, dGEMFunctionNormLast, dMaxSpeciesChange, dMinGibbs
     real(8)                                            :: dMinDrivingForceStoich, dMinDrivingForceSoln, dSpeciesRemove, dPlateau
     real(8)                                            :: xT, dGParam, dHParam, dSParam, dCpParam,dMaxPotentialTol
     real(8), dimension(:),   allocatable :: dSumMolFractionSoln, dMolesPhaseLast, dUpdateVar, dDrivingForceSoln
-    real(8), dimension(:),   allocatable :: dPartialExcessGibbs, dPartialExcessGibbsLast, dGibbsEnergySysHist
-    real(8), dimension(:),   allocatable :: dDeltaSpecies, dDeltaPotential, dUpdateVarLast
-    real(8), dimension(:),   allocatable :: dPartialEnthalpyXSLast, dPartialEntropyXSLast, dPartialHeatCapacityXSLast
+    real(8), dimension(:),   allocatable :: dPartialExcessGibbs, dPartialExcessGibbsLast
+    real(8), dimension(:),   allocatable :: dUpdateVarLast
     real(8), dimension(:),   allocatable :: dMolesSpeciesLast, dElementPotentialLast !Added by S.Y. Kwon
     real(8), dimension(:),   allocatable :: dPartialGParam, dPartialHParam, dPartialSParam,dPartialCpParam
     ! real(8), dimension(:,:), allocatable ::  dEffStoichSolnPhase, dMolFractionGEM
 !
     logical                                           ::  lDebugMode, lRevertSystem, lConverged, lSubConverged, lNegativeMolesPhase
-    logical                                           ::  lGibbsMinCheck
-    logical, dimension(:),   allocatable::  lSolnPhases, lMiscibility
+    logical                                           ::  lGibbsMinCheck, lPhaseChange, lCompbdOnly, lPostProcess
+    logical, dimension(:),   allocatable::  lSolnPhases, lMiscibility,lPhaseChangeHistory
     
 !
 end module ModuleGEMSolver

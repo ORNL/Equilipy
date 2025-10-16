@@ -2,10 +2,10 @@
 import numpy as np, os
 from tqdm import tqdm
 import equilipy.equilifort as fort
-from .InternalFunctions import _dict2np
+from .utils import _dict2np
 from .InputCondition import input_condition
 from .Minimize import minimize
-from .PostProcess import Result
+from .PostProcess import Result, check_output_units
 from .PhaseSelection import phase_selection
 from .ListPhases import list_phases
 from .Errors import *
@@ -17,8 +17,10 @@ from multiprocessing import Pool
 from numba import njit
 
 
-def _equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPhases:list=None):
+def _equilib_batch(Database:dict,NTP:dict,UnitIn:list=['K','atm','moles'],UnitOut:list=None,ListOfPhases:list=None):
     
+    if UnitOut==None:
+        UnitOut = UnitIn.copy() 
     
     # Read Database saved in a dictionary
     read_dict(Database)
@@ -27,8 +29,6 @@ def _equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPha
     NTPheader,NTPvals=_dict2np(NTP)
     L,_=NTPvals.shape
     res = Result()
-    
-    
     try: 
         # If this is successfull, systems are defined previously
         if ListOfPhases!=None: phase_selection(ListOfPhases)
@@ -57,9 +57,11 @@ def _equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPha
             if ListOfPhases!=None: phase_selection(ListOfPhases)
         
         var.dConditionSys=condition
-        input_condition(Unit,condition)
+        input_condition(UnitIn,condition)
+        
         try: 
             minimize()
+            check_output_units(UnitOut)
             res.append_output()
             
         except EquilibError:
@@ -71,7 +73,7 @@ def _equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPha
     return res
 
 
-def _batch_input(database,conditions,units,ListOfPhases,nPerBatch):
+def _batch_input(database,conditions,UnitIn,UnitOut,ListOfPhases,nPerBatch):
     """
     Break fullrange up into smaller sets of ranges that cover all
     the same numbers.
@@ -85,7 +87,7 @@ def _batch_input(database,conditions,units,ListOfPhases,nPerBatch):
         subcondition=dict({})
         for j, head in enumerate(header):
             subcondition[head] = NTP[i:min(i+nPerBatch, fullrange[1]),j]
-        res.append( [database,subcondition,units,ListOfPhases] ) 
+        res.append( [database,subcondition,UnitIn,UnitOut,ListOfPhases] ) 
     return res
 
 
@@ -100,7 +102,7 @@ def _equilib_singlenode(arg,nCPU):
 #         res = pool.starmap(_equilib_batch, arg)
 #     return res
 
-def equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPhases:list=None,nCPU:int=os.cpu_count(),nPerBatch:int=1):
+def equilib_batch(Database:dict,NTP:dict,UnitIn:list=['K','atm','moles'],UnitOut:list=None,ListOfPhases:list=None,nCPU:int=os.cpu_count(),nPerBatch:int=1):
     '''
     Calculate phase equlibria for multiple NTP conditions.
     ----------------------------------------------------------------------------------------------------------------
@@ -135,17 +137,18 @@ def equilib_batch(Database:str,NTP:dict,Unit:list=['K','atm','moles'],ListOfPhas
     Result.Phases      : Dictionary {phase_name: phase_object,...}
     
     '''
+    if UnitOut==None:
+        UnitOut = UnitIn.copy() 
     # Get a batch input
-    arg =_batch_input(Database,NTP,Unit,ListOfPhases,nPerBatch)
+    arg =_batch_input(Database,NTP,UnitIn,UnitOut,ListOfPhases,nPerBatch)
     
-    
-    res_mpi=list(_equilib_singlenode(arg,nCPU))
-    
-    # For HPC, Check if it is on a single node with multiple processors
+    # # Check if it is on a single node with multiple processors
     # if(MPI.COMM_WORLD.Get_size()==1):
     #     res_mpi=list(_equilib_singlenode(arg,nCPU))
     # else:
     #     res_mpi=list(_equilib_multinodes(arg,MPI.COMM_WORLD.Get_size()))
+        
+    res_mpi=list(_equilib_singlenode(arg,nCPU))
     
     #Concatenate all results
     res=res_mpi[0]

@@ -92,7 +92,7 @@ subroutine GetNewAssemblage(iter)
 !
     implicit none
 !
-    integer                                :: i, j, k, m, n, INFO, iNewPhase, iter, iPhaseTypeOut, ipriori
+    integer                                :: i, j, k, l, m, n, INFO, iNewPhase, iter, iPhaseTypeOut, ipriori
     integer,dimension(nElements)           :: iTempAssemblage, IPIV,idxpriori, iTempiPhaseGEM
     real(8),dimension(nElements)           :: dTempChemicalPotentialGEM, dMinValuedMolesPhase, dpriori
     real(8),dimension(nElements,nElements) :: A, dTempStoichSpeciesGEM, dTempAtomFractionSpeciesGEM
@@ -125,6 +125,8 @@ subroutine GetNewAssemblage(iter)
     dTempAtomFractionSpeciesGEM = dAtomFractionSpeciesGEM
     dTempMolFractionGEM         = dMolFractionGEM
     iTempiPhaseGEM = iPhaseGEM
+
+
    
     do i = 1, nElements
         j = iShuffled(i)
@@ -134,6 +136,7 @@ subroutine GetNewAssemblage(iter)
         dMolFractionGEM(i,:)         = dTempMolFractionGEM(j,:)
         iPhaseGEM(i)               = iTempiPhaseGEM(j)
     end do
+    
 
     ! ! Store the indices of the estimated phase assemblage at each iteration
     iterHistoryLevel(:,iter) = iAssemblage
@@ -160,15 +163,16 @@ subroutine GetNewAssemblage(iter)
         dAtomFractionSpeciesGEM(k,:) = dAtomFractionSpecies(iNewPhase,:)
         iPhaseGEM(k)                 = iPhaseLevel(iNewPhase)
         
-
-    
-
         j = iPhaseLevel(iNewPhase)
         if (j>0) then
             m = nSpeciesPhase(j-1) + 1      ! First constituent in phase.
             n = nSpeciesPhase(j)            ! Last  constituent in phase.
-            dMolFractionGEM(k,m:n)      = dMolFraction(m:n)
-            
+            if(iNewPhase<=nSpecies) then
+                dMolFractionGEM(k,m:n) = 0D0
+                dMolFractionGEM(k,iNewPhase) = 1D0
+            else
+                dMolFractionGEM(k,m:n)      = dMolFraction(m:n)
+            end if
         end if
 
         ! 2. Calculate phase amount
@@ -178,12 +182,9 @@ subroutine GetNewAssemblage(iter)
             end do
             dMolesPhase(i) = dMolesElement(i)
         end do
-
-        ! ! Check if this phase (vertex) yield the bulk composition to be in 
-        ! call InSimplex(dStoichSpeciesGEM, nElements, dMolesElement, lVertexPass)
-        ! if (.NOT.lVertexPass) cycle
-
+        
         ! 2.1 Call the linear equation solver to compute molar quantities of the phase assemblage:
+        
         INFO = 0
         IPIV = 0
         call DGESV( nElements, 1, A, nElements, IPIV, dMolesPhase, nElements, INFO )
@@ -212,12 +213,12 @@ subroutine GetNewAssemblage(iter)
             iPhaseGEM               = iTempiPhaseGEM
 
             !Check if the most possible assemblage has tolerable negative amount
-            if((MINVAL(DABS(dMinValuedMolesPhase))<1D-3)) then
+            if((MINVAL(DABS(dMinValuedMolesPhase))<1D-7)) then
                 !Check if there is zero in dMinValuedMolesPhase
                 i = MAXLOC(dMinValuedMolesPhase,DIM=1)
-                if(.NOT.(lPhasePass).AND.(count(DABS(dMinValuedMolesPhase)<1D-3)>1)) then
+                if(.NOT.(lPhasePass).AND.(count(DABS(dMinValuedMolesPhase)<1D-7)>1)) then
                     LOOP_i:do m =1,nElements
-                        if (ABS(dMinValuedMolesPhase(m))<1D-3) then
+                        if (ABS(dMinValuedMolesPhase(m))<1D-7) then
                             i = m
                             exit LOOP_i
                         end if
@@ -235,7 +236,13 @@ subroutine GetNewAssemblage(iter)
             if (j>0) then
                 m = nSpeciesPhase(j-1) + 1      ! First constituent in phase.
                 n = nSpeciesPhase(j)            ! Last  constituent in phase.
-                dMolFractionGEM(i,m:n)      = dMolFraction(m:n)
+                if(iNewPhase<=nSpecies) then
+                    dMolFractionGEM(i,m:n) = 0D0
+                    dMolFractionGEM(i,iNewPhase) = 1D0
+                else
+                    dMolFractionGEM(i,m:n)      = dMolFraction(m:n)
+                end if
+                ! dMolFractionGEM(i,m:n)      = dMolFraction(m:n)
                 
             end if
 

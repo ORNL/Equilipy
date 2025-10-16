@@ -5,6 +5,7 @@ from .ParseCSDataBlockQKTO import *
 from .ParseCSDataBlockRKMP import *
 from .ParseCSDataBlockSUBL import *
 from .ParseCSDataBlockSUBG import *
+from .utils import *
 
 
 def ParseCSDataBlock():
@@ -35,6 +36,7 @@ def ParseCSDataBlock():
 		#Dummy parameter
 		if i<=1: var.indx = int(0)+1
 		else: var.indx=var.nSpeciesPhaseCS[i-2]+1
+		
   
 		#Count sublattice phases
 		if var.cSolnPhaseTypeCS[i-1] in var.cSolnPhaseTypeSupport[5:]:
@@ -89,14 +91,14 @@ def ParseCSDataBlock():
 			if var.cSolnPhaseTypeCS[i-1] in var.cSolnPhaseTypeSupport[7:]:
 				#The following subroutine parses the Gibbs energy equations (entries 3-5):
 				ParseCSDataBlockGibbs(i,j)
+				
 				# Get pair stoichiometry in terms of constituents
 				var.dConstituentCoefficientsCS[var.nCountSublatticeCS-1,j - var.indx,:5]=np.asarray(var.DataBase[:5],dtype=float)
 				del var.DataBase[:5]
 				if var.cSolnPhaseTypeCS[i-1] == var.cSolnPhaseTypeSupport[8]:
 					var.dZetaSpeciesCS[var.nCountSublatticeCS-1,j - var.indx] = float(var.DataBase.pop(0))
 			else:
-				#The following subroutine parses the Gibbs energy equations (entries 3-5):
-				
+				#The following subroutine parses the Gibbs energy equations (entries 3-5):				
 				ParseCSDataBlockGibbs(i,j)
 			if 'QKTO' in var.cSolnPhaseTypeCS[i-1]:
 				var.dTempVec=np.asarray(var.DataBase[:2],dtype=float)

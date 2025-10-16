@@ -58,7 +58,7 @@ subroutine GetFirstAssemblage
 !
     implicit none
 !
-    integer::                               i, j,INFO
+    integer::                               i, j,m,n,INFO
     integer, dimension(nElements)        :: IPIV
     integer,dimension(nSpeciesLevel,nElements):: iAtomFractionSpecies
     integer,dimension(nElements):: iAssemblageTemp
@@ -131,6 +131,18 @@ subroutine GetFirstAssemblage
 !
     ! Call the linear equation solver to compute molar quantities of the phase assemblage:
     call DGESV( nElements, 1, A, nElements, IPIV, dMolesPhase, nElements, INFO )
+
+    do i = 1, nElements
+        j = iPhaseLevel(iAssemblage(i))
+        if(j==0) then
+            cycle
+        else if(j>0) then
+            m = nSpeciesPhase(j-1) + 1      ! First constituent in phase.
+            n = nSpeciesPhase(j)            ! Last  constituent in phase.
+            dMolFractionGEM(i,m:n) = 0D0
+            dMolFractionGEM(i,iAssemblage(i)) = 1D0
+        end if
+    end do
 !
     return
 !

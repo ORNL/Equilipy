@@ -51,7 +51,7 @@ subroutine CompChemicalPotential(lCompEverything)
 !
     implicit none
 !
-    integer :: i, j, k
+    integer :: i, j, k, m, n
     real(8) :: dTemp
     logical :: lCompEverything
 !
@@ -62,6 +62,7 @@ subroutine CompChemicalPotential(lCompEverything)
     dPartialEnthalpy      = dStdEnthalpy
     dPartialEntropy       = dStdEntropy
     dPartialHeatCapacity  = dStdHeatCapacity
+    lSolnPhases           = .False.
 !
     ! Compute the mole fractions of species in solution phases expected to be stable:
     do j = 1, nSolnPhases
@@ -69,6 +70,9 @@ subroutine CompChemicalPotential(lCompEverything)
         k      = nElements - j + 1          ! Index of phase in iAssemblage
         dTemp  = dMolesPhase(k)
         k      = -iAssemblage(k)            ! Absolute index of solution phase
+        m      = nSpeciesPhase(k-1) + 1
+        n      = nSpeciesPhase(k)
+        lSolnPhases(k) = .True.
 !
         ! Compute the mole fractions of all solution phase constituents in the phase:
         do i = nSpeciesPhase(k-1) + 1, nSpeciesPhase(k)

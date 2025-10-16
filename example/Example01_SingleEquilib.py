@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-import equilipy as eq
+import equilipy as eq, os
 
 if __name__ == "__main__":
     # Step 1: Parse database
-    datafile=f'./Database/AlCuMgSi_ORNL'
-    DB=eq.read_dat(datafile+'.dat')
-
+    fpath=os.path.dirname(os.path.abspath(__file__))
+    path ='/'.join(fpath.split('/')[:-1])
+    datafile=f'{path}/database/AlCuMgSi_ORNL_FS73'
+    DB=eq.read_dat(datafile+'.dat',FactSage8Plus=False)
+    
     # Step 2: Parse input data
     NTP = dict({
         'T':700,

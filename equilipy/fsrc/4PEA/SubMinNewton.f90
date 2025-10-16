@@ -45,9 +45,9 @@ subroutine SubMinNewton(iSolnPhaseIndex)
     !This will be used to remove zeroing species
     do j = 1, nVar
         i                 = iFirstSUB + j - 1 
-        dSubminGibbsEst=dSubminGibbsEst+(dChemicalPotential(i) - dChemicalPotentialStar(j))
+        dSubminGibbsEst=dSubminGibbsEst+(dChemicalPotential(i) - dChemicalPotentialStar(j))*(dMolFraction(i))
     end do
-    dSubminGibbsEst = dSubminGibbsEst/nVar
+    ! dSubminGibbsEst = dSubminGibbsEst/nVar
 
     do j = 1, nVar
         i                 = iFirstSUB + j - 1 
@@ -92,7 +92,7 @@ subroutine SubMinNewton(iSolnPhaseIndex)
     end if
     !
     !Damping the oscilation when it goes above a certain iteration
-    if (iterSubLG>10) dRHS = (0.6)*dRHSLast +(0.4)*dRHS
+    if (iterSub>100) dRHS = (0.6)*dRHSLast +(0.4)*dRHS
 !
 end subroutine SubMinNewton
 !

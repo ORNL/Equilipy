@@ -2,6 +2,7 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 import equilipy.equilifort as fort
 import equilipy.variables as var
+from equilipy.InternalFunctions import _dict2np
 from .Errors import *
 
 def _count_unstable_compounds(i):    
@@ -48,6 +49,45 @@ def _get_assemblage_name(AssemblageIDs):
             AssemblageNames.append(var.cPhaseNameSys[id].strip())
     return AssemblageNames
 
+def check_output_units(UnitOut:list=['K','atm','moles']):
+    
+    # Convert Temperature Unit
+    if UnitOut[0] == 'C':
+        var.dTOut=fort.modulethermoio.dtemperature - 273.15
+    elif UnitOut[0] == 'F':
+        var.dTOut= fort.modulethermoio.dtemperature*9/5 -459.67
+    elif UnitOut[0] == 'R':
+        var.dTOut=fort.modulethermoio.dtemperature*9/5
+    else:
+        var.dTOut=fort.modulethermoio.dtemperature
+
+    # Convert Pressure Unit
+    if UnitOut[1] == 'psi':
+        var.dPOut=fort.modulethermoio.dpressure/0.068045957064
+    elif UnitOut[1] == 'bar':
+        var.dPOut= fort.modulethermoio.dpressure/0.98692316931
+    elif UnitOut[1] == 'Pa':
+        var.dPOut=fort.modulethermoio.dpressure*1E5/0.98692316931
+    elif UnitOut[1] == 'kPa':
+        var.dPOut=fort.modulethermoio.dpressure*1E2/0.98692316931
+    else: #atm
+        var.dPOut=fort.modulethermoio.dpressure
+       
+    if UnitOut[2] in ['grams','kilograms','pounds','g','kg','lbs',
+                    'mass fraction','weight fraction','wt%','wt.%']:
+        var.dSpeciesFractionOut = fort.modulethermoio.dgramfraction.copy()
+        var.dPhaseAmountOut = fort.modulethermoio.dgramphase.copy()
+        
+    else:
+        var.dSpeciesFractionOut = fort.modulethermo.dmolfraction.copy()
+        var.dPhaseAmountOut = fort.modulethermo.dmolesphase.copy()
+    
+    if UnitOut[2] in ['kilograms','kg']:
+        var.dPhaseAmountOut = 1E-3*var.dPhaseAmountOut
+    elif UnitOut[2] in ['pounds','lbs']:
+        var.dPhaseAmountOut = var.dPhaseAmountOut/453.59237
+    return
+
 @dataclass
 class Phase:    
     '''
@@ -88,7 +128,7 @@ class Phase:
             self.ID =-(iSys+1)
             if self.ID in list(fort.modulethermo.iassemblage):
                 # This phase is stable. Assign the relevant amount.
-                self.Amount = float(fort.modulethermo.dmolesphase[list(fort.modulethermo.iassemblage).index(self.ID)])
+                self.Amount = float(var.dPhaseAmountOut[list(fort.modulethermo.iassemblage).index(self.ID)])
                 self.Stability = 1.0
             else:
                 # This phase is not stable. Assign the amount to zero.
@@ -103,7 +143,7 @@ class Phase:
             
             # Assign endmemebr properties
             self.Endmembers=list([str(x).strip() for x in list(np.array(var.cSpeciesNameCS)[idx_species])])
-            self.xi=list(fort.modulethermo.dmolfraction[iFirstSys:iLastSys])
+            self.xi=list(var.dSpeciesFractionOut[iFirstSys:iLastSys])
             #     ai: list[float] = field(default_factory=list)
             #     gi: list[float] = field(default_factory=list)
             #     hi: list[float] = field(default_factory=list)
@@ -113,7 +153,7 @@ class Phase:
             self.ID = fort.modulethermo.nspeciesphase[len(var.iSys2DBSoln)] +iSys-len(var.iSys2DBSoln)+1
             if self.ID in list(fort.modulethermo.iassemblage):
                 # This phase is stable. Assign the relevant amount.
-                self.Amount = float(fort.modulethermo.dmolesphase[list(fort.modulethermo.iassemblage).index(self.ID)])
+                self.Amount = float(var.dPhaseAmountOut[list(fort.modulethermo.iassemblage).index(self.ID)])
                 self.Stability = 1.0
             else:
                 # This phase is not stable. Assign the amount to zero.
@@ -124,6 +164,7 @@ class Phase:
             self.Endmembers=list([var.cPhaseNameSys[iSys]])
             self.xi=list([1])
         return
+
 @dataclass
 class EmptyPhase:    
     def __init__(self):
@@ -306,8 +347,8 @@ class Result:
         if (self.T==None) and (self.P == None):            
             # Assign system properties
             self.N = dict(zip(var.cComponentNameSys,var.dConditionSys[2:]))
-            self.T = float(fort.modulethermoio.dtemperature)
-            self.P = float(fort.modulethermoio.dpressure)
+            self.T = float(var.dTOut)
+            self.P = float(var.dPOut)
             self.G = float(fort.modulethermoio.dgibbsenergysys)
             # # To be modified
             self.H = float(fort.modulethermoio.denthalpysys)
@@ -317,7 +358,7 @@ class Result:
             # Assign stable phase properties
             self.StablePhases['ID'] = list(fort.modulethermo.iassemblage)
             self.StablePhases['Name'] = list(_get_assemblage_name(fort.modulethermo.iassemblage))
-            self.StablePhases['Amount'] = list(fort.modulethermo.dmolesphase)
+            self.StablePhases['Amount'] = list(var.dPhaseAmountOut)
             
             # Assign phase properties
             var.iPhaseSys = list([])
@@ -365,15 +406,15 @@ class Result:
                     self.N[el] = list([float(0.0)]*ln_before)
                 self.N[el].append(var.dConditionSys[2+i])
                 ln_after = int(len(self.N[el]))
-            self.T.append(float(fort.modulethermoio.dtemperature))
-            self.P.append(float(fort.modulethermoio.dpressure))
+            self.T.append(float(var.dTOut))
+            self.P.append(float(var.dPOut))
             self.G.append(float(fort.modulethermoio.dgibbsenergysys))
             self.H.append(float(fort.modulethermoio.denthalpysys))
             self.S.append(float(fort.modulethermoio.dentropysys))
             self.Cp.append(float(fort.modulethermoio.dheatcapacitysys))
             self.StablePhases['ID'].append(list(fort.modulethermo.iassemblage))
             self.StablePhases['Name'].append(list(_get_assemblage_name(fort.modulethermo.iassemblage)))
-            self.StablePhases['Amount'].append(list(fort.modulethermo.dmolesphase))
+            self.StablePhases['Amount'].append(list(var.dPhaseAmountOut))
             
             # Check through elements and see if we need to add paddings
             for el in list(self.N.keys()):
@@ -381,6 +422,9 @@ class Result:
                 if ln_differ>0: self.N[el]=self.N[el]+list([float(0.0)]*ln_differ)
             
             PhasesBefore=list(self.Phases.keys())
+            # print('PhasesBefore',PhasesBefore)
+            # if len(PhasesBefore)==0: lp_before = 0
+            # else: lp_before= int(len(self.Phases[PhasesBefore[0]].Amount))
             lp_before = int(len(self.T))-1
             for i in range(len(var.iSys2DBSoln)+len(var.iSys2DBComp)):
                 new=Phase(i)
@@ -429,8 +473,8 @@ class Result:
         if (self.T==None) and (self.P == None):            
             # Assign system properties
             self.N = dict(zip(var.cComponentNameSys,var.dConditionSys[2:]))
-            self.T = float(fort.modulethermoio.dtemperature)
-            self.P = float(fort.modulethermoio.dpressure)
+            self.T = float(var.dTOut)
+            self.P = float(var.dPOut)
             self.G = np.nan
             self.H = np.nan
             self.S = np.nan
@@ -470,8 +514,8 @@ class Result:
                     self.N[el] = list([float(0.0)]*ln_before)
                 self.N[el].append(var.dConditionSys[2+i])
                 ln_after = int(len(self.N[el]))
-            self.T.append(float(fort.modulethermoio.dtemperature))
-            self.P.append(float(fort.modulethermoio.dpressure))
+            self.T.append(float(var.dTOut))
+            self.P.append(float(var.dPOut))
             self.G.append(np.nan)
             self.H.append(np.nan)
             self.S.append(np.nan)
@@ -627,7 +671,7 @@ class ResultScheil():
                     vals= self.ScheilPhases[name]
                     self.ScheilPhases[name].append(vals[-1]+float(self.EquilibResult.StablePhases['Amount'][-1][i]))
             else:
-                self.ScheilPhases[name]= [float(0.0)]*int(nrows-1)
+                self.ScheilPhases[name]= list([float(0.0)]*int(nrows-1))
                 self.ScheilPhases[name].append(float(self.EquilibResult.StablePhases['Amount'][-1][i]))
         
         # Update PhaseLabel (precipitating phases)
@@ -650,7 +694,6 @@ class ResultScheil():
     
     def update_scheilconstituents(self):
         k=0
-        
         for i,T in enumerate(self.T):
             constituents=self.PhaseLabel[i].split('+')
             constituents=[x for x in constituents if 'LIQ' not in x.upper() and x != '']
@@ -677,7 +720,6 @@ class ResultScheil():
             if i==len(self.T)-1:
                 fphase='+'.join(constituents)
                 scheilconstituents=list(self.ScheilConstituents.keys())
-                
                 if cphase != fphase:
                     # Since the scheilconstituents are different it must have went through 2.
                     # Only save the last part.
@@ -688,6 +730,7 @@ class ResultScheil():
                             self.ScheilConstituents[fphase]=self.fl[k]
                     
                 else:
+                
                     if cphase in scheilconstituents:
                         self.ScheilConstituents[cphase]=self.ScheilConstituents[cphase]+self.fl[k]
                     else:

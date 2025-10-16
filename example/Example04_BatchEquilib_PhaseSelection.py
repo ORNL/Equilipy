@@ -2,18 +2,20 @@
 import polars as pl, time
 from datetime import timedelta
 import equilipy as eq
+import os
 
 if __name__ == "__main__":
     system = 'AlCuMgSi'
-
+    
     # Step 1: Parse database
-    datafile= './Database/AlCuMgSi_ORNL'
-    DB=eq.read_dat(datafile+'.dat')
-
+    fpath=os.path.dirname(os.path.abspath(__file__))
+    path ='/'.join(fpath.split('/')[:-1])
+    datafile=f'{path}/database/AlCuMgSi_ORNL_FS73'
+    DB=eq.read_dat(datafile+'.dat',FactSage8Plus=False)
 
     # Step 2: Input data
     df_name= 'Input_ACMS.xlsx'
-    NTP=pl.read_excel(f'{df_name}',sheet_name=system).to_dict()
+    NTP=pl.read_excel(f'{fpath}/{df_name}',sheet_name=system).to_dict()
 
     # Phase selection
     PhasesAll=eq.list_phases(DB,list(NTP.keys())[2:])
@@ -33,4 +35,4 @@ if __name__ == "__main__":
 
     # Step 4: Post processing
     df=pl.DataFrame(res.to_dict()) 
-    df.write_csv(f'Result_Ex04_{system}.csv')
+    df.write_csv(f'{fpath}/Result_Ex04_{system}.csv')

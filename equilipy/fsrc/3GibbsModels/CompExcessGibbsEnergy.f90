@@ -85,18 +85,25 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
     dPartialEntropyXS(iFirst:iLast)   = 0D0 !Added by SY
     dPartialHeatCapacityXS(iFirst:iLast) = 0D0 !Added by SY
 !
-!
     ! Compute excess terms based on solution phase type:
     select case (cSolnPhaseType(iSolnIndex))
         case ('IDMX')
 !
             ! Compute the chemical potentials of each species and the molar Gibbs energy of the phase:
             do i = iFirst, iLast
-                dChemicalPotential(i)       = dStdGibbsEnergy(i) + DLOG(DMAX1(dMolFraction(i), 1D-75))
-                dPartialEnthalpy(i)         = dStdEnthalpy(i) 
-                dPartialEntropy(i)          = dStdEntropy(i)  - DLOG(DMAX1(dMolFraction(i), 1D-75))
-                dPartialHeatCapacity(i)     = dStdHeatCapacity(i) 
-                dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                if(dMolFraction(i)< 1D-75 .or. dMolFraction(i)>=1-1D-75) then
+                    dChemicalPotential(i)       = dStdGibbsEnergy(i)
+                    dPartialEnthalpy(i)         = dStdEnthalpy(i) 
+                    dPartialEntropy(i)          = dStdEntropy(i)
+                    dPartialHeatCapacity(i)     = dStdHeatCapacity(i) 
+                    dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                else
+                    dChemicalPotential(i)       = dStdGibbsEnergy(i) + DLOG(DMAX1(dMolFraction(i), 1D-75))
+                    dPartialEnthalpy(i)         = dStdEnthalpy(i) 
+                    dPartialEntropy(i)          = dStdEntropy(i)  - DLOG(DMAX1(dMolFraction(i), 1D-75))
+                    dPartialHeatCapacity(i)     = dStdHeatCapacity(i) 
+                    dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                end if
             end do
 !
         case ('QKTO')
@@ -106,12 +113,19 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
 !
             ! Compute the chemical potentials of each species and the molar Gibbs energy of the phase:
             do i = iFirst, iLast
-                dChemicalPotential(i)       = dStdGibbsEnergy(i) + DLOG(DMAX1(dMolFraction(i), 1D-75)) + dPartialExcessGibbs(i)
-                dPartialEnthalpy(i)         = dStdEnthalpy(i) + dPartialEnthalpyXS(i)
-                dPartialEntropy(i)          = dStdEntropy(i)  - DLOG(DMAX1(dMolFraction(i), 1D-75)) + dPartialEntropyXS(i)
-                dPartialHeatCapacity(i)     = dStdHeatCapacity(i) + dPartialHeatCapacityXS(i)
-
-                dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                if(dMolFraction(i)< 1D-75.or. dMolFraction(i)>=1-1D-75) then
+                    dChemicalPotential(i)       = dStdGibbsEnergy(i)
+                    dPartialEnthalpy(i)         = dStdEnthalpy(i) 
+                    dPartialEntropy(i)          = dStdEntropy(i)
+                    dPartialHeatCapacity(i)     = dStdHeatCapacity(i) 
+                    dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                else
+                    dChemicalPotential(i)       = dStdGibbsEnergy(i) + DLOG(DMAX1(dMolFraction(i), 1D-75)) + dPartialExcessGibbs(i)
+                    dPartialEnthalpy(i)         = dStdEnthalpy(i) + dPartialEnthalpyXS(i)
+                    dPartialEntropy(i)          = dStdEntropy(i)  - DLOG(DMAX1(dMolFraction(i), 1D-75)) + dPartialEntropyXS(i)
+                    dPartialHeatCapacity(i)     = dStdHeatCapacity(i) + dPartialHeatCapacityXS(i)
+                    dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                end if
             end do
 !
         case ('RKMP','RKMPM')
@@ -124,15 +138,23 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
 !
             ! Compute the chemical potentials of each species and the molar Gibbs energy of the phase:
             do i = iFirst, iLast
-                dChemicalPotential(i)  = dStdGibbsEnergy(i) + DLOG(DMAX1(dMolFraction(i), 1D-75)) + dPartialExcessGibbs(i)&
-                                        + dMagGibbsEnergy(i)
-                dPartialEnthalpy(i)    = dStdEnthalpy(i) + dPartialEnthalpyXS(i) + dMagEnthalpy(i)
-                
-                dPartialEntropy(i)     = dStdEntropy(i)  - DLOG(DMAX1(dMolFraction(i), 1D-75)) + dPartialEntropyXS(i)&
-                                        + dMagEntropy(i)
-                dPartialHeatCapacity(i)     = dStdHeatCapacity(i) + dPartialHeatCapacityXS(i) + dMagHeatCapacity(i)
-                
-                dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                if(dMolFraction(i)< 1D-75.or. dMolFraction(i)>=1- 1D-75) then
+                    dChemicalPotential(i)       = dStdGibbsEnergy(i)
+                    dPartialEnthalpy(i)         = dStdEnthalpy(i) 
+                    dPartialEntropy(i)          = dStdEntropy(i)
+                    dPartialHeatCapacity(i)     = dStdHeatCapacity(i) 
+                    dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                else
+                    dChemicalPotential(i)  = dStdGibbsEnergy(i) + DLOG(DMAX1(dMolFraction(i), 1D-75)) + dPartialExcessGibbs(i)&
+                                            + dMagGibbsEnergy(i)
+                    dPartialEnthalpy(i)    = dStdEnthalpy(i) + dPartialEnthalpyXS(i) + dMagEnthalpy(i)
+                    
+                    dPartialEntropy(i)     = dStdEntropy(i)  - DLOG(DMAX1(dMolFraction(i), 1D-75)) + dPartialEntropyXS(i)&
+                                            + dMagEntropy(i)
+                    dPartialHeatCapacity(i)     = dStdHeatCapacity(i) + dPartialHeatCapacityXS(i) + dMagHeatCapacity(i)
+                    
+                    dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                end if
                 
             end do
 !
@@ -143,17 +165,25 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
 !
             ! Compute the chemical potentials of each species and the molar Gibbs energy of the phase:
             do i = iFirst, iLast
-                ! print*,dSpeciesTotalMole
-                dChemicalPotential(i)       = dChemicalPotential(i) + dPartialExcessGibbs(i) + dMagGibbsEnergy(i)
-                dPartialEnthalpy(i)         = dPartialEnthalpy(i) + dPartialEnthalpyXS(i) + dMagEnthalpy(i)
-                dPartialEntropy(i)          = dPartialEntropy(i)  + dPartialEntropyXS(i) + dMagEntropy(i)
-                dPartialHeatCapacity(i)     = dPartialHeatCapacity(i) + dPartialHeatCapacityXS(i) + dMagHeatCapacity(i)
-                dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                if(dMolFraction(i)< 1D-75.or. dMolFraction(i)>=1-1D-75) then
+                    dChemicalPotential(i)       = dStdGibbsEnergy(i)
+                    dPartialEnthalpy(i)         = dStdEnthalpy(i) 
+                    dPartialEntropy(i)          = dStdEntropy(i)
+                    dPartialHeatCapacity(i)     = dStdHeatCapacity(i) 
+                    dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                else
+                    dChemicalPotential(i)       = dChemicalPotential(i) + dPartialExcessGibbs(i) + dMagGibbsEnergy(i)
+                    dPartialEnthalpy(i)         = dPartialEnthalpy(i) + dPartialEnthalpyXS(i) + dMagEnthalpy(i)
+                    dPartialEntropy(i)          = dPartialEntropy(i)  + dPartialEntropyXS(i) + dMagEntropy(i)
+                    dPartialHeatCapacity(i)     = dPartialHeatCapacity(i) + dPartialHeatCapacityXS(i) + dMagHeatCapacity(i)
+                    dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                end if
 
                 dSpeciesTotalMole = MAX1(dSpeciesTotalMole,sum(dStoichSpecies(i,:)))
 
                 
             end do
+            
 !
         case ('SUBG','SUBQ')
 !
@@ -162,11 +192,19 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
 !
             ! Compute the chemical potentials of each species and the molar Gibbs energy of the phase:
             do i = iFirst, iLast
-                dChemicalPotential(i)       = dChemicalPotential(i) + dPartialExcessGibbs(i)
-                dPartialEnthalpy(i)         = dPartialEnthalpy(i) + dPartialEnthalpyXS(i)
-                dPartialEntropy(i)          = dPartialEntropy(i)  + dPartialEntropyXS(i)
-                dPartialHeatCapacity(i)     = dPartialHeatCapacity(i) + dPartialHeatCapacityXS(i)
-                dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                if(dMolFraction(i)< 1D-75.or. dMolFraction(i)>=1-1D-75) then
+                    dChemicalPotential(i)       = dStdGibbsEnergy(i)
+                    dPartialEnthalpy(i)         = dStdEnthalpy(i) 
+                    dPartialEntropy(i)          = dStdEntropy(i)
+                    dPartialHeatCapacity(i)     = dStdHeatCapacity(i) 
+                    dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                else
+                    dChemicalPotential(i)       = dChemicalPotential(i) + dPartialExcessGibbs(i)
+                    dPartialEnthalpy(i)         = dPartialEnthalpy(i) + dPartialEnthalpyXS(i)
+                    dPartialEntropy(i)          = dPartialEntropy(i)  + dPartialEntropyXS(i)
+                    dPartialHeatCapacity(i)     = dPartialHeatCapacity(i) + dPartialHeatCapacityXS(i)
+                    dGibbsSolnPhase(iSolnIndex) = dGibbsSolnPhase(iSolnIndex) + dChemicalPotential(i) * dMolesSpecies(i)
+                end if
             end do
         case default
             ! Report an error (solution phase type unsupported).  Note that there is an earlier check when parsing

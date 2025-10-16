@@ -1,5 +1,5 @@
 
-from .InternalFunctions import _pyvar2fvar
+from .utils import _pyvar2fvar
 from .SystemCheck import system_check
 from .ReadDict import read_dict
 import equilipy.variables as var

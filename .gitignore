@@ -1,6 +1,10 @@
 
+.DS_Store
+.obsidian
 
 **/.DS_Store
+**/.so
+
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
@@ -8,13 +12,24 @@
 *$py.class
 
 # C extensions
-**/*.so
+**/.so
+
+#Custom folders
+archive/
+database/
+literature/
+notes/
+presentations/
+writing/
+ongoing/
+.vscode/
 
 # Distribution / packaging
 .Python
 develop-eggs/
-dist/
+# dist/
 build/
+archive/
 downloads/
 eggs/
 .eggs/

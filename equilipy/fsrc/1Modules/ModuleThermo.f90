@@ -88,7 +88,7 @@ module ModuleThermo
     integer,       parameter                         :: iTolNum = 15, nElementsPT = 118, nMaxCompounds = 50
     integer,       dimension(:),   allocatable::  iPhase, nSpeciesPhase, iParticlesPerMole, iPhaseLevel, iCandidate,iSolnPS
     integer,       dimension(:),   allocatable::  iAssemblage, nParamPhase, iElementSystem, iSpeciesPass, nMagParamPhase
-    integer,       dimension(:),   allocatable::  nSublatticePhase, iPhaseSublattice, iPhaseElectronID, iPhaseGEM
+    integer,       dimension(:),   allocatable::  nSublatticePhase, iPhaseSublattice, iPhaseElectronID, iPhaseGEM, iPhaseGEMinit
     integer,       dimension(:),   allocatable::  iElementSysIndex, iSpeciesIterIndex, iShuffled! the whole line is added
     ! integer,       dimension(:),   allocatable::  iSub2SysSoln, iSub2SysComp, iSub2SysSpecies! the whole line is added
     integer,       dimension(:,:), allocatable::  iRegularParam, iterHistoryLevel, nConstituentSublattice, nPairsSRO, iMagneticParam
@@ -98,7 +98,7 @@ module ModuleThermo
     integer,       dimension(:,:,:),allocatable:: iChemicalGroup
 !
     real(8)                                    ::  dIdealConstant, dNormalizeSum, dNormalizeInput, dMassScale, dMinPhasePotential
-    real(8)                                    ::  dToleranceLevel, dMaxElementPotential
+    real(8)                                    ::  dToleranceLevel, dMaxElementPotential, dPEATol, dMinMolesPhase
     real(8),       dimension(iTolNum)          ::  dTolerance
     real(8),       dimension(:),   allocatable ::  dGibbsSolnPhase, dMolesSpecies, dMagGibbsEnergy, dMagEnthalpy
     real(8),       dimension(:),   allocatable ::  dMagEntropy,dMagHeatCapacity
@@ -111,14 +111,14 @@ module ModuleThermo
     real(8),       dimension(:),   allocatable ::  dMolesElementSys, dElementPotentialSys, dElementPotentialGas
     real(8),       dimension(:),   allocatable ::  dChemicalPotentialOld, dChemicalPotentialGEM, dMolFractionOld
     real(8),       dimension(:),   allocatable ::  dMolesSpeciesPEA, dChemicalPotentialPEA, dMolFractionPEA, dMolesPhasePEA
-    real(8),       dimension(:),   allocatable ::  dTestMaxPot
+    real(8),       dimension(:),   allocatable ::  dTestMaxPot, dChemicalPotentialGEMinit
 
     real(8),       dimension(:,:), allocatable ::  dAtomFractionSpecies, dStoichSublattice, dStoichSpecies, dStoichDependent
     real(8),       dimension(:,:), allocatable ::  dAtomFractionSpeciesSys, dStoichSpeciesSys, dStoichSystemComponents
     real(8),       dimension(:,:), allocatable ::  dCoeffGibbsMagnetic, dZetaSpecies, dMagneticParam, dAtomFractionSpeciesOld
     real(8),       dimension(:,:), allocatable ::  dStoichSpeciesLevel, dStoichSpeciesGEM, dAtomFractionSpeciesGEM
     real(8),       dimension(:,:), allocatable ::  dMolesPhaseHistory, dEffStoichSolnPhase, dEffStoichSolnPhasePEA, dMolFractionGEM
-    real(8),       dimension(:,:), allocatable ::  dTestMF
+    real(8),       dimension(:,:), allocatable ::  dTestMF,dStoichSpeciesGEMinit, dAtomFractionSpeciesGEMinit, dMolFractionGEMinit
 !
     real(8),      dimension(:,:,:),allocatable ::  dSiteFraction, dCoordinationNumber, dSublatticeCharge, dStoichPairs
     real(8),      dimension(:,:,:),allocatable ::  dConstituentCoefficients

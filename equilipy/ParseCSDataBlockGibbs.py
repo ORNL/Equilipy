@@ -1,8 +1,13 @@
 import numpy as np, regex as re
 import equilipy.variables as var
+from .utils import *
 
 
 def ParseCSDataBlockGibbs(i,j):
+    
+	if var.FactSage8Plus:
+		ChangeBlockGibbs()
+	
 	#Consider the case when the species name includes some space
 	cdum=''
 	while True:
@@ -113,4 +118,136 @@ def ParseCSDataBlockGibbs(i,j):
 	if var.iPhaseCS[j-1] == -1:
 		var.dGibbsCoeffSpeciesTemp[1,var.iCounterGibbsEqn-1] = 1E6
 
+	return None
+
+
+
+def ChangeBlockGibbs():
+	
+	res=[]
+	# add the name of endmember
+	EndmemberName=var.DataBase.pop(0)
+	res.append(EndmemberName)
+	phasename=[x for x in var.cSolnPhaseNameCS if x !="{:<25}".format(' ')]
+	
+	# Delete dummy integers
+	if float(var.DataBase[0])==0.0 and float(var.DataBase[1])==0.0:
+		del var.DataBase[:2]
+	
+	# Revise iGibbsEqType
+	res.append(str(int(var.DataBase.pop(0))-6))
+	
+	# Read the number of Cp intervals for the endmember
+	nGibbsInterval=int(var.DataBase.pop(0))
+	res.append(str(nGibbsInterval))
+	
+	res=res+var.DataBase[:var.nElementsCS]
+	del var.DataBase[:var.nElementsCS]
+	
+	
+	# Obtain the number of functions to combine
+	nFuncions=int(var.DataBase.pop(0))
+	
+	
+	# Not sure what this parameter is. It is always zero
+	dummy = int(var.DataBase.pop(0))
+	if dummy !=0: print('non-zero dummy')
+
+	#Obtain function names and their coefficients
+	if nFuncions==0:
+		#Stoichiometric compounds
+		H298 = float(var.DataBase.pop(0))
+		S298 = float(var.DataBase.pop(0))
+		Cp = np.zeros((nGibbsInterval,14),dtype=float)
+		for i in range(nGibbsInterval):
+			# allocate T min
+			if i==0: 
+				Cp[i,0]=298.15
+			else:
+				Cp[i,0]=Cp[i-1,1]
+			# allocate Tmax
+			Cp[i,1]=float(var.DataBase.pop(0))
+			# In ChemSage, Cp = a + b*T + c*T^2 +d*T(-2)
+			Cp[i,2:4]=var.DataBase[:2]
+			del var.DataBase[:2]
+			Cp[i,5]=float(var.DataBase.pop(0))
+			Cp[i,4]=float(var.DataBase.pop(0))
+			
+			
+			try: 
+				nCustomCp=int(var.DataBase.pop(0))
+			except ValueError:
+				nCustomCp= int(var.DataBase.pop(0))
+				
+			
+			for j in range(nCustomCp):
+				# coefficient
+				Cp[i,6+2*j]=float(var.DataBase.pop(0))
+				# power
+				Cp[i,7+2*j]=float(var.DataBase.pop(0))
+		if Cp[-1,1]<6000:Cp[-1,1]=6000
+		G=HSCp2G(H298,S298,Cp)
+		var.CompoundGibbs[f'{phasename[-1].strip()}_{EndmemberName}']=G
+	elif nFuncions==1:
+		del var.DataBase[:3]
+		Multiplier=var.DataBase.pop(0)
+		FunctionName=var.DataBase.pop(0)
+		# Convert H S Cp into Gibbs
+		H298 = var.FunctionsHSCp[FunctionName]['H298']
+		S298 = var.FunctionsHSCp[FunctionName]['S298']
+		Cp	 = var.FunctionsHSCp[FunctionName]['Cp']
+		G=HSCp2G(H298,S298,Cp)
+		H, S,cp_t = G2HSCp(G)
+		var.CompoundGibbs[f'{phasename[-1].strip()}_{EndmemberName}']=G
+		
+	else:
+		# Calculate Neuman-Kopp of functions given in H, S, Cp
+		FunctionNames=[]
+		Multipliers=[]
+		for i in range(nFuncions):
+			# Ignore dummy parameters
+			del var.DataBase[:3]
+
+			Multipliers.append(float(var.DataBase.pop(0)))
+			FunctionNames.append(str(var.DataBase.pop(0)))
+		# print(FunctionNames)
+		# print(Multipliers)
+		NKData=NeumanKoppHSCp(var.FunctionsHSCp,FunctionNames,Multipliers)
+		G=HSCp2G(NKData['H298'],NKData['S298'],NKData['Cp'])
+		var.CompoundGibbs[f'{phasename[-1].strip()}_{EndmemberName}']=G
+	
+	nCpIntervals,_=G.shape
+	
+	
+
+	if nGibbsInterval!=nCpIntervals: 
+		raise ValueError
+	G=list(G[:,1:].flatten())
+	for i in range(nCpIntervals):
+		Ginterval= G[:15]
+		del G[:15]
+		# Save default parameters
+		res=res + Ginterval[:7]
+		del Ginterval[:7]
+
+		# count the number of non-zero coefficients
+		CustomPara=np.array(Ginterval)
+		nCustomPara=np.count_nonzero(CustomPara[[0,2,4,6]])
+		
+		if nCustomPara==0:
+			res = res + [1, 0.0, 0.0]
+		else:
+			for j in range(4):
+				CustomCoeff=Ginterval[0]
+				if CustomCoeff==0.0: 
+					continue
+				
+				CustomPower=Ginterval[1]
+				if j==0: 
+					res.append(nCustomPara)
+				res.append(CustomCoeff)
+				res.append(CustomPower)
+				del Ginterval[:2]
+	
+	var.DataBase[:0]=res
 	return None

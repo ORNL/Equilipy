@@ -2,7 +2,7 @@ import numpy as np
 import equilipy.equilifort as fort
 import equilipy.variables as var
 
-def input_condition(Unit,Composition):
+def input_condition(Unit,Composition,CalcHeatCapacity=True):
 
     '''----------------------------------------------------------------------------------------------------------------
     Description
@@ -23,11 +23,17 @@ def input_condition(Unit,Composition):
     units   : A list of units for temperature, pressure, mass e.g.['K','atm','moles']
               Temperature units, 'K'/'C'/'F'/'R'
               Pressure units, 'atm'/'psi'/'bar'/'Pa'/'kPa'
-              Mass units, 'mass fraction'/'kilograms'/'grams'/'pounds'/'mole fraction'/'atom fraction'/'atoms'/'moles'
+              Mass units, 'grams'/'kilograms'/'pounds'/'g'/'kg'/'lbs'/
+                    'mass fraction'/'weight fraction'/'wt%'/'wt.%/
+                    'moles'/'mol'/'atoms'/'gram-atoms'/'gram-moles'/
+                    'mole fraction'/'atom fraction'/'mol%'/'at%'
     el      : an integer array of atomic number
     comp    : a composition matrix shape of (L,n+2) where L and n are the number of composition and elements each.
     ----------------------------------------------------------------------------------------------------------------'''
-
+    if CalcHeatCapacity:
+        fort.modulethermoio.dtemperaturediff = 0.01
+    else:
+        fort.modulethermoio.dtemperaturediff = 0.00
 
     #Assign units
     fort.modulethermoio.cinputunittemperature  = "{:<15}".format(Unit[0]) #Temperature

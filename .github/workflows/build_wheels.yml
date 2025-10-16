@@ -1,95 +1,129 @@
-name: Build
-
-on: [push, pull_request]
+name: Build Wheels
+on:
+  push:
+    branches:
+      - main # Build on pushes to main
+  pull_request:
+    branches:
+      - main
+  release:
+    types: [published]
 
 jobs:
   build_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Build wheels on ${{ matrix.buildplat[0] }} (${{ matrix.buildplat[1] }})
+    runs-on: ${{ matrix.buildplat[0] }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [windows-latest,ubuntu-latest,macos-12]
-        include:
-          - os: ubuntu-latest
-            python-version: '3.12'
-            toolchain: {compiler: gcc, version: 13}
-          - os: macos-12
-            python-version: '3.12'
-            toolchain: {compiler: gcc, version: 13}
-          - os: windows-latest
-            python-version: '3.11'
-            toolchain: {compiler: gcc, version: 13}
-            
+        buildplat:
+          - [ "ubuntu-latest", "auto", "", 'FC="gfortran" CC="gcc" CXX="g++"' ]
+          - [ "windows-latest", "AMD64", "MINGW64", 'FC="gfortran" CC="gcc" CXX="g++"' ]
+          - [ "macos-13", "x86_64", "", 'MACOSX_DEPLOYMENT_TARGET=13.0 FC="gfortran" CC="gcc" CXX="g++"' ]
+          - [ "macos-14", "arm64", "", 'MACOSX_DEPLOYMENT_TARGET=14.0 FC="gfortran" CC="gcc" CXX="g++"' ]
+          - [ "macos-15", "arm64", "", 'MACOSX_DEPLOYMENT_TARGET=15.0 FC="gfortran" CC="gcc" CXX="g++"' ]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Fortran compiler for Unix
-        if: runner.os != 'Windows'
+      - name: Install Fortran compiler (Linux/macOS)
+        if: runner.os == 'Linux' || runner.os == 'macOS'
         uses: awvwgk/setup-fortran@v1
         with:
-          compiler: ${{ matrix.toolchain.compiler }}
-          version: ${{ matrix.toolchain.version }}
+          compiler: gcc
+          version: 'latest'
 
-      - name: Install Fortran compiler on Windows
+      - name: Set up MSYS2 for Fortran (Windows)
         if: runner.os == 'Windows'
-        run: |
-          Set-ExecutionPolicy Bypass -Scope Process -Force
-          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-          choco install gcc
-          choco install make
-        shell: pwsh
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: msys2/setup-msys2@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          msystem: ${{ matrix.buildplat[2] }}
+          update: true
+          install: mingw-w64-x86_64-gcc-fortran
+          path-type: inherit
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.19.2
         env:
-          PYTHONIOENCODING: utf-8
-          CIBW_ARCHS_WINDOWS: x86 auto64
-          CIBW_ARCHS_MACOS: x86_64
+          CIBW_ARCHS: ${{ matrix.buildplat[1] }}
+          CIBW_ENVIRONMENT: ${{ matrix.buildplat[3] }}
         with:
-          package-dir: .
           output-dir: wheelhouse
           config-file: "./pyproject.toml"
 
-      - name: Install Wheel
-        env:
-          PYTHONIOENCODING: utf-8
-        run: |
-          python -m venv venv
-          if [ $RUNNER_OS = 'Windows' ]; then
-            .\\venv\\Scripts\\activate
-          else
-            source venv/bin/activate
-          fi
-          for wheel in wheelhouse/*.whl; do
-            if ! pip install "$wheel"; then
-              echo "Failed to install $wheel, skipping..."
-            fi
-          done
-        shell: bash
-
-      - name: Run tests
-        env:
-          PYTHONIOENCODING: utf-8
-        run: |
-          if [ $RUNNER_OS = 'Windows' ]; then
-            .\\venv\\Scripts\\activate
-          else
-            source venv/bin/activate
-          fi
-          cd test 
-          for test in Test*.py; do
-            python "$test"
-          done
-        shell: bash
-
-      - uses: actions/upload-artifact@v4
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          name: cibw-wheels-${{ matrix.buildplat[0] }}-${{ matrix.buildplat[1] }}
           path: ./wheelhouse/*.whl
+
+  publish-wheels-to-repo:
+    name: Commit Wheels to Repository
+    needs: build_wheels
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+          pattern: cibw-wheels-*
+          merge-multiple: true
+      - name: Commit and push wheels
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add ./dist/*.whl
+          if git diff --staged --quiet; then
+            echo "No new wheels to commit."
+          else
+            git commit -m "ci: Add built wheels [skip ci]"
+            git push
+          fi
+
+  publish-to-testpypi:
+    name: Publish to TestPyPI
+    needs: build_wheels
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+          pattern: cibw-wheels-*
+          merge-multiple: true
+      - name: Publish package to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.TestPYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    needs: build_wheels
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+
+      - name: Move and organize wheels
+        run: |
+          find ./dist -name "*.whl" -exec mv {} ./dist/ \;
+          find ./dist -mindepth 1 -type d -exec rm -rf {} +
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: ./dist/

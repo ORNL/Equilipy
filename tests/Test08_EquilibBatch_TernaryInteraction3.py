@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-import polars as pl, time
+import polars as pl, time,os
 import numpy as np
 from datetime import timedelta
 import equilipy as eq
 
 if __name__ == "__main__":
     #Parse database
-    datafile= './Database/AlCuMgSi_SK'
-    DB=eq.read_dat(datafile+'.dat')
+    fpath=os.path.dirname(os.path.abspath(__file__))
+    path ='/'.join(fpath.split('/')[:-1])
+    datafile=f'{path}/database/AlCuMgSi_ORNL_FS83'
+    DB=eq.read_dat(datafile+'.dat',FactSage8Plus=True)
 
 
     #Input data
@@ -17,7 +19,7 @@ if __name__ == "__main__":
         'T': 700*np.ones(l),
         'P': np.ones(l),
         'Al':grid[:,0],
-        'Cu':grid[:,1],
+        'Mg':grid[:,1],
         'Si':grid[:,2]
     }
     starttime=time.time()

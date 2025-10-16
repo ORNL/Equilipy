@@ -99,15 +99,15 @@ subroutine SubMinInit(iSolnPhaseIndex,iterSubMax)
 !
     ! Set a default value for iterSubMax if it is not specified:
     iterSub = 1
-    if(dMaxElementPotential>1D-1) then
-        dMaxPotentialTol = 1D-1
-    elseif(dMaxElementPotential>1D-2) then 
-        dMaxPotentialTol = 1D-3
-    else
-        dMaxPotentialTol = 1D-4
-    end if
+    ! if(dMaxElementPotential>1D-1) then
+    !     dMaxPotentialTol = 1D-1
+    ! elseif(dMaxElementPotential>1D-2) then 
+    !     dMaxPotentialTol = 1D-3
+    ! else
+    !     dMaxPotentialTol = 1D-4
+    ! end if
     iterSubMax = 1000
-    ! dMaxPotentialTol = 1D-3
+    dMaxPotentialTol = 1D-3
     ! Loop through all constituents in this solution phase:
     do k = 1, nVar
 !
@@ -146,9 +146,9 @@ subroutine SubMinInit(iSolnPhaseIndex,iterSubMax)
     
     do j = 1, nVar
         i                 = iFirstSUB + j - 1 
-        dSubminGibbsEst = dSubminGibbsEst+(dChemicalPotential(i)-dChemicalPotentialStar(j))
+        dSubminGibbsEst = dSubminGibbsEst+(dChemicalPotential(i)-dChemicalPotentialStar(j))*dMolFraction(i)
     end do
-    dSubminGibbsEst = dSubminGibbsEst/nVar
+    ! dSubminGibbsEst = dSubminGibbsEst/nVar
 
     do j = 1, nVar
         i                 = iFirstSUB + j - 1

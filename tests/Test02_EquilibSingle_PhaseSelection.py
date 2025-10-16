@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 import equilipy as eq
+import os
 
 #Parse database
-datafile=f'./Database/AlCuMgSi_SK'
-DB=eq.read_dat(datafile+'.dat')
+#Parse database
+fpath=os.path.dirname(os.path.abspath(__file__))
+path ='/'.join(fpath.split('/')[:-1])
+datafile=f'{path}/database/AlCuMgSi_ORNL_FS73'
+DB=eq.read_dat(datafile+'.dat',FactSage8Plus=False)
 
 # Parse input data
 NTP = dict({
@@ -13,24 +17,33 @@ NTP = dict({
     'Cu':0.42424242,
     'Si':0.515151515})
 
-res=eq.equilib_single(DB,NTP)
+
+#Get all phases for the input system
+PhasesAll=eq.list_phases(DB,list(NTP.keys())[2:])
 
 
-#Check all stable phases
+# List of phases to be considered
+phases = ['LIQUID', 'FCC_A1', 'HCP_A3',  'BCC_A2',  'BCT_A5']
+res=eq.equilib_single(DB,NTP, ListOfPhases=phases)
+
+
+#print all stable phases
 print(res.StablePhases['Name'])
 print(res.StablePhases['Amount'])
-    
-#Check properties all phases
+
+#print all phases
 PhasesAll=list(res.Phases.keys())
+
 for i,ph in enumerate(PhasesAll):
     print('--------------------------------------------------------------')
     print(f'Amount of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Amount)
     print(f'Endmembers of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Endmembers)
     print(f'Composition of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].xi)
     print(' ')
-
+    
 #Check the results conmpared to FactSage
-dG=abs(res.G+28103.14808)
+dG=abs(res.G+17557.30849)
+print(dG)
 if dG>1E-2: 
     raise ValueError
 else:

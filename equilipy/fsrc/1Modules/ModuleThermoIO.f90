@@ -50,8 +50,7 @@ implicit none
 !
     ! INPUT VARIABLES:
     integer                          :: iCounter, iPrintResultsMode
-    real(8)                          :: dTemperature, dPressure
-    real(8), parameter               :: dTemperatureDiff = 5D-1
+    real(8)                          :: dTemperature, dPressure, dTemperatureDiff
     real(8),       dimension(0:118)  :: dElementMass
     logical,       dimension(0:118)  :: lPreset = .FALSE.
     character(15)                    :: cInputUnitTemperature, cInputUnitPressure, cInputUnitMass
@@ -69,6 +68,7 @@ implicit none
     integer                                  :: INFOThermo, nSolnPhasesOut, nPureConPhaseOut, nSpeciesOut
     real(8)                                  :: dGibbsEnergySys, dEnthalpySys, dEntropySys, dHeatCapacitySys
     real(8), dimension(:), allocatable       :: dSolnPhaseMolesOut, dPureConPhaseMolesOut, dSpeciesMoleFractionOut, dPair
+    real(8), dimension(:), allocatable       :: dGramFraction, dGramSpecies, dGramPhase, dGramElement
     character(25), dimension(:), allocatable :: cSolnPhaseNameOut, cPureConPhaseNameOut, cSpeciesNameOut, cSpeciesPhaseOut
     character(30), dimension(:), allocatable :: cPair
     logical, dimension(:), allocatable       :: lSpeciesStable

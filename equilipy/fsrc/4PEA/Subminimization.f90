@@ -125,8 +125,6 @@ subroutine Subminimization(iSolnPhaseIndex,lPhasePass)
 !
     integer :: iSolnPhaseIndex, iterSubMax, i,j, k, l
     logical :: lPhasePass, lDuplicate
-    real(8), dimension(:,:),allocatable:: dMFdummy
-    real(8),dimension(:),allocatable:: dMVdummy
 !
     ! Initialize local variables:
     lPhasePass = .FALSE.
@@ -145,51 +143,47 @@ subroutine Subminimization(iSolnPhaseIndex,lPhasePass)
 
     ! Initialize the subminimization subroutine:
     call SubMinInit(iSolnPhaseIndex,iterSubMax)
-    
-    if(allocated(dMVdummy)) deallocate(dMVdummy)
-    if(allocated(dMFdummy)) deallocate(dMFdummy)
-    allocate(dMVdummy(iterSubMax),dMFdummy(iterSubMax,nVar))
-    dMVdummy = 0D0
-    dMFdummy = 0D0
-!
 
     ! Subminimization iteration loop:
     LOOP_IterSub: do iterSub = 1, iterSubMax
-        !To plot oscillation graph
-        do j =1,nVar
-            i   = iFirstSUB + j - 1
-            dMFdummy(iterSub,j) = dMolFraction(i)
-        end do
+    ! LOOP_IterSub: do iterSub = 1, 200
+        ! Hyrbid algorithm
+        ! if((nVar>1)&
+        ! .and.(.NOT.lNegativeFraction)&
+        ! .and.(dMaxElementPotential>1D-2)) then
+        !     ! Update next iteration
+        !     call SubMinAdam(iSolnPhaseIndex)
+        !     iterSubAdam = iterSubAdam +1
+        ! else
+        !     ! Compute the direction vector:
+        !     call SubMinNewton(iSolnPhaseIndex)
 
-        if((nVar>1)&
-        .and.(.NOT.lNegativeFraction)&
-        .and.(dMaxElementPotential>1D-1)) then
-            ! Update next iteration
-            call SubMinAdam(iSolnPhaseIndex)
-            iterSubAdam = iterSubAdam +1
-        else
-            ! Compute the direction vector:
-            call SubMinNewton(iSolnPhaseIndex)
+        !     ! Compute an appropriate step length:
+        !     call SubMinLineSearch(iSolnPhaseIndex)
+        !     iterSubLg = iterSubLg+1
+        ! end if
 
-            ! Compute an appropriate step length:
-            call SubMinLineSearch(iSolnPhaseIndex)
-            iterSubLg = iterSubLg+1
-        end if
-        
-        !To plot oscillation graph
-        dMVdummy(iterSub) = dMaxPotentialVector
+        ! ! Adam only
+        ! ! Update next iteration
+        ! call SubMinAdam(iSolnPhaseIndex)
+
+        ! Lagrangian only
+        ! Compute the direction vector:
+        call SubMinNewton(iSolnPhaseIndex)
+
+        ! Compute an appropriate step length:
+        call SubMinLineSearch(iSolnPhaseIndex)
 
         ! Compute the functional norm:
         call SubMinFunctionNorm(iSolnPhaseIndex)
-!
+
         ! In case when handling zeroing species fails, exit the loop:
-        if (MINVAL(dMolFraction(iFirstSUB:iLastSUB)) < dMinMoleFraction) exit LOOP_IterSub
+        if (MINVAL(dMolFraction(iFirstSUB:iLastSUB)) <= 0D0) exit LOOP_IterSub
         
 
         ! Only check for convergence if the functional norm is below tolerance:
         if ((dSubMinFunctionNorm < dTolerance(1)) &
         .and.(dMaxPotentialVector<dMaxPotentialTol)&
-        .and.(iterSubLg>0)&
         ) lSubMinConverged = .TRUE.
 
         ! Check if the solution phases represening the miscibility gap duplicate one another:
@@ -204,7 +198,11 @@ subroutine Subminimization(iSolnPhaseIndex,lPhasePass)
         
 
     end do LOOP_IterSub
+    ! if(iSolnPhaseIndex==11 .or. iSolnPhaseIndex==12) then
+    !     print*, 'Subminimization did not converge ',iterSub,lSubMinConverged,iSolnPhaseIndex, cSolnPhaseName(iSolnPhaseIndex), dSubMinFunctionNorm, dMaxPotentialVector, dMolFraction(iFirstSUB:iLastSUB)
+    ! end if
 
+    
     ! If the composition of phases representing a miscibility gap duplicate one another (i.e., they have virtually
     ! the same composition), then set the driving force to zero to prevent this phase from being added to the system.
     if (lDuplicate) dDrivingForce = 9D5
