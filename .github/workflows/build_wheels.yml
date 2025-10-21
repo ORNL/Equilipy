@@ -13,6 +13,7 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.buildplat[0] }} (${{ matrix.buildplat[1] }})
     runs-on: ${{ matrix.buildplat[0] }}
+    if: github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:
@@ -46,7 +47,6 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.2.0
         env:
-          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_ARCHS: ${{ matrix.buildplat[1] }}
           CIBW_ENVIRONMENT: ${{ matrix.buildplat[3] }}
         with:
@@ -59,24 +59,24 @@ jobs:
           name: cibw-wheels-${{ matrix.buildplat[0] }}-${{ matrix.buildplat[1] }}
           path: ./wheelhouse/*.whl
 
-  publish-to-testpypi:
-    name: Publish to TestPyPI
-    needs: build_wheels
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    steps:
-      - name: Download all wheel artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./dist
-          pattern: cibw-wheels-*
-          merge-multiple: true
-      - name: Publish package to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.TestPYPI_API_TOKEN }}
-          repository-url: https://test.pypi.org/legacy/
-          skip-existing: true
+  # publish-to-testpypi:
+  #   name: Publish to TestPyPI
+  #   needs: build_wheels
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'push'
+  #   steps:
+  #     - name: Download all wheel artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: ./dist
+  #         pattern: cibw-wheels-*
+  #         merge-multiple: true
+  #     - name: Publish package to TestPyPI
+  #       uses: pypa/gh-action-pypi-publish@release/v1
+  #       with:
+  #         password: ${{ secrets.TestPYPI_API_TOKEN }}
+  #         repository-url: https://test.pypi.org/legacy/
+  #         skip-existing: true
 
   publish-to-pypi:
     name: Publish to PyPI
