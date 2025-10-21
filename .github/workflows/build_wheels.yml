@@ -13,7 +13,6 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.buildplat[0] }} (${{ matrix.buildplat[1] }})
     runs-on: ${{ matrix.buildplat[0] }}
-    if: github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:
@@ -82,7 +81,8 @@ jobs:
     name: Publish to PyPI
     needs: build_wheels
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    # if: github.event_name == 'release' && github.event.action == 'published'
+    if: github.event_name == 'push'
 
     steps:
       - name: Download all wheel artifacts
