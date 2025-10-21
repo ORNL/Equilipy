@@ -14,7 +14,6 @@ import equilipy.variables as var
 # from mpi4py.futures import MPIPoolExecutor
 # from mpi4py import MPI
 from multiprocessing import Pool
-from numba import njit
 
 
 def _equilib_batch(Database:dict,NTP:dict,UnitIn:list=['K','atm','moles'],UnitOut:list=None,ListOfPhases:list=None):

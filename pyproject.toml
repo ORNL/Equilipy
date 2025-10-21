@@ -8,7 +8,7 @@ requires = ["setuptools>=42", "wheel", "numpy>=1.23", "meson", "ninja", "cibuild
 
 [project]
 name = "equilipy"
-version = "0.1.7"
+version = "0.1.8"
 authors = [
     {name = "Sunyong Kwon", email = "kwons@ornl.gov"},
 ]
@@ -19,15 +19,14 @@ requires-python = ">=3.9"
 dependencies = [
     "numpy>=1.23",
     "regex",
-    "numba",
     "dataclasses",
     "meson",
     "ninja",
     "polars>=0.20.15",
     "xlsx2csv",
-    "matplotlib",
     "tqdm",
     "fastexcel",
+    "typing",
 ]
 
 [project.scripts]

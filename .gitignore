@@ -1,9 +1,7 @@
 
 .DS_Store
-.obsidian
-
 **/.DS_Store
-**/.so
+.DS_Store/
 
 
 # Byte-compiled / optimized / DLL files
@@ -11,10 +9,21 @@
 *.py[cod]
 *$py.class
 
-# C extensions
-**/.so
+# Test files
+# tests/
+tests/DependancyCheck.py
+tests/*.csv
+tests/Test12_FindTransition.py
+tests/TestLeveling.py
+tests/guitest.py
+tests/test.py
+ProgressStatus.md
+bdist_wheel.ps1
+bdist_wheel.sh
 
 #Custom folders
+**/*.so
+**/*.mod
 archive/
 # database/
 literature/
@@ -23,6 +32,7 @@ presentations/
 writing/
 ongoing/
 .vscode/
+.obsidian/
 
 # Distribution / packaging
 .Python

@@ -1,5 +1,5 @@
 import numpy as np, math
-from numba import njit
+from equilipy.equilifort import simplex_grid_f
 
 def simplex_count(nVertex:int,nSpacing:int):
     '''
@@ -42,32 +42,10 @@ def simplex_grid(nVertex:int,nSpacing:int):
     return np.asarray(_simplex_grid(L,nVertex,nSpacing))
 
 
-@njit
+
 def _simplex_grid(L,nVer,nSpacing):
-    res = np.zeros((L, nVer))
-    
-    vertices=np.zeros(nVer)
-    vertices[nVer-1] = nSpacing
-
-    for i in range(nVer):
-        res[0, i] = vertices[i]
-
-    h = nVer
-
-    for i in range(1, L):
-        h -= 1
-
-        val = vertices[h]
-        vertices[h] = 0
-        vertices[nVer-1] = val - 1
-        vertices[h-1] += 1
-
-        for j in range(nVer):
-            res[i, j] = vertices[j]
-
-        if val != 1:
-            h = nVer
-    return res/nSpacing
+    res = simplex_grid_f(L,nVer,nSpacing)
+    return res
 
 
 def simplex_grid_shift(SimplexGrid,CornerVertex:int,ShrinkFactor:float):

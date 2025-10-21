@@ -1,5 +1,4 @@
 import numpy as np, sys
-from numba import njit
 import equilipy.variables as var
 import equilipy.equilifort as fort
 
@@ -59,13 +58,6 @@ def system_check(cElementSys):
             j+=1
     var.iElementSys=var.iElementSys[var.iElementSysIndex]
     
-    # #Identify species that can pass for the system    
-    # lSpeciesPass = _get_species_pass(iElementPass)
-    # if sum(lSpeciesPass) == 0: 
-    #     lSpeciesPass = _get_endmembers(iElementPass)
-    #     fort.moduleparsecs.lendmembers2species= True
-    # else:
-    #     fort.moduleparsecs.lendmembers2species= False
 
     lSpeciesPass = _get_endmembers(iElementPass)
     fort.moduleparsecs.lendmembers2species= True
@@ -108,56 +100,7 @@ def system_check(cElementSys):
  
     return None
 
-@njit
-def _get_species_pass(iElementPass):
-    #This function identifies which species to be considered for a given system
-    
-    #Get elements not considered in the system
-    iElementNotPass= iElementPass.nonzero()[0]
-    
-    #First guess the species that need to be considered
-    res=np.sum(var.dStoichSpeciesCS[:,iElementNotPass],axis=1)<1E-15
-    
-    # Refine the species based on solution phases
-    # Note that solution phase should have more than one endmember, otherwise remove the endmembers
-    
-    #Get solution index
-    IndexSoln=var.iPhaseCS[res]
-    n=len(res)
-    m = len(IndexSoln)
-    k=0
-    
-    for i in range(n):
-        # Among the species that need to be passed in database
-        if res[i]:
-            if (k==0):
-                # Condition for the first endmembers
-                
-                if (IndexSoln[k]>0) and (IndexSoln[k]==IndexSoln[k+1]):
-                    #If more than two endmembers are involved add the phase
-                    res[i] = True
-                else:
-                    res[i] = False
-                k+=1
-            elif k==m-1:
-                # Condition for the last endmembers
-                if ((IndexSoln[k]>0) and (IndexSoln[k]==IndexSoln[k-1])):
-                    # If more than two endmembers are involved add the phase
-                    res[i] = True
-                else:
-                    res[i] = False
-                k+=1
-            elif k<m-1:
-                # Condition for endmembers that are inbetween
-                if (IndexSoln[k]!=IndexSoln[k-1]) and (IndexSoln[k]!=IndexSoln[k+1]) and (IndexSoln[k]>0):
-                    res[i]=False
-                elif IndexSoln[k]==-1:
-                    res[i]=False
-                k+=1
 
-    return res
-
-@njit
 def _get_endmembers(iElementPass):
     #This function identifies which species to be considered for a given system
     

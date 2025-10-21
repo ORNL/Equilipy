@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         buildplat:
-          - [ "ubuntu-latest", "auto", "", 'FC="gfortran" CC="gcc" CXX="g++"' ]
+          - [ "ubuntu-latest", "x86_64 i686", "", 'FC="gfortran" CC="gcc" CXX="g++"' ]
           - [ "windows-latest", "AMD64", "MINGW64", 'FC="gfortran" CC="gcc" CXX="g++"' ]
           - [ "macos-13", "x86_64", "", 'MACOSX_DEPLOYMENT_TARGET=13.0 FC="gfortran" CC="gcc" CXX="g++"' ]
           - [ "macos-14", "arm64", "", 'MACOSX_DEPLOYMENT_TARGET=14.0 FC="gfortran" CC="gcc" CXX="g++"' ]
@@ -58,31 +58,30 @@ jobs:
           name: cibw-wheels-${{ matrix.buildplat[0] }}-${{ matrix.buildplat[1] }}
           path: ./wheelhouse/*.whl
 
-  # publish-to-testpypi:
-  #   name: Publish to TestPyPI
-  #   needs: build_wheels
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name == 'push'
-  #   steps:
-  #     - name: Download all wheel artifacts
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         path: ./dist
-  #         pattern: cibw-wheels-*
-  #         merge-multiple: true
-  #     - name: Publish package to TestPyPI
-  #       uses: pypa/gh-action-pypi-publish@release/v1
-  #       with:
-  #         password: ${{ secrets.TestPYPI_API_TOKEN }}
-  #         repository-url: https://test.pypi.org/legacy/
-  #         skip-existing: true
+  publish-to-testpypi:
+    name: Publish to TestPyPI
+    needs: build_wheels
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+          pattern: cibw-wheels-*
+          merge-multiple: true
+      - name: Publish package to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.TestPYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
 
   publish-to-pypi:
     name: Publish to PyPI
     needs: build_wheels
     runs-on: ubuntu-latest
-    # if: github.event_name == 'release' && github.event.action == 'published'
-    if: github.event_name == 'push'
+    if: github.event_name == 'release' && github.event.action == 'published'
 
     steps:
       - name: Download all wheel artifacts

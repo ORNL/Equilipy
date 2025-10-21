@@ -1,6 +1,7 @@
-![PyPI - Version](https://img.shields.io/pypi/v/equilipy)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/equilipy)
+[![PyPI - Version](https://img.shields.io/pypi/v/equilipy)](https://pypi.org/project/equilipy/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/equilipy)](https://pypistats.org/packages/equilipy)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.06875/status.svg)](https://doi.org/10.21105/joss.06875)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17408401.svg)](https://doi.org/10.5281/zenodo.17408401)
 
 # Equilipy
 Equilipy is an open-source python package that offers multicomponent multiphase equilibrium calculations based on the CALPHAD (CALculation of PHAse Diagram) approach. With a set of Gibbs energy description (Thermochemical database) and input conditions (Composition, temperature, pressure), equilibrium phase configureation, amount, composition, and thermochemical properties can be obtained. Equilipy uses the Gibbs energy descriptions furnished by THERMOCHIMICA with the modified Gibbs energy minimization algorithm initially proposed by de Capitani, C. and Brown, T.H. (1987).
@@ -35,7 +36,7 @@ For details, check out the example directory and [Features and Examples](https:/
 
 If you use Equilipy in your work, please cite the following [paper](CITATION.bib).
 In addition, cite the current release or version used from
-[Zenodo](https://zenodo.org/doi/10.5281/zenodo.13157231).
+[Zenodo](https://doi.org/10.5281/zenodo.17408401).
 
 ## Contributing
 We encourage you to contribute to Equilipy. Please see [contributing guidelines](CONTRIBUTING.md).
