@@ -1,14 +1,14 @@
 [tool.cibuildwheel]
 build-verbosity = 1
 build-frontend = "pip"
-build = "cp39* cp310* cp311* cp312* cp313*"
+build = "cp39* cp310* cp311* cp312* cp313* cp314*"
 
 [build-system]
 requires = ["setuptools>=42", "wheel", "numpy>=1.23", "meson", "ninja", "cibuildwheel"]
 
 [project]
 name = "equilipy"
-version = "0.1.6"
+version = "0.1.7"
 authors = [
     {name = "Sunyong Kwon", email = "kwons@ornl.gov"},
 ]

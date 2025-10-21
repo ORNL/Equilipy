@@ -44,7 +44,7 @@ jobs:
           path-type: inherit
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v3.2.0
         env:
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_ARCHS: ${{ matrix.buildplat[1] }}
@@ -58,34 +58,6 @@ jobs:
         with:
           name: cibw-wheels-${{ matrix.buildplat[0] }}-${{ matrix.buildplat[1] }}
           path: ./wheelhouse/*.whl
-
-  publish-wheels-to-repo:
-    name: Commit Wheels to Repository
-    needs: build_wheels
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Download all wheel artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./dist
-          pattern: cibw-wheels-*
-          merge-multiple: true
-      - name: Commit and push wheels
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add ./dist/*.whl
-          if git diff --staged --quiet; then
-            echo "No new wheels to commit."
-          else
-            git commit -m "ci: Add built wheels [skip ci]"
-            git push
-          fi
 
   publish-to-testpypi:
     name: Publish to TestPyPI
