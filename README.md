@@ -36,7 +36,7 @@ For details, check out the example directory and [Features and Examples](https:/
 
 If you use Equilipy in your work, please cite the following [paper](CITATION.bib).
 In addition, cite the current release or version used from
-[Zenodo](https://doi.org/10.5281/zenodo.17408401).
+[Zenodo](https://doi.org/10.5281/zenodo.13157235).
 
 ## Contributing
 We encourage you to contribute to Equilipy. Please see [contributing guidelines](CONTRIBUTING.md).

@@ -1,7 +1,7 @@
 [tool.cibuildwheel]
 build-verbosity = 1
 build-frontend = "pip"
-build = "cp39* cp310* cp311* cp312* cp313* cp314* cp314*"
+build = "cp39* cp310* cp311* cp312* cp313* cp314*"
 
 [build-system]
 requires = ["setuptools>=42", "wheel", "numpy>=1.23", "meson", "ninja", "cibuildwheel"]
@@ -13,8 +13,6 @@ authors = [
     {name = "Sunyong Kwon", email = "kwons@ornl.gov"},
 ]
 license = {text = "BSD-3"}
-description = "A Gibbs energy minimization based on the CALPHAD approach"
-readme = "README.md"
 description = "A Gibbs energy minimization based on the CALPHAD approach"
 readme = "README.md"
 requires-python = ">=3.9"
