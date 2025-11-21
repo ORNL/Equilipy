@@ -8,7 +8,7 @@ from numpy import get_include
 
 class f2py_Extension(Extension):
     def __init__(self, PackageName, srcdir):
-        Extension.__init__(self, PackageName, sources=[])
+        Extension.__init__(self, PackageName, sources=[],extra_compile_args=["--llapack"],extra_link_args=["--llapack"])
         paths = sorted([d for d in glob.glob(f'{srcdir[0]}/*/') if os.path.isdir(d)])
         
         sourcedirs = []

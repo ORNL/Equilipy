@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     # Step 3: Calculate Scheil cooling based on LIQUID as target phase
     TargetPhase='LIQUID'
-    res=eq.scheil_cooling(TargetPhase,DB,NTP,dT=1,UnitIn=['C','atm','g'],UnitOut=['K','atm','mol'])
+    res=eq.scheil_cooling(TargetPhase,DB,NTP,dT=1,Unit=['C','atm','g'])
     
     # Step 4: Post processing
     print('Scheil Constituent information, mol. fr.:', res.ScheilConstituents)
@@ -31,11 +31,11 @@ if __name__ == "__main__":
 
     # Plot Phase amount as function of temperature
     T= np.array(res.T)
-    phases=list(res.ScheilPhases.keys())
+    phases=list(res.ScheilPhases_mass.keys())
     fig, ax = plt.subplots(figsize=(5,4))
 
     for phase in phases:
-        plt.plot(T,res.ScheilPhases[phase],'-',linewidth=3,label=phase)
+        plt.plot(T,res.ScheilPhases_mass[phase],'-',linewidth=3,label=phase)
         
     ax.legend(fontsize=14)
     ax.set_xlabel('Temperature, K', fontsize=16)

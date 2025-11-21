@@ -47,4 +47,4 @@ if __name__ == "__main__":
     print('Total processing time:',timedelta(seconds=duration))
 
     df=pl.DataFrame(res.to_dict())
-    print(df.select(list(NTP.keys())+['G J', 'H J', 'S J/K', 'Cp J/K', 'StablePhaseNames']))
+    print(df.select(['G [J]', 'H [J]', 'S [J/K]', 'Cp [J/K]', 'StablePhaseNames']))

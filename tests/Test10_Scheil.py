@@ -22,10 +22,9 @@ if __name__ == "__main__":
     TargetPhase='LIQUID'
 
     # Calculate Scheil cooling
-    res=eq.scheil_cooling(TargetPhase,DB,NTP,UnitIn=['C', 'atm', 'g'],dT=5)
+    res=eq.scheil_cooling(TargetPhase,DB,NTP,Unit=['C', 'atm', 'g'],dT=5)
         
 
     df=pl.DataFrame(res.to_dict())
     sc = pl.DataFrame(res.ScheilConstituents)
-    print(df)
-    print(sc)
+    print(res.ScheilConstituents)

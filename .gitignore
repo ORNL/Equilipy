@@ -13,7 +13,6 @@
 # tests/
 tests/DependancyCheck.py
 tests/*.csv
-tests/Test12_FindTransition.py
 tests/TestLeveling.py
 tests/guitest.py
 tests/test.py
@@ -25,7 +24,6 @@ bdist_wheel.sh
 **/*.so
 **/*.mod
 archive/
-# database/
 literature/
 notes/
 presentations/

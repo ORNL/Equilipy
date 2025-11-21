@@ -32,14 +32,15 @@ if __name__ == "__main__":
     # Step 4: Post process
     # 4.1: print all stable phases
     print(res.StablePhases['Name'])
-    print(res.StablePhases['Amount'])
+    print(res.StablePhases['Amount_mass'])
+    print(res.StablePhases['Amount_mole'])
 
-    # 4.2 print all phases
+    # 4.2: print all phases
     PhasesAll=list(res.Phases.keys())
 
     for i,ph in enumerate(PhasesAll):
         print('--------------------------------------------------------------')
-        print(f'Amount of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Amount)
-        print(f'Endmembers of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Endmembers)
-        print(f'Composition of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].xi)
+        print(f'Amount of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Amount_mole)
+        print(f'Endmembers of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Elements_Xmole)
+        print(f'Composition of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Endmembers_Xmole)
         print(' ')

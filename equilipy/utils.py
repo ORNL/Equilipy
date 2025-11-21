@@ -467,7 +467,6 @@ def _dict2np(dictionary: Dict[str, Union[Any, List[Any]]]) -> Tuple[List[str], n
 	
     return header, res
 
-
 def _pyvar2fvar(var: object) -> None:
     '''
     Passes Python variables to Fortran modules.

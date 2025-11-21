@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     # Step 3: Calculate batch equilibrium
     starttime=time.time()
-    res=eq.equilib_batch(DB,NTP,UnitIn=['K','atm','moles'],UnitOut=['C','atm','g'])
+    res=eq.equilib_batch(DB,NTP,Unit=['K','atm','moles'])
     duration= time.time()-starttime
     dftime=pl.DataFrame({'Time, s':duration})
 

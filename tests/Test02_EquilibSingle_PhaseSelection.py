@@ -29,16 +29,20 @@ res=eq.equilib_single(DB,NTP, ListOfPhases=phases)
 
 #print all stable phases
 print(res.StablePhases['Name'])
-print(res.StablePhases['Amount'])
+print(res.StablePhases['Amount_mole'])
+print(res.StablePhases['Amount_mass'])
 
 #print all phases
 PhasesAll=list(res.Phases.keys())
 
 for i,ph in enumerate(PhasesAll):
     print('--------------------------------------------------------------')
-    print(f'Amount of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Amount)
-    print(f'Endmembers of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Endmembers)
-    print(f'Composition of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].xi)
+    print(f'Amount of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Amount_mole)
+    print(f'Amount of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Amount_mass)
+    print(f'Endmembers of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Endmembers_Xmole)
+    print(f'Composition of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Endmembers_Xmass)
+    print(f'Elements of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Elements_Xmole)
+    print(f'Composition of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Elements_Xmass)
     print(' ')
     
 #Check the results conmpared to FactSage

@@ -126,18 +126,19 @@ subroutine ShuffleAssemblage(iNewPhase,iPhaseTypeOut)
 
     !Conduct calcualtion based on EuclideanVec
     dVecNew        = dAtomFractionSpecies(iNewPhase,:) - dAtomFractionBulk(:)
-    dVecNew        = dVecNew/sum(dVecNew**2)
+    dLengthNew     = sum(dVecNew**2)
     do i = 1, nElements
         dVecOld=(dAtomFractionSpeciesTemp(i,:) - dAtomFractionBulk(:))
-        dVecOld = dVecOld/sum(dVecOld**2)
-        dEuclideanVec(i) = dot_product(dVecNew,dVecOld)
+        dLengthOld = sum(dVecOld**2)
+        dEuclideanVec(i) = dot_product(dVecNew,dVecOld)/sqrt(dLengthNew*dLengthOld)
     end do
    
 !
 !
     ! Swap the phase with the lowest Euclidean norm for the first phase in the assemblage:
     IF_Euclid: if (iNewPhase /= 0) then
-!
+
+        ! Sort by ascending order: highest value for euclidean vector indicates completely aligned direction cos(theta) = 1
         call Qsort(dEuclideanVec, iShuffle, nElements)
 !
         ! Store temporary variables:

@@ -55,7 +55,7 @@ global cPhaseNames,cSolnPhaseTypeSupport,PhaseNameSys,cEndmemberNameSys,\
 
 global FunctionsHSCp, FactSage8Plus, CompoundGibbs
 
-global dSpeciesFractionOut, dPhaseAmountOut, dTOut, dPOut
+global dSpeciesFractionOut, dPhaseAmountOut, dTOut, dPOut, dComponentSysOut
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 cPeriodicTable=dict({
@@ -232,6 +232,7 @@ def to_dict():
     db['cPhaseNames'] = cPhaseNames
     db['nPureSpeciesCS'] = nPureSpeciesCS
     db['nSolnPhaseCS'] = nSolnPhaseCS
+    db['cEndmemberNameCS'] = cEndmemberNameCS
     # db['indx'] = indx
     db['INFO'] = INFO
     db['DataBase'] = DataBase

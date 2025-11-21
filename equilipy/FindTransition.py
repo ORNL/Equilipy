@@ -1,14 +1,14 @@
 import numpy as np
 from .EquilibSingle import _equilib_single
 import equilipy.equilifort as fort
-from typing import Dict, List, Tuple, Optional, Set
+from typing import Dict, List, Tuple, Optional, Set, Union
 
 def find_transitions(
     Database: dict,
     NTP: dict,
     Tmax: float,
     Tmin: float,
-    UnitIn: List[str] = ['K', 'atm', 'moles'],
+    Unit: List[str] = ['K', 'atm', 'moles'],
     ListOfPhases: Optional[List[str]] = None,
     T_tol: float = 1E-1,
     max_depth: int = 15
@@ -49,7 +49,7 @@ def find_transitions(
         """Helper function to get the set of stable phase IDs at a given temperature."""
         ntp_local = NTP.copy()
         ntp_local['T'] = T
-        _equilib_single(Database, ntp_local, UnitIn=UnitIn,ListOfPhases=ListOfPhases,CalcHeatCapacity=False)
+        _equilib_single(Database, ntp_local, Unit=Unit,ListOfPhases=ListOfPhases,CalcHeatCapacity=False)
         assemblage=fort.modulethermo.iassemblage.copy()
         return set(assemblage)
 
@@ -94,7 +94,6 @@ def find_transitions(
                 break  # Found a valid range with different phase sets
             
             # If sets are the same, slightly expand the range and re-check
-            print(f"Info: Boundary phase sets are identical. Expanding range: Tmin={search_Tmin-0.1:.2f}, Tmax={search_Tmax+0.1:.2f}")
             search_Tmin -= 0.1
             search_Tmax += 0.1
         else: # This 'else' belongs to the 'for' loop
@@ -117,3 +116,99 @@ def find_transitions(
     # If all retries fail, return an empty array
     print("Error: No transitions found after all retry attempts.")
     return np.array([])
+
+
+
+
+def find_first_transition(
+    Database: dict,
+    NTP: dict,
+    Tmax: float,
+    Tmin: float,
+    Unit: List[str] = ['K', 'atm', 'moles'],
+    ListOfPhases: Optional[List[str]] = None,
+    T_tol: float = 1E-2,
+    max_depth: int = 20
+) -> Optional[float]:
+    """
+    Finds the *first* (highest temperature) phase transition point below Tmax
+    using a high-performance bisection search.
+
+    This function is benchmarked against the recursive `find_transitions`
+    but is optimized to find only the highest temperature transition.
+    
+    A transition is defined as any change in the set of stable phase IDs.
+
+    Args:
+        Database (dict): The database object.
+        NTP (dict): Conditions (e.g., {'P': 1, 'N': 1}). 'T' will be set.
+        Tmax (float): The upper bound of the temperature search (starting state).
+        Tmin (float): The lower bound of the temperature search.
+        UnitIn (List[str], optional): Input units. Defaults to ['K', 'atm', 'moles'].
+        ListOfPhases (Optional[List[str]], optional): Phases to consider. Defaults to None.
+        T_tol (float, optional): Temperature tolerance to stop the search. Defaults to 1E-1.
+        max_depth (int, optional): Maximum search depth to prevent errors. Defaults to 20.
+
+    Returns:
+        Optional[float]: The highest transition temperature found. Returns None if no
+                         transition is found in the given range.
+    """
+    
+    def get_stable_phases_set(T: float) -> Set[int]:
+        """
+        Helper function to get the set of stable phase IDs at a given temperature.
+        (Based on the benchmark `find_transitions` helper)
+        """
+        ntp_local = NTP.copy()
+        ntp_local['T'] = T
+        
+        try:
+            _equilib_single(Database, ntp_local, Unit=Unit, ListOfPhases=ListOfPhases, CalcHeatCapacity=False)
+            assemblage = fort.modulethermo.iassemblage.copy()
+            # We filter out 0, which is a placeholder, not a real phase ID
+            return set(phase_id for phase_id in assemblage if phase_id != 0)
+        except Exception as e:
+            print(f"Warning: Equilibrium calculation failed at T={T}. Error: {e}")
+            # Return a unique, "error" set
+            return {-999}
+
+    # --- Bisection Search Logic ---
+    
+    # 1. Check boundaries
+    # T_hot is the starting point. We get its phase set.
+    T_hot = Tmax
+    set_hot = get_stable_phases_set(T_hot)
+    
+    # T_cold is the end point.
+    T_cold = Tmin
+    set_cold = get_stable_phases_set(T_cold)
+    
+    # Check if the range is valid
+    if set_hot == set_cold:
+        print(f"Warning: Tmax ({Tmax}K) and Tmin ({Tmin}K) have the same stable phase set. No transition found in range.")
+        return None
+
+    # 2. Bisection loop
+    depth = 0
+    while (T_hot - T_cold) > T_tol and depth < max_depth:
+        T_mid = (T_hot + T_cold) / 2.0
+        set_mid = get_stable_phases_set(T_mid)
+        
+        if set_mid == set_hot:
+            # T_mid has the same phases as T_hot.
+            # This is our new "hot" boundary.
+            T_hot = T_mid
+        else:
+            # T_mid has *different* phases.
+            # This is our new "cold" boundary, as it's at or below the transition.
+            T_cold = T_mid
+            
+        depth += 1
+        
+    if depth >= max_depth:
+        print(f"Warning: Max recursion depth reached. Returning best estimate.")
+
+    # T_hot is the last temperature *before* the transition.
+    # T_cold is the first temperature *at or after* the transition.
+    # We return T_hot as it's the highest temperature before the change.
+    return T_hot

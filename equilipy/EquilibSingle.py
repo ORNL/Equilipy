@@ -5,20 +5,23 @@ from .PhaseSelection import phase_selection
 from .utils import _dict2np
 from .InputCondition import input_condition
 from .Minimize import minimize
-from .PostProcess import Result, check_output_units
+from .PostProcess import Result
 from .ListPhases import list_phases
 import equilipy.variables as var
 from .ReadDict import read_dict
 from .Errors import *
 
-def _preprocess_single(Database:dict,Condition,UnitIn:list=['K','atm','moles'],ListOfPhases=None,CalcHeatCapacity=True):
+def _preprocess_single(Database:dict,Condition,Unit:list=['K','atm','moles'],ListOfPhases=None,CalcHeatCapacity=True):
     read_dict(Database)
     # Get info from input condition
     NTPheader,NTPvals=_dict2np(Condition)
     
     NTPvals = np.squeeze(NTPvals)
-    list_phases(var,NTPheader[2:])
-    if ListOfPhases!=None: phase_selection(ListOfPhases)
+    All_phases=list_phases(var,NTPheader[2:])
+    if ListOfPhases!=None:
+        #Re-order phases based on the All_phases
+        ListOfPhases=[x for x in All_phases if x in ListOfPhases]
+        phase_selection(ListOfPhases)
     
     # try: 
     #     x=var.PhaseNameSys
@@ -45,25 +48,22 @@ def _preprocess_single(Database:dict,Condition,UnitIn:list=['K','atm','moles'],L
         if ListOfPhases!=None: phase_selection(ListOfPhases)
     
     var.dConditionSys=condition
-    input_condition(UnitIn,condition,CalcHeatCapacity)        
+    input_condition(Unit,condition,CalcHeatCapacity)        
     
     return None
 
-def _equilib_single(Database:dict,Condition,UnitIn:list=['K','atm','moles'],UnitOut:list=None,ListOfPhases=None,CalcHeatCapacity=True):
-    if UnitOut==None:
-        UnitOut = UnitIn.copy() 
-    _preprocess_single(Database,Condition,UnitIn,ListOfPhases=ListOfPhases,CalcHeatCapacity=CalcHeatCapacity)
+def _equilib_single(Database:dict,Condition,Unit:list=['K','atm','moles'],ListOfPhases=None,CalcHeatCapacity=True):
+    _preprocess_single(Database,Condition,Unit,ListOfPhases=ListOfPhases,CalcHeatCapacity=CalcHeatCapacity)
     
     try: 
         minimize()
-        check_output_units(UnitOut)
 
     except EquilibError: pass
         
     
     return None
 
-def equilib_single(Database:dict,Condition,UnitIn:list=['K','atm','moles'],UnitOut:list=None,ListOfPhases=None,CalcHeatCapacity=True):
+def equilib_single(Database:dict,Condition,Unit:list=['K','atm','moles'],ListOfPhases=None,CalcHeatCapacity=True):
     '''----------------------------------------------------------------------------------------------------------------
     Description
     ===========
@@ -95,12 +95,9 @@ def equilib_single(Database:dict,Condition,UnitIn:list=['K','atm','moles'],UnitO
     ----------------------------------------------------------------------------------------------------------------'''
     res = Result()
     # As a default, synchronize UnitIn and UnitOut
-    if UnitOut==None:
-        UnitOut = UnitIn.copy() 
-    _preprocess_single(Database,Condition,UnitIn,ListOfPhases,CalcHeatCapacity)
+    _preprocess_single(Database,Condition,Unit,ListOfPhases,CalcHeatCapacity)
     try: 
         minimize()
-        check_output_units(UnitOut)
 
         res.append_output()
     except EquilibError:

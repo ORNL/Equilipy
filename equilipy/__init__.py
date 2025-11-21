@@ -13,6 +13,7 @@ from .ListPhases         import *
 from .PhaseSelection     import *
 from .SinglePhaseProperty import *
 from .FindTransition import *
+from .NucleoScheil import *
 # from .ParseCSDataBlockRKMP import *
 # from .ParseCSDataBlockSUBL import *
 # from .ParseCSDataBlockSUBG import *

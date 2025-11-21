@@ -40,6 +40,9 @@ def phase_selection(ListOfPhases):
     cPhaseNameSys = list([])
     PhaseTypeIDSys = list([])
     NewPhaseList = list([])
+    iElementCS=np.arange(len(var.cElementNameCS))
+    iElementDBIndex_reverse= [x for x in iElementCS if x not in var.iElementDBIndex]
+
     
 	#1. Add each phase information into PS variables
     for phase in ListOfPhases:
@@ -69,7 +72,7 @@ def phase_selection(ListOfPhases):
             iSolnPS[int(p_id-1)]=p_id
             iSys2DBSoln.append(p_id)
             for i in range(iFirst,iLast):
-                if sum(var.dStoichSpeciesCS[i,var.iElementDBIndex])>0:
+                if sum(var.dStoichSpeciesCS[i,iElementDBIndex_reverse])<1E-15:
                     iSys2DBSpecies.append(i)
         elif p_type=='compd':
             iPhasePS[p_id]=0

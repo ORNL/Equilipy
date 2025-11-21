@@ -50,6 +50,7 @@ def read_dict(db):
         var.dCoordinationNumberCS = db['dCoordinationNumberCS']
         var.cConstituentNameSUBCS = db['cConstituentNameSUBCS']
         var.cPhaseNames= db['cPhaseNames']
+        var.cEndmemberNameCS = db['cEndmemberNameCS']
         var.nPureSpeciesCS = db['nPureSpeciesCS']
         var.nSolnPhaseCS = db['nSolnPhaseCS']
         var.indx = db['indx']

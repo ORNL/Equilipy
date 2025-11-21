@@ -10,27 +10,28 @@ if __name__ == "__main__":
     
     # Step 2: Parse input data
     NTP = dict({
-        'T':700,
+        'T':500,
         'P': 1,
-        'Al':0.060606061,
-        'Cu':0.42424242,
-        'Si':0.515151515})
+        'Al':0.96,
+        'Mg':0.03,
+        'Si':0.01})
 
     # Step 3: Calculate equilibrium
-    res=eq.equilib_single(DB,NTP)
+    res=eq.equilib_single(DB,NTP,Unit=['K','atm','g'])
 
     # Step 4: Post process
     
     # 4.1: print all stable phases
     print(res.StablePhases['Name'])
-    print(res.StablePhases['Amount'])
+    print(res.StablePhases['Amount_mass'])
+    print(res.StablePhases['Amount_mole'])
 
     # 4.2: print all phases
     PhasesAll=list(res.Phases.keys())
 
     for i,ph in enumerate(PhasesAll):
         print('--------------------------------------------------------------')
-        print(f'Amount of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Amount)
-        print(f'Endmembers of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Endmembers)
-        print(f'Composition of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].xi)
+        print(f'Amount of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Amount_mole)
+        print(f'Endmembers of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Elements_Xmole)
+        print(f'Composition of {PhasesAll[i]}:',res.Phases[PhasesAll[i]].Endmembers_Xmole)
         print(' ')

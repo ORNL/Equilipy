@@ -21,11 +21,12 @@ if __name__ == "__main__":
     DB=eq.read_dat(datafile+'.dat')
     PhasesAll=eq.list_phases(DB,list(NTP.keys())[2:])
     phases = [phase for phase in PhasesAll if '#' not in phase]
-    res=eq.equilib_batch(DB,NTP,ListOfPhases=PhasesAll,nCPU=10,UnitOut=['C','atm','g'])
+    print(PhasesAll)
+    res=eq.equilib_batch(DB,NTP,ListOfPhases=PhasesAll,nCPU=10)
 
     duration= time.time()-starttime
     dftime=pl.DataFrame({'Time, s':duration})
     print('Total processing time:',timedelta(seconds=duration))
 
     df=pl.DataFrame(res.to_dict())
-    print(df.select(list(NTP.keys())+['G J', 'H J', 'S J/K', 'Cp J/K', 'StablePhaseNames']))
+    print(df)
