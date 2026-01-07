@@ -16,8 +16,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+
         buildplat:
-          - [ "ubuntu-latest", "x86_64 i686", "", 'FC="gfortran" CC="gcc" CXX="g++"' ]
+          # Separated Linux into two independent jobs
+          - [ "ubuntu-latest", "x86_64", "", 'FC="gfortran" CC="gcc" CXX="g++"' ]
+          - [ "ubuntu-latest", "i686", "", 'FC="gfortran" CC="gcc" CXX="g++"' ]
           - [ "windows-latest", "AMD64", "MINGW64", 'FC="gfortran" CC="gcc" CXX="g++"' ]
           - [ "macos-15-intel", "x86_64", "", 'MACOSX_DEPLOYMENT_TARGET=15.0 FC="gfortran" CC="gcc" CXX="g++"' ]
           - [ "macos-14", "arm64", "", 'MACOSX_DEPLOYMENT_TARGET=14.0 FC="gfortran" CC="gcc" CXX="g++"' ]

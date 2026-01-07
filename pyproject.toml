@@ -31,7 +31,7 @@ dependencies = [
     "tqdm",
     "fastexcel",
     "typing",
-    "pydantic"
+    "pydantic>=2.0"
 ]
 
 [project.scripts]
