@@ -3,12 +3,16 @@ build-verbosity = 1
 build-frontend = "pip"
 build = "cp39* cp310* cp311* cp312* cp313* cp314*"
 
+[tool.cibuildwheel.windows]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair --add-path C:/msys64/mingw64/bin -w {dest_dir} {wheel}"
+
 [build-system]
 requires = ["setuptools>=42", "wheel", "numpy>=1.23", "meson", "ninja", "cibuildwheel"]
 
 [project]
 name = "equilipy"
-version = "0.2.0"
+version = "0.2.1"
 authors = [
     {name = "Sunyong Kwon", email = "kwons@ornl.gov"},
 ]
