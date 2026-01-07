@@ -19,7 +19,7 @@ jobs:
         buildplat:
           - [ "ubuntu-latest", "x86_64 i686", "", 'FC="gfortran" CC="gcc" CXX="g++"' ]
           - [ "windows-latest", "AMD64", "MINGW64", 'FC="gfortran" CC="gcc" CXX="g++"' ]
-          - [ "macos-13", "x86_64", "", 'MACOSX_DEPLOYMENT_TARGET=13.0 FC="gfortran" CC="gcc" CXX="g++"' ]
+          - [ "macos-15-intel", "x86_64", "", 'MACOSX_DEPLOYMENT_TARGET=15.0 FC="gfortran" CC="gcc" CXX="g++"' ]
           - [ "macos-14", "arm64", "", 'MACOSX_DEPLOYMENT_TARGET=14.0 FC="gfortran" CC="gcc" CXX="g++"' ]
           - [ "macos-15", "arm64", "", 'MACOSX_DEPLOYMENT_TARGET=15.0 FC="gfortran" CC="gcc" CXX="g++"' ]
 

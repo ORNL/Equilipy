@@ -2,6 +2,8 @@ import numpy as np, pandas as pd, matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import polars as pl
 import equilipy as eq
+import os
+
 xfont= {
     'size': 10,
     'family': 'Arial',
@@ -16,7 +18,9 @@ yfont= {
 }
 if __name__ == "__main__":
 
-    datafile = '../database/AlFeSi_99Liu'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlFeSi_99Liu')
 
     # Parse database
     LiquidPhaseName= 'LIQUID'
@@ -151,5 +155,5 @@ if __name__ == "__main__":
 
     # Save and display
     # Save and display
-    fig.savefig('ScheilConstituents.svg', transparent=False, bbox_inches='tight')
+    fig.savefig(os.path.join(fpath,'ScheilConstituents.svg'), transparent=False, bbox_inches='tight')
     plt.show()

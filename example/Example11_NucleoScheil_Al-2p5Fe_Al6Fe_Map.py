@@ -5,6 +5,7 @@ import equilipy as eq
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import seaborn as sns
+import os
 
 axfont= {
     'size': 16,
@@ -118,7 +119,7 @@ def plot_phase_map(df: pd.DataFrame, description_map: dict):
     fig.tight_layout()
     
     # Save and show the plot
-    fig.savefig("Example11_Map.svg", bbox_inches='tight')
+    # fig.savefig("Example11_Map.svg", bbox_inches='tight')
     plt.show()
 
 
@@ -137,7 +138,9 @@ if __name__ == "__main__":
     n,_=grid.shape
     print(f'Total {n} calculations')
     
-    datafile = '../database/AlFeSi_99Liu'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlFeSi_99Liu')
 
     # Parse database
     LiquidPhaseName= 'LIQUID'

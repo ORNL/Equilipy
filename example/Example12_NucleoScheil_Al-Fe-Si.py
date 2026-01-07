@@ -2,10 +2,13 @@ import numpy as np, pandas as pd, matplotlib.pyplot as plt
 
 import polars as pl
 import equilipy as eq
+import os
 
 if __name__ == "__main__":
 
-    datafile = '../database/AlFeSi_99Liu'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlFeSi_99Liu')
 
     # Parse database
     LiquidPhaseName= 'LIQUID'
@@ -57,7 +60,7 @@ if __name__ == "__main__":
     }
     
 
-    df=pd.read_csv('Projection_AlFeSi.csv')
+    df=pd.read_csv(os.path.join(fpath, 'Projection_AlFeSi.csv'))
     header= df.keys()
     PDs= [h for h in header if '99Liu_' in h]
     # NucleoScheil = [h for h in header if 'NucleoScheil_' in h]

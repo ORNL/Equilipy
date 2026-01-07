@@ -4,9 +4,9 @@ import os
 
 if __name__ == "__main__":
     # Step 1: Parse database
-    fpath=os.path.dirname(os.path.abspath(__file__))
-    path ='/'.join(fpath.split('/')[:-1])
-    datafile=f'{path}/database/AlCuMgSi_ORNL_FS73'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlCuMgSi_ORNL_FS73')
     DB=eq.read_dat(datafile+'.dat',FactSage8Plus=False)
 
     # Step 2: Parse input data

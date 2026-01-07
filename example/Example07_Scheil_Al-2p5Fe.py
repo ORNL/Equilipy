@@ -2,10 +2,13 @@
 import polars as pl
 import equilipy as eq
 import matplotlib.pyplot as plt
+import os
 
 if __name__ == "__main__":
     #Parse database
-    datafile = '../database/AlFeSi_99Liu'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlFeSi_99Liu')
     DB=eq.read_dat(datafile+'.dat')
 
     # Set input data

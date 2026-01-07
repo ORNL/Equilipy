@@ -1,9 +1,14 @@
 import numpy as np
 import equilipy as eq
 import polars as pl
+import os
+
 if __name__ == "__main__":
     # NucleoScheil input
-    datafile = '../database/AlCuMgSi_ORNL_FS83'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlCuMgSi_ORNL_FS83')
+
     NTP = {
         'T': 2000,  # Initial temperature, will be updated by the function
         'P': 1,

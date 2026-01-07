@@ -8,14 +8,14 @@ if __name__ == "__main__":
     system = 'AlCuMgSi'
     
     # Step 1: Parse database
-    fpath=os.path.dirname(os.path.abspath(__file__))
-    path ='/'.join(fpath.split('/')[:-1])
-    datafile=f'{path}/database/AlCuMgSi_ORNL_FS73'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlCuMgSi_ORNL_FS73')
     DB=eq.read_dat(datafile+'.dat',FactSage8Plus=False)
 
     # Step 2: Input data
     df_name= 'Input_ACMS.xlsx'
-    NTP=pl.read_excel(f'{fpath}/{df_name}',sheet_name=system).to_dict()
+    NTP=pl.read_excel(os.path.join(fpath, df_name),sheet_name=system).to_dict()
 
     # Phase selection
     PhasesAll=eq.list_phases(DB,list(NTP.keys())[2:])

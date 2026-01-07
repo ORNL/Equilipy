@@ -7,9 +7,9 @@ import equilipy as eq
 
 if __name__ == "__main__":
 #Parse database
-    fpath=os.path.dirname(os.path.abspath(__file__))
-    path ='/'.join(fpath.split('/')[:-1])
-    datafile=f'{path}/database/AlCuMgSi_ORNL_FS83'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlCuMgSi_ORNL_FS83')
     DB=eq.read_dat(datafile+'.dat',FactSage8Plus=True)
     
     NTP ={
@@ -30,5 +30,5 @@ if __name__ == "__main__":
     print('Total processing time:',timedelta(seconds=duration))
 
     df=pl.DataFrame(res.to_dict())
-    df.write_csv('Test03.csv')
+    df.write_csv(os.path.join(fpath,'Test03.csv'))
     print(df)

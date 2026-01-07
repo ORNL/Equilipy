@@ -2,12 +2,16 @@
 import polars as pl
 import equilipy as eq
 import matplotlib.pyplot as plt
+import os
+
 if __name__ == "__main__":
     pl.Config.set_tbl_cols(10)
     pl.Config.set_tbl_rows(100)
 
     # datafile = '../database/AlFe_PanAl24'
-    datafile = '../database/AlFeSi_99Liu'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlFeSi_99Liu')
 
     # Parse database
     LiquidPhaseName= 'LIQUID'

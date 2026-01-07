@@ -9,9 +9,9 @@ pl.Config.set_tbl_rows(100)
 if __name__ == "__main__":
 
     #Parse database
-    fpath=os.path.dirname(os.path.abspath(__file__))
-    path ='/'.join(fpath.split('/')[:-1])
-    datafile=f'{path}/database/AlCuMgSi_ORNL_FS83'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlCuMgSi_ORNL_FS83')
     DB=eq.read_dat(datafile+'.dat')
 
 

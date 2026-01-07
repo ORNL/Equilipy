@@ -4,9 +4,9 @@ import equilipy as eq
 
 if __name__ == "__main__":
     #Parse database
-    fpath=os.path.dirname(os.path.abspath(__file__))
-    path ='/'.join(fpath.split('/')[:-1])
-    datafile=f'{path}/database/AlCuMgSi_ORNL_FS83'
+    fpath = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.dirname(fpath)
+    datafile = os.path.join(path, 'database', 'AlCuMgSi_ORNL_FS83')
     DB=eq.read_dat(datafile+'.dat',FactSage8Plus=True)
 
     #Set input data
@@ -33,9 +33,9 @@ if __name__ == "__main__":
         'T': np.array(res.T)
     }
     
-    phases=list(res.ScheilPhases.keys())
+    phases=list(res.ScheilPhases_mass.keys())
     for phase in phases:
-        Scheilresult[phase]=res.ScheilPhases[phase]
+        Scheilresult[phase]=res.ScheilPhases_mass[phase]
         
 
     df=pl.DataFrame(Scheilresult)
