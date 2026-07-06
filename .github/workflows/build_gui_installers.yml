@@ -29,11 +29,6 @@ jobs:
             label: windows-amd64
             msystem: MINGW64
             macos_deployment_target: ""
-          - os: macos-15-intel
-            arch: x86_64
-            label: macos-15-x86_64
-            msystem: ""
-            macos_deployment_target: "13.0"
           - os: macos-14
             arch: arm64
             label: macos-14-arm64
