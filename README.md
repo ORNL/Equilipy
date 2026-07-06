@@ -43,6 +43,7 @@ For standalone GUI installation, download the installer that matches your system
 - macOS Apple Silicon, macOS 14: [Equilipy-macos-14-arm64.dmg](https://github.com/ORNL/Equilipy/releases/latest/download/Equilipy-macos-14-arm64.dmg)
 - Windows 64-bit: [Equilipy-windows-amd64.exe](https://github.com/ORNL/Equilipy/releases/latest/download/Equilipy-windows-amd64.exe)
 - Linux 64-bit: [Equilipy-linux-x86_64](https://github.com/ORNL/Equilipy/releases/latest/download/Equilipy-linux-x86_64)
+- Linux ARM 64-bit: [Equilipy-linux-arm64](https://github.com/ORNL/Equilipy/releases/latest/download/Equilipy-linux-arm64)
 
 For users who installed Equilipy with GUI dependencies, the GUI can also be
 launched from the terminal:

@@ -24,6 +24,11 @@ jobs:
             label: linux-x86_64
             msystem: ""
             macos_deployment_target: ""
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+            label: linux-arm64
+            msystem: ""
+            macos_deployment_target: ""
           - os: windows-latest
             arch: AMD64
             label: windows-amd64
