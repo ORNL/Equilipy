@@ -8,8 +8,8 @@
 pip install equilipy
 ```
 
-Binary wheels are published for Linux (x86_64 and i686, glibc and musl),
-Windows (AMD64), and macOS (Apple Silicon) with the Fortran
+Binary wheels are published for Linux (x86_64, aarch64, and i686; glibc
+and musl), Windows (AMD64), and macOS (Apple Silicon) with the Fortran
 runtime bundled, so no compiler is required. On other platforms,
 including Intel Macs, [install from source](#2-install-from-source).
 
