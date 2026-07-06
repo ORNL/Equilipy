@@ -4,7 +4,10 @@ build-frontend = "pip"
 build = "cp310* cp311* cp312* cp313* cp314*"
 
 [tool.cibuildwheel.linux]
-before-all = "yum install -y gcc-gfortran blas-devel lapack-devel"
+# manylinux images are dnf/yum-based (AlmaLinux); musllinux images are
+# Alpine (apk). Detect the package manager so before-all works in all
+# containers used by cibuildwheel >= 4.
+before-all = "if command -v dnf >/dev/null 2>&1; then dnf install -y gcc-gfortran blas-devel lapack-devel; elif command -v yum >/dev/null 2>&1; then yum install -y gcc-gfortran blas-devel lapack-devel; else apk add --no-cache gfortran blas-dev lapack-dev; fi"
 
 [tool.cibuildwheel.windows]
 before-build = "pip install delvewheel && C:/msys64/usr/bin/bash -lc \"pacman -S --noconfirm --needed mingw-w64-x86_64-gcc-fortran mingw-w64-x86_64-openblas\""
