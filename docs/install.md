@@ -1,59 +1,100 @@
----
-layout: default
-title: Install
-nav_enabled: true
-nav_order: 3
----
-
 # Installation
 
-## PIP
-Installation using `pip` is available for `equilipy`. 
-To install `equilipy` in your **desktop/laptop**:
-```
+`equilipy` supports Python 3.10-3.14.
+
+## 1. Install with pip
+
+```bash
 pip install equilipy
 ```
 
-{: .warning }
-`equilipy` requires a Fortran compiler in the local environment. To install a Fortran compiler, please follow [Preinstall][preinstall].
+Binary wheels are published for Linux (x86_64 and i686, glibc and musl),
+Windows (AMD64), and macOS (Intel and Apple Silicon) with the Fortran
+runtime bundled, so no compiler is required. On other platforms,
+[install from source](#2-install-from-source).
 
-{: .note }
-The test suite in the `./test/*` directory is integrated into the build process for .whl files using GitHub Actions. No further testing is necessary when installing via pip.
+Optional add-ons are installed as pip *extras*. For the PySide6 desktop GUI
+(adds the `equilipy.gui` command):
 
-For **HPC environment**, use `equilipy-hpc` instead of `equilipy`
+```bash
+pip install 'equilipy[gui]'
 ```
-pip install equilipy-hpc
+
+For the mpi4py helpers on multi-node clusters:
+
+```bash
+pip install 'equilipy[hpc]'
 ```
 
-{: .warning }
-`equilipy-hpc` uses `mpi4py` to interface with MPI tools. MPI tools such as OpenMPI or MPICH must be preinstalled. To install To install OpenMPI and mpi4py, check out [Preinstall][preinstall].
+:::{note}
+For the `hpc` extra on a cluster, load the site's MPI module **before**
+installing so `mpi4py` compiles against the same MPI that `srun`/`mpirun`
+launches with. See [HPC](scripting/hpc) for details.
+:::
 
-## Install from the source
-[GitHub repository][equilipy] provides source codes to build `equilipy`.
-To install `equilipy` from the source:
-1. Clone the repository
+## 2. Install from source
+
+Building from source — for development, or on platforms without a prebuilt
+wheel — requires a Fortran compiler.
+
+With `conda` — Linux:
+
+```bash
+conda install -c conda-forge gfortran_linux-64
 ```
+
+macOS (Intel):
+
+```bash
+conda install -c conda-forge gfortran_osx-64
+```
+
+macOS (Apple Silicon):
+
+```bash
+conda install -c conda-forge gfortran_osx-arm64
+```
+
+Windows:
+
+```bash
+conda install -c conda-forge fortran-compiler
+```
+
+Or with a system package manager — Ubuntu / Debian:
+
+```bash
+sudo apt-get install gfortran
+```
+
+macOS (Homebrew):
+
+```bash
+brew install gcc
+```
+
+On Windows without conda, install
+[MinGW-w64](https://github.com/niXman/mingw-builds-binaries/releases), copy it
+to `C:\mingw\`, and add `C:\mingw\bin` to the `Path` environment variable.
+
+Then build and install the wheel:
+
+```bash
 git clone https://github.com/ORNL/Equilipy.git
-```
-2. Install dependant packages using pip.
-```
-pip install numpy wheel meson ninja
-```
-3. Create wheels
-```
-python setup.py bdist_wheel --dist-dir=./wheelhouse
-```
-Note that on macOS it may be necessary to explicitly use GNU `gcc` instead of the Apple clang `gcc`. For example, with a brew installation, export `CC` before calling `setup.py`:
-```
-export CC=/usr/local/Cellar/gcc/*/bin/gcc-*
-```
-4. Install from .whl file
-```
+cd Equilipy
+pip install build meson ninja
+python -m build --wheel --outdir ./wheelhouse
 pip install wheelhouse/equilipy-*.whl
 ```
 
-{: .note }
-When building equilipy from the source, consider running the test suite located in the `./test/*` directory. This test suite ensures the reliability of the core functions in equilipy.
+On macOS with Homebrew, point the build at GNU `gcc` instead of the Apple
+clang `gcc` before building:
 
-[preinstall]: https://github.com/ORNL/Equilipy/blob/main/docs/preinstall.md
-[equilipy]: https://github.com/ORNL/Equilipy
+```bash
+export CC=$(brew --prefix)/bin/gcc-15   # adjust to your installed version
+```
+
+:::{note}
+When building from source, run the test suite to verify the build:
+`pytest tests -q`.
+:::

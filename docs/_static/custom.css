@@ -1,0 +1,38 @@
+.wy-side-nav-search > a.equilipy-brand {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex !important;
+    gap: 0.5rem;
+    justify-content: flex-start;
+    line-height: 1.1;
+    margin-bottom: 0.1rem;
+    padding: 0 0 0 1.5rem;
+    width: 100%;
+}
+
+.wy-side-nav-search > a.equilipy-brand img.logo.equilipy-brand-logo {
+    display: inline-block !important;
+    flex: 0 0 2rem;
+    height: 6rem !important;
+    width: 6rem !important;
+    margin: 0 !important;
+    object-fit: contain;
+}
+
+.wy-side-nav-search .equilipy-brand-text {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+}
+
+.wy-side-nav-search .equilipy-brand-title {
+    font-size: 1.45rem;
+    font-weight: 700;
+}
+
+.wy-side-nav-search .equilipy-brand-version {
+    font-size: 0.78rem;
+    font-weight: 400;
+    opacity: 0.85;
+}

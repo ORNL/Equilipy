@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Result overview">
+  <defs>
+    <style>
+      .stroke {
+        fill: none;
+        stroke: #dce6e8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .fill {
+        fill: #dce6e8;
+      }
+    </style>
+  </defs>
+  <circle class="stroke" cx="27" cy="27" r="19" stroke-width="5"/>
+  <path class="stroke" d="M42 42 L57 57" stroke-width="8"/>
+  <path class="stroke" d="M15 40 H39" stroke-width="3"/>
+  <rect class="fill" x="18" y="31" width="4" height="7" rx="1"/>
+  <rect class="fill" x="25" y="25" width="4" height="13" rx="1"/>
+  <rect class="fill" x="32" y="19" width="4" height="19" rx="1"/>
+  <path class="stroke" d="M18 27 L25 22 L30 24 L38 16" stroke-width="3"/>
+  <path class="stroke" d="M34 16 H38 V20" stroke-width="3"/>
+</svg>

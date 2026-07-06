@@ -9,3 +9,6 @@ maintainers.
 
 Your pull request must work with all current Equilipy tutorial examples
 and be reviewed by at least one Equilipy developer.
+
+Please follow the project coding standards in
+[Code Standard](docs/developer/code_standard.md).

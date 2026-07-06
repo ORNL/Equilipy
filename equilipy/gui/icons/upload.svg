@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Upload">
+  <circle cx="48" cy="48" r="42" fill="#3498d8"/>
+  <path d="M48 15.5 75.5 43H58v35H38V43H20.5L48 15.5Z" fill="#fff"/>
+</svg>

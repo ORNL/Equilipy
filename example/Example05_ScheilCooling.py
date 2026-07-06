@@ -1,46 +1,50 @@
 #!/usr/bin/env python3
-import numpy as np, matplotlib.pyplot as plt, polars as pl
-import equilipy as eq
 import os
+import matplotlib.pyplot as plt
+import numpy as np
+import polars as pl
+import equilipy as eq
 
-if __name__ == "__main__":
-    # Step 1: Parse database
-    fpath = os.path.dirname(os.path.abspath(__file__))
-    path = os.path.dirname(fpath)
-    datafile = os.path.join(path, 'database', 'AlCuMgSi_ORNL_FS73')
-    DB=eq.read_dat(datafile+'.dat',FactSage8Plus=False)
 
-    # Step 2: Set input data
-    system=['Al','Cu','Mg','Si']
-    NTP = dict({
-        'T':900,
-        'P': 1,
-        'Al':0.89260,
-        'Cu': 0.01745,
-        'Mg':0.00114,
-        'Si': 0.0881})
+# Step 1: Parse database
+fpath = os.path.dirname(os.path.abspath(__file__))
+path = os.path.dirname(fpath)
+datafile = os.path.join(path, "database", "AlCuMgSi_ORNL_FS73")
+DB = eq.read_dat(datafile + ".dat", factsage_8_plus=False)
 
-    # Step 3: Calculate Scheil cooling based on LIQUID as target phase
-    TargetPhase='LIQUID'
-    res=eq.scheil_cooling(TargetPhase,DB,NTP,dT=1,Unit=['C','atm','g'])
-    
-    # Step 4: Post processing
-    print('Scheil Constituent information, mol. fr.:', res.ScheilConstituents)
-    df=pl.DataFrame(res.to_dict())  
-    df.write_csv(f'{fpath}/Result_Ex05_ACMS.csv')
+# Step 2: Set input data
+system = ["Al", "Cu", "Mg", "Si"]
+NPT = dict(
+    {"T": 900, "P": 1, "Al": 0.89260, "Cu": 0.01745, "Mg": 0.00114, "Si": 0.0881}
+)
 
-    # Plot Phase amount as function of temperature
-    T= np.array(res.T)
-    phases=list(res.ScheilPhases_mass.keys())
-    fig, ax = plt.subplots(figsize=(5,4))
+# Step 3: Calculate Scheil cooling based on LIQUID as target phase
+TargetPhase = "LIQUID"
+res = eq.scheil_cooling(TargetPhase, DB, NPT, delta_T=1, unit=["C", "atm", "g"])
 
-    for phase in phases:
-        plt.plot(T,res.ScheilPhases_mass[phase],'-',linewidth=3,label=phase)
-        
-    ax.legend(fontsize=14)
-    ax.set_xlabel('Temperature, K', fontsize=16)
-    ax.set_ylabel('Phase amount, mol', fontsize=16)
-    
+# Step 4: Post processing
+print("Scheil Constituent information, mol. fr.:", res.scheil_constituents)
+result_dict = res.to_dict()
+df = pl.DataFrame(result_dict)
+preview_columns = [
+    column
+    for column in df.columns
+    if column.startswith(("T [", "fs_w", "label", "LIQUID_endmembers_w_"))
+]
+print(df.select(preview_columns))
+df.write_csv(f"{fpath}/Result_Ex05_ACMS.csv")
 
-    plt.tight_layout()
-    plt.show()
+# Plot Phase amount as function of temperature
+T = np.array(res.T)
+phases = list(res.phase_amounts_w.keys())
+fig, ax = plt.subplots(figsize=(5, 4))
+
+for phase in phases:
+    plt.plot(T, res.phase_amount_w(phase), "-", linewidth=3, label=phase)
+
+ax.legend(fontsize=14)
+ax.set_xlabel("Temperature, K", fontsize=16)
+ax.set_ylabel("Phase amount, g", fontsize=16)
+
+plt.tight_layout()
+plt.show()

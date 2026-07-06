@@ -1,0 +1,160 @@
+name: Build GUI Installers
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build_gui_installers:
+    name: Build GUI installer on ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Mirrors the 64-bit GUI-supported platforms from build_wheels.yml.
+          # The PyPI Linux i686 wheel target is intentionally excluded because
+          # PySide6 does not provide Linux i686 GUI wheels.
+          - os: ubuntu-latest
+            arch: x86_64
+            label: linux-x86_64
+            msystem: ""
+            macos_deployment_target: ""
+          - os: windows-latest
+            arch: AMD64
+            label: windows-amd64
+            msystem: MINGW64
+            macos_deployment_target: ""
+          - os: macos-13
+            arch: x86_64
+            label: macos-13-x86_64
+            msystem: ""
+            macos_deployment_target: "13.0"
+          - os: macos-14
+            arch: arm64
+            label: macos-14-arm64
+            msystem: ""
+            macos_deployment_target: "14.0"
+          - os: macos-15
+            arch: arm64
+            label: macos-15-arm64
+            msystem: ""
+            macos_deployment_target: "15.0"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gfortran gcc g++ liblapack-dev
+
+      - name: Install Fortran compiler (macOS)
+        if: runner.os == 'macOS'
+        uses: awvwgk/setup-fortran@v1
+        with:
+          compiler: gcc
+          version: "latest"
+
+      - name: Set up MSYS2 for Fortran (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-fortran
+          path-type: inherit
+
+      - name: Install Equilipy GUI and PyInstaller
+        env:
+          CC: gcc
+          CXX: g++
+          FC: gfortran
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install ".[gui]" pyinstaller
+
+      - name: Install DMG build tool (macOS)
+        if: runner.os == 'macOS'
+        run: python -m pip install dmgbuild
+
+      - name: Build PyInstaller app
+        run: >
+          python -m equilipy.gui.installation.build_gui_distribution
+          --app-only
+          --label ${{ matrix.label }}
+
+      - name: Smoke test frozen joblib worker startup (Linux)
+        if: runner.os == 'Linux'
+        run: pyinstaller-dist/Equilipy --equilipy-smoke-joblib
+
+      - name: Smoke test frozen joblib worker startup (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\pyinstaller-dist\Equilipy.exe --equilipy-smoke-joblib
+
+      - name: Smoke test frozen joblib worker startup (macOS)
+        if: runner.os == 'macOS'
+        run: pyinstaller-dist/Equilipy.app/Contents/MacOS/Equilipy --equilipy-smoke-joblib
+
+      - name: Smoke test frozen parallel calculations (Linux)
+        if: runner.os == 'Linux'
+        run: pyinstaller-dist/Equilipy --equilipy-smoke-calculation
+
+      - name: Smoke test frozen parallel calculations (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\pyinstaller-dist\Equilipy.exe --equilipy-smoke-calculation
+
+      - name: Smoke test frozen parallel calculations (macOS)
+        if: runner.os == 'macOS'
+        run: pyinstaller-dist/Equilipy.app/Contents/MacOS/Equilipy --equilipy-smoke-calculation
+
+      - name: Package GUI bundle (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist-gui
+          cp pyinstaller-dist/Equilipy "dist-gui/Equilipy-${{ matrix.label }}"
+          chmod +x "dist-gui/Equilipy-${{ matrix.label }}"
+
+      - name: Package GUI installer (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dist-gui
+          python -m dmgbuild \
+            -s equilipy/gui/installation/dmgbuild_settings.py \
+            "Equilipy" \
+            "dist-gui/Equilipy-${{ matrix.label }}.dmg"
+
+      - name: Package GUI bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist-gui
+          Copy-Item `
+            -Path "pyinstaller-dist/Equilipy.exe" `
+            -Destination "dist-gui/Equilipy-${{ matrix.label }}.exe"
+
+      - name: Upload GUI installer artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: equilipy-gui-${{ matrix.label }}
+          path: dist-gui/*
+
+      - name: Upload GUI installer to release
+        if: github.event_name == 'release' && github.event.action == 'published'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist-gui/*

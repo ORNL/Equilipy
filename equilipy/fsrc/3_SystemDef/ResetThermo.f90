@@ -1,0 +1,716 @@
+
+!> \brief Reset allocatable thermodynamic and minimizer runtime state.
+!!
+!! \details Deallocates process-global arrays and clears scalar diagnostics so
+!! the next equilibrium calculation starts from a clean Fortran state.
+!!
+subroutine ResetThermo
+
+    !-------------------------------------------------------------------------------------------------------------
+    !
+    !> \file    ResetThermo.f90
+    !> \brief   Deallocate allocatable variables used by the ModuleThermo.f90, ModulePGESolver.f90 modules.
+    !> \author  M.H.A. Piro
+    !> \date    Apr. 26, 2012
+    !> \sa      ModuleThermo.f90
+    !
+    !
+    ! Revisions:
+    ! ==========
+    !
+!    Date          Programmer         Description of change
+!    ----          ----------         ---------------------
+!    11/04/2011    M.H.A. Piro        Original code
+!    06/24/2026    S.Y. Kwon          Reset Subminimization max-iteration diagnostics
+!    06/24/2026    S.Y. Kwon          Reset submin initial/final max-out compositions
+!    06/24/2026    S.Y. Kwon          Reset Lagrangian GEM diagnostic histories
+!    06/25/2026    S.Y. Kwon          Removed legacy SUBOM residual state reset
+!    06/25/2026    S.Y. Kwon          Renamed trace-species enable flag for production use
+!    06/25/2026    S.Y. Kwon          Reset the active CEF KKT flag used by GEM residual selection
+!    06/26/2026    S.Y. Kwon          Reset Level2Lagrange handoff diagnostics
+!    06/26/2026    S.Y. Kwon          Reset PEA-internal Lagrangian polish diagnostics
+!    06/26/2026    S.Y. Kwon          Removed inactive sampled/grid repair state from reset logic
+!    06/26/2026    S.Y. Kwon          Reset per-iteration PEA diagnostics
+!    06/26/2026    S.Y. Kwon          Reset Subminimization candidate-status diagnostics
+!    06/26/2026    S.Y. Kwon          Reset dependent element input flags
+!    06/27/2026    S.Y. Kwon          Reset PEA Lagrangian-handoff oscillation diagnostics
+!    06/28/2026    S.Y. Kwon          Reset analytical non-CEF Lagrangian species directions
+!    07/02/2026    S.Y. Kwon          Reset passive KKT and scaffold-activation diagnostics
+!    07/02/2026    S.Y. Kwon          Reset passive active order/disorder pair diagnostics
+!    07/02/2026    S.Y. Kwon          Reset the order/disorder active-companion phase map.
+!    07/02/2026    S.Y. Kwon          Reset passive active-slot identity diagnostics.
+!    07/02/2026    S.Y. Kwon          Reset Phase 0 line-search energy and split scaffold diagnostics.
+!    07/02/2026    S.Y. Kwon          Reset passive active-slot constitution storage.
+!    07/02/2026    S.Y. Kwon          Reset passive active-slot parent-site-fraction storage.
+!    07/03/2026    S.Y. Kwon          Reset passive raw-negative CEF complementarity diagnostics.
+!    07/03/2026    S.Y. Kwon          Reset c2 SUBOM two-composition-set handoff switch and counters.
+!    07/03/2026    S.Y. Kwon          Reset accepted SUBOM two-set candidate-pool evidence.
+!    07/04/2026    S.Y. Kwon          Reset split tiny-boundary removal diagnostics for C1-a census.
+!    07/04/2026    S.Y. Kwon          Reset standalone SUBG/SUBQ CEF-routing switch for C1-b0.
+!    07/04/2026    S.Y. Kwon          Reset standalone SUBG/SUBQ routing to the production default.
+!    07/04/2026    S.Y. Kwon          Deallocate tiny-boundary history for C2-a bounds census coverage.
+!    07/04/2026    S.Y. Kwon          Reset bounds-surgery event identity and rank-guard diagnostics
+!                                      for C2-a census.
+!    07/04/2026    S.Y. Kwon          Reset and deallocate residual-LM event-buffer diagnostics
+!                                      for C3-a2 census.
+!    07/04/2026    S.Y. Kwon          Reset C3-c1 primal-inertia regularization counters.
+!    07/04/2026    S.Y. Kwon          Reset C3-c2 funnel line-search switch and counters.
+    !
+    !
+    ! Purpose:
+    ! ========
+    !
+    !> \details The purpose of this subroutine is to attempt to gracefully exit Thermochimica.  Allocatable
+    !! arrays are deallocated and memory is stored for output to external packages.
+    !
+    !
+    ! Pertinent variables:
+    ! ====================
+    !
+    ! INFO                  An error is returned if deallocation is unsuccessful.
+    ! INFOThermo            An integer scalar identifying whether the program exits successfully or if
+    !                       it encounters an error.  A description for each error is given in ThermoDebug.f90.
+    !
+    !-------------------------------------------------------------------------------------------------------------
+    USE ModuleThermo
+    USE ModuleThermoIO
+    USE ModuleGEMSolver
+    USE ModuleSubMin
+
+    implicit none
+
+    integer::   i, INFO
+
+
+    ! Initialize variables:
+    i = 0
+    INFOThermo = 0
+    dElementMass=0.0d0
+    iDependentElementInput = 0
+    lPostProcessAssemblageChanged = .FALSE.
+    dPostProcessGEMNormAtT = 0D0
+    dPostProcessGEMNormPerturbed = 0D0
+    iPostProcessIterAtT = 0
+    iPostProcessIterPerturbed = 0
+    iterLast = 0
+    iterStep = 0
+    iterRevert = 0
+    iterGlobal = 0
+    iterPEA = 0
+    iterLG = 0
+    iterLastCon = 0
+    iterLastSoln = 0
+    iterSwap = 0
+    iterLastMiscGapCheck = 0
+    iSubMinMaxPhaseIndex = 0
+    iSubMinMaxIter = 0
+    iConPhaseLast = 0
+    iSolnPhaseLast = 0
+    iSolnSwap = 0
+    iPureConSwap = 0
+    iMinDrivingForceStoich = 0
+    iMinDrivingForceSoln = 0
+    iSpeciesRemove = 0
+    dGEMFunctionNorm = 0D0
+    dGEMFunctionNormLast = 0D0
+    dGEMMassBalanceNorm = 0D0
+    dGEMChemicalPotentialNorm = 0D0
+    dGEMSolutionChemicalPotentialNorm = 0D0
+    dGEMCondensedChemicalPotentialNorm = 0D0
+    dSublatticeExchangeNorm = 0D0
+    dMaxSpeciesChange = 0D0
+    dMinGibbs = 0D0
+    dMinDrivingForceStoich = 0D0
+    dMinDrivingForceSoln = 0D0
+    dSpeciesRemove = 0D0
+    dPlateau = 0D0
+    xT = 0D0
+    dGParam = 0D0
+    dHParam = 0D0
+    dSParam = 0D0
+    dCpParam = 0D0
+    dMaxPotentialTol = 0D0
+    dSubMinMaxFunctionNorm = 0D0
+    dSubMinMaxPotentialVector = 0D0
+    dSubMinMaxMinFraction = 0D0
+    dSubMinMaxMaxFraction = 0D0
+    dSubMinCEFObjective = 0D0
+    dSubMinCEFGradientNorm = 0D0
+    dSubMinCEFStepNorm = 0D0
+    dSubMinCEFChargeResidual = 0D0
+    lDebugMode = .FALSE.
+    lRevertSystem = .FALSE.
+    lConverged = .FALSE.
+    lSubConverged = .FALSE.
+    lSubMinMaxHit = .FALSE.
+    lSubMinCEFAttempted = .FALSE.
+    lSubMinCEFHandled = .FALSE.
+    lSubMinCEFLineSearchAccepted = .FALSE.
+    lGEMCEFSiteLagrangianActive = .FALSE.
+    lGEMCEFSiteDirectionActive = .FALSE.
+    lGEMCEFInertiaRegularizationEnabled = .FALSE.
+    lGEMCEFInertiaRegularizationActive = .FALSE.
+    lGEMCEFBndPhaseActive = .FALSE.
+    lNegativeMolesPhase = .FALSE.
+    lGibbsMinCheck = .FALSE.
+    lPhaseChange = .FALSE.
+    lCompbdOnly = .FALSE.
+    lPostProcess = .FALSE.
+    lTraceSpeciesControlEnabled = .FALSE.
+    dTraceSpeciesReducedNormLast = 0D0
+    iTraceSpeciesSlowProgressCount = 0
+    iGEMStagnationCount = 0
+    iSubMinCEFPhaseIndex = 0
+    iSubMinCEFIter = 0
+    nSubMinCEFIndependent = 0
+    nSubMinCEFActiveIndependent = 0
+    iGEMLineSearchIterationCount = 0
+    iGEMLineSearchNegativeFactorCount = 0
+    iGEMLineSearchNegativePhaseCount = 0
+    iGEMLineSearchFloorCount = 0
+    iGEMLineSearchNoDescent = 0
+    iGEMLineSearchNoDescentClass = 0
+    iGEMPreLMNoDescent = 0
+    iGEMPreLMNoDescentClass = 0
+    iGEMPreLMNewtonInfo = 0
+    iGEMPreLMKKTSize = 0
+    iGEMPreLMNPrimal = 0
+    iGEMPreLMNConstraint = 0
+    iGEMPreLMPivot1x1 = 0
+    iGEMPreLMPivot2x2 = 0
+    iGEMPreLMPivotPositive = 0
+    iGEMPreLMPivotNegative = 0
+    iGEMPreLMPivotZero = 0
+    iGEMPreLMODOrdPhase = 0
+    iGEMPreLMODCompPhase = 0
+    iGEMNewtonSolver = 0
+    iGEMNewtonDSYSVInfo = 0
+    iGEMNewtonKKTSize = 0
+    iGEMNewtonPivot1x1Count = 0
+    iGEMNewtonPivot2x2Count = 0
+    iGEMNewtonPivotPositiveCount = 0
+    iGEMNewtonPivotNegativeCount = 0
+    iGEMNewtonPivotZeroCount = 0
+    iGEMInertiaRegularizationAttemptedUsed = 0
+    iGEMInertiaRegularizationAcceptedUsed = 0
+    iGEMInertiaRegularizationFailedUsed = 0
+    iGEMInertiaRegularizationAttemptedTotal = 0
+    iGEMInertiaRegularizationAcceptedTotal = 0
+    iGEMInertiaRegularizationFailedTotal = 0
+    iGEMInertiaRegularizationStepTotal = 0
+    iGEMInertiaRegularizationStepLast = 0
+    iGEMResidualLMUsed = 0
+    iGEMResidualLMRawNegativeUsed = 0
+    iGEMResidualLMNoDescentUsed = 0
+    iGEMResidualLMNoDescentClass = 0
+    iGEMResidualLMTotalUsed = 0
+    iGEMResidualLMRawNegativeTotalUsed = 0
+    iGEMResidualLMNoDescentTotalUsed = 0
+    iGEMLagrangianCallSite = 1
+    nGEMResidualLMEvent = 0
+    nGEMResidualLMEventCapacity = 0
+    iGEMTrial7BoundRetryAttemptedTotal = 0
+    iGEMTrial7BoundRetryAcceptedTotal = 0
+    iGEMInvalidCompBoundAttemptedUsed = 0
+    iGEMInvalidCompBoundAcceptedUsed = 0
+    iGEMInvalidCompBoundRejectedUsed = 0
+    iGEMInvalidCompBoundVerdict = 0
+    iGEMInvalidCompBoundAttemptedTotal = 0
+    iGEMInvalidCompBoundAcceptedTotal = 0
+    iGEMInvalidCompBoundRejectedTotal = 0
+    iGEMCoalesceUsed = 0
+    iGEMDuplicateSUBOMCoalesceTotalUsed = 0
+    iGEMDegenerateODCoalesceTotalUsed = 0
+    iGEMStabilizeUsed = 0
+    iGEMStabilizeTotalUsed = 0
+    iGEMBoundaryRemovalUsed = 0
+    iGEMRawNegativeRemovalUsed = 0
+    iGEMBoundaryPinnedRemovalUsed = 0
+    iGEMTinyBoundaryRemovalUsed = 0
+    iGEMTraceRemoveUsed = 0
+    iGEMTraceReinjectUsed = 0
+    iGEMBoundaryRemovalSlot = 0
+    iGEMBoundaryRemovalPhase = 0
+    iGEMTinyBoundaryRemovalSlot = 0
+    iGEMTinyBoundaryRemovalPhase = 0
+    iGEMBoundaryRankGuardUsed = 0
+    iGEMBoundaryRankGuardSlot = 0
+    iGEMBoundaryRankGuardPhase = 0
+    iGEMTraceRemoveSpecies = 0
+    iGEMTraceRemovePhase = 0
+    iGEMTraceRemoveCount = 0
+    iGEMTraceReinjectSpecies = 0
+    iGEMTraceReinjectPhase = 0
+    iGEMTraceReinjectCount = 0
+    iGEMCEFRetryActivationUsed = 0
+    iGEMCEFRetryActivationTotalUsed = 0
+    iGEMSUBGQRideAlongUsed = 0
+    iODPairCount = 0
+    iODOrderingModeCount = 0
+    nSUBOMOrderingGateEvaluated = 0
+    iGEMCEFResidualLMFallbackCount = 0
+    iterTraceSpeciesLastRemoval = 0
+    iterTraceSpeciesLastReinject = 0
+    dGEMLineSearchInitialNorm = 0D0
+    dGEMLineSearchBestNorm = 0D0
+    dGEMLineSearchFinalNorm = 0D0
+    dGEMLineSearchInitialStep = 0D0
+    dGEMLineSearchBestStep = 0D0
+    dGEMLineSearchFinalStep = 0D0
+    dGEMLineSearchMinRawPhaseMoles = 0D0
+    dGEMLineSearchMinFinalPhaseMoles = 0D0
+    dGEMLineSearchInitialGibbs = 0D0
+    dGEMLineSearchBestGibbs = 0D0
+    dGEMLineSearchFinalGibbs = 0D0
+    dGEMLineSearchInitialMerit = 0D0
+    dGEMLineSearchBestMerit = 0D0
+    dGEMLineSearchFinalMerit = 0D0
+    dGEMLineSearchMeritCandNorm = 0D0
+    dGEMLineSearchMeritCandMass = 0D0
+    dGEMLineSearchMeritCandStep = 0D0
+    dGEMLineSearchMeritCandGibbs = 0D0
+    dGEMLineSearchMeritCandMerit = 0D0
+    dGEMPreLMInitNorm = 0D0
+    dGEMPreLMBestNorm = 0D0
+    dGEMPreLMInitGibbs = 0D0
+    dGEMPreLMBestGibbs = 0D0
+    dGEMPreLMInitMerit = 0D0
+    dGEMPreLMBestMerit = 0D0
+    dGEMPreLMMeritCandNorm = 0D0
+    dGEMPreLMMeritCandMass = 0D0
+    dGEMPreLMMeritCandStep = 0D0
+    dGEMPreLMMeritCandGibbs = 0D0
+    dGEMPreLMMeritCandMerit = 0D0
+    dGEMPreLMFinalNorm = 0D0
+    dGEMPreLMFinalGibbs = 0D0
+    dGEMPreLMFinalMerit = 0D0
+    dGEMPreLMDirNormSlope = 0D0
+    dGEMPreLMDirGibbsSlope = 0D0
+    dGEMPreLMDirMeritSlope = 0D0
+    dGEMPreLMDirectionNorm = 0D0
+    dGEMPreLMMinPivotScale = 0D0
+    dGEMPreLMMaxPivotScale = 0D0
+    dGEMPreLMODAlign = 0D0
+    dGEMPreLMODEigen = 0D0
+    dGEMNewtonDirNormSlope = 0D0
+    dGEMNewtonDirGibbsSlope = 0D0
+    dGEMNewtonDirMeritSlope = 0D0
+    dGEMNewtonMinPivotScale = 0D0
+    dGEMNewtonMaxPivotScale = 0D0
+    dGEMNewtonDirectionNorm = 0D0
+    dODCompDist = 0D0
+    dODOrderNorm = 0D0
+    dODOrderingEigenMin = 0D0
+    nLevelCandidate = 0
+    nLevelCandidateCapacity = 0
+    iGEMRawNegativePhaseSlot = 0
+    iGEMRawNegativePhaseSoln = 0
+    iGEMRawNegativePhaseSpecies = 0
+    iGEMRawNegComp = 0
+    iGEMCEFBndPhaseSlot = 0
+    dGEMInvalidCompBoundPhi = 0D0
+    nLevel2LagrangeInput = 0
+    nLevel2LagrangePruned = 0
+    nLevel2LagrangeStoichSelected = 0
+    nLevel2LagrangeSolnSelected = 0
+    nLevel2LagrangeSolnMerged = 0
+    nLevel2LagrangeSolnAdded = 0
+    nLevel2LagrangeOrderProjected = 0
+    nLevel2LagrangeTwoSetCreated = 0
+    nPEALagrangianPolishAttempt = 0
+    nPEALagrangianPolishAccepted = 0
+    nPEALagrangianPolishRejected = 0
+    iPEALagrangianPolishIterGlobal = 0
+    iPEALagrangianPolishReason = PHASE_CHANGE_REASON_NONE
+    iPEALagrangianHandoffRepeat = 0
+    iPEALagrangianHandoffFirstIter = 0
+    nPEALagrangianHandoffRepeated = 0
+    iPEAGatePass = 0
+    iPEAGateBlock = 0
+    iPEAGatePotBlock = 0
+    iPEAGateDFBlock = 0
+    nPEAGatePassed = 0
+    nPEAGateBlocked = 0
+    nPEAGatePotBlocked = 0
+    nPEAGateDFBlocked = 0
+    iPEADirectHandoff = 0
+    iPEADirectPhase = 0
+    nPEADirectHandoff = 0
+    iPEARepeatExit = 0
+    iPEARepeatExitReason = 0
+    nPEARepeatExit = 0
+    nPEARepeatGuard = 0
+    nPEARecorded = 0
+    nSUBOMTwoSetTrace = 0
+    nSUBOMTwoSetStored = 0
+    nSUBOMTwoSetTraceCapacity = 0
+    iGEMAnalyticalHessianFallbackCount = 0
+    dGEMRawNegativePhaseAmount = 0D0
+    dGEMRawNegativePhaseDirection = 0D0
+    dGEMRawNegPhaseResidual = 0D0
+    dGEMCEFBndPhaseStep = 0D0
+    dPEALagrangianPolishNormBefore = 0D0
+    dPEALagrangianPolishNormAfter = 0D0
+    dPEALagrangianPolishPotentialChange = 0D0
+    dPostLevelingZeroEndmemberFloor = dDefaultPostLevelingZeroEndmemberFloor
+    lSampledLevelingThermoExtended = .FALSE.
+    lPEALagrangianPolishEnabled = .TRUE.
+    lPEALagrangianPolishActive = .FALSE.
+    lPEALagrangianPolishAccepted = .FALSE.
+    lSUBOMTwoSetCandidateEnabled = .FALSE.
+    lSUBQStandaloneEnabled = .TRUE.
+    lOrderDisorderEvaluation = .FALSE.
+    if (allocated(dMagEnthalpy)) deallocate(dMagEnthalpy)
+    if (allocated(dMagHeatCapacity)) deallocate(dMagHeatCapacity)
+    if (allocated(dMagEntropy)) deallocate(dMagEntropy)
+    if (allocated(dElementPotentialLast)) deallocate(dElementPotentialLast)
+    if (allocated(dMolesPhaseHistory)) deallocate(dMolesPhaseHistory)
+    if (allocated(dMolesSpeciesLast)) deallocate(dMolesSpeciesLast)
+    if (allocated(dUpdateVarLast)) deallocate(dUpdateVarLast)
+    if (allocated(dPartialGParam)) deallocate(dPartialGParam)
+    if (allocated(dPartialHParam)) deallocate(dPartialHParam)
+    if (allocated(dPartialSParam)) deallocate(dPartialSParam)
+    if (allocated(dPartialCpParam)) deallocate(dPartialCpParam)
+    if (allocated(dMolFractionOld)) deallocate(dMolFractionOld)
+    if (allocated(iRegularParam)) deallocate(iRegularParam)
+    if (allocated(dCoeffGibbsMagnetic)) deallocate(dCoeffGibbsMagnetic)
+    if (allocated(cRegularParam)) deallocate(cRegularParam)
+    if (allocated(iPhaseLevel)) deallocate(iPhaseLevel)
+    if (allocated(dMagGibbsEnergy)) deallocate(dMagGibbsEnergy)
+    if (allocated(iParticlesPerMole)) deallocate(iParticlesPerMole)
+    if (allocated(dSpeciesTotalAtoms)) deallocate(dSpeciesTotalAtoms)
+    if (allocated(dLevelingSpeciesTotalAtoms)) deallocate(dLevelingSpeciesTotalAtoms)
+    if (allocated(dLevelingSpeciesFormulaAtoms)) deallocate(dLevelingSpeciesFormulaAtoms)
+    if (allocated(iSpeciesPass)) deallocate(iSpeciesPass)
+    if (allocated(iElementSystem)) deallocate(iElementSystem)
+    if (allocated(nParamPhase)) deallocate(nParamPhase)
+    if (allocated(nSpeciesPhase)) deallocate(nSpeciesPhase)
+    if (allocated(iPhase)) deallocate(iPhase)
+    if (allocated(dStoichSpeciesLevel)) deallocate(dStoichSpeciesLevel)
+    if (allocated(dStoichSpecies)) deallocate(dStoichSpecies)
+    if (allocated(dChemicalPotentialGEM))        deallocate(dChemicalPotentialGEM)
+    if (allocated(dStoichSpeciesGEM))            deallocate(dStoichSpeciesGEM)
+    if (allocated(dAtomFractionSpeciesGEM))      deallocate(dAtomFractionSpeciesGEM)
+    if (allocated(iShuffled))                    deallocate(iShuffled)
+    if (allocated(iCandidate))                   deallocate(iCandidate)
+    if (allocated(iSolnPS))                      deallocate(iSolnPS)
+    if (allocated(iAssemblage)) deallocate (iAssemblage)
+    if (allocated(dChemicalPotential)) deallocate(dChemicalPotential)
+    if (allocated(dLevelingChemicalPotential)) deallocate(dLevelingChemicalPotential)
+    if (allocated(dActivity)) deallocate(dActivity)
+    if (allocated(dMolesElement)) deallocate(dMolesElement)
+    if (allocated(dAtomFractionSpecies)) deallocate(dAtomFractionSpecies)
+    if (allocated(dLevelingCompositionSpecies)) deallocate(dLevelingCompositionSpecies)
+    if (allocated(nMagParamPhase)) deallocate(nMagParamPhase)
+    if (allocated(iMagneticParam)) deallocate(iMagneticParam)
+    if (allocated(dMagneticParam)) deallocate(dMagneticParam)
+    if (allocated(iSUBLParamData)) deallocate(iSUBLParamData)
+    if (allocated(dPartialEnthalpy))  deallocate(dPartialEnthalpy)
+    if (allocated(dPartialEntropy))  deallocate(dPartialEntropy)
+    if (allocated(dPartialHeatCapacity))  deallocate(dPartialHeatCapacity)
+    if (allocated(dChemicalPotentialOld)) deallocate(dChemicalPotentialOld)
+    if (allocated(dLevelingChemicalPotentialOld)) deallocate(dLevelingChemicalPotentialOld)
+    if (allocated(dAtomFractionSpeciesOld)) deallocate(dAtomFractionSpeciesOld)
+    if (allocated(dLevelingCompositionSpeciesOld)) deallocate(dLevelingCompositionSpeciesOld)
+    if (allocated(dExcessGibbsParam)) deallocate(dExcessGibbsParam)
+    if (allocated(dExcessHParam)) deallocate(dExcessHParam)
+    if (allocated(dExcessSParam)) deallocate(dExcessSParam)
+    if (allocated(dExcessCpParam)) deallocate(dExcessCpParam)
+    if (allocated(dStdGibbsEnergy)) deallocate(dStdGibbsEnergy)
+    if (allocated(dStdEnthalpy)) deallocate(dStdEnthalpy)
+    if (allocated(dStdEntropy)) deallocate(dStdEntropy)
+    if (allocated(dStdHeatCapacity)) deallocate(dStdHeatCapacity)
+    if (allocated(dMolesSpecies)) deallocate(dMolesSpecies)
+    if (allocated(dElementPotential)) deallocate(dElementPotential)
+    if (allocated(dMolesPhase)) deallocate(dMolesPhase)
+    if (allocated(cElementName)) deallocate(cElementName)
+    if (allocated(cSpeciesName)) deallocate(cSpeciesName)
+    if (allocated(cSolnPhaseType)) deallocate(cSolnPhaseType)
+    if (allocated(cSolnPhaseName)) deallocate(cSolnPhaseName)
+    if (allocated(dAtomicMass)) deallocate(dAtomicMass)
+    if (allocated(iterHistoryLevel)) deallocate (iterHistoryLevel)
+    if (allocated(dPhasePotential)) deallocate (dPhasePotential)
+    if (allocated(iterHistory)) deallocate (iterHistory)
+    if (allocated(dSumMolFractionSoln)) deallocate(dSumMolFractionSoln)
+    if (allocated(dDrivingForceSoln)) deallocate(dDrivingForceSoln)
+    if (allocated(iSubMinCandidateStatusSoln)) deallocate(iSubMinCandidateStatusSoln)
+    if (allocated(dEffStoichSolnPhase)) deallocate(dEffStoichSolnPhase)
+    if (allocated(dPartialExcessGibbs)) deallocate(dPartialExcessGibbs)
+    if (allocated(dPartialEnthalpyXS)) deallocate(dPartialEnthalpyXS)
+    if (allocated(dPartialEntropyXS)) deallocate(dPartialEntropyXS)
+    if (allocated(dPartialHeatCapacityXS)) deallocate(dPartialHeatCapacityXS)
+    if (allocated(dMolFraction)) deallocate(dMolFraction)
+    if (allocated(dUpdateVar)) deallocate(dUpdateVar)
+    if (allocated(lSolnPhases)) deallocate(lSolnPhases)
+    if (allocated(dGibbsSolnPhase)) deallocate(dGibbsSolnPhase)
+    if (allocated(lMiscibility)) deallocate(lMiscibility)
+    if (allocated(iPhaseSublattice)) deallocate(iPhaseSublattice)
+    if (allocated(iDisorderedPhase)) deallocate(iDisorderedPhase)
+    if (allocated(iODCompanionPhase)) deallocate(iODCompanionPhase)
+    if (allocated(dStoichSublattice)) deallocate(dStoichSublattice)
+    if (allocated(cConstituentNameSUB)) deallocate(cConstituentNameSUB)
+    if (allocated(iConstituentSublattice)) deallocate(iConstituentSublattice)
+    if (allocated(nSublatticePhase)) deallocate(nSublatticePhase)
+    if (allocated(nConstituentSublattice)) deallocate(nConstituentSublattice)
+    if (allocated(nSublatticeElements)) deallocate(nSublatticeElements)
+    if (allocated(dSublatticeCharge)) deallocate(dSublatticeCharge)
+    if (allocated(iConstituentPass)) deallocate(iConstituentPass)
+    if (allocated(dSiteFraction)) deallocate(dSiteFraction)
+    if (allocated(iPhaseElectronID)) deallocate(iPhaseElectronID)
+    if (allocated(dZetaSpecies)) deallocate(dZetaSpecies)
+    if (allocated(dConstituentCoefficients)) deallocate(dConstituentCoefficients)
+    if (allocated(iChemicalGroup)) deallocate(iChemicalGroup)
+    if (allocated(cPairName)) deallocate(cPairName)
+    if (allocated(dStoichPairs)) deallocate(dStoichPairs)
+    if (allocated(iHessian)) deallocate(iHessian)
+    if (allocated(dChemicalPotentialStar)) deallocate(dChemicalPotentialStar)
+    if (allocated(dRHS)) deallocate(dRHS)
+    if (allocated(dHessian)) deallocate(dHessian)
+    if (allocated(dPotentialVector)) deallocate(dPotentialVector)
+    if (allocated(dSubMinInitialMolFraction)) deallocate(dSubMinInitialMolFraction)
+    if (allocated(dSubMinMaxElementPotential)) deallocate(dSubMinMaxElementPotential)
+    if (allocated(dSubMinMaxInitialMolFraction)) deallocate(dSubMinMaxInitialMolFraction)
+    if (allocated(dSubMinMaxFinalMolFraction)) deallocate(dSubMinMaxFinalMolFraction)
+    if (allocated(iPairID)) deallocate(iPairID)
+    if (allocated(dCoordinationNumber)) deallocate(dCoordinationNumber)
+    if (allocated(dMolesPhaseLast)) deallocate(dMolesPhaseLast)
+    if (allocated(nPairsSRO)) deallocate(nPairsSRO)
+    if (allocated(iPhaseGEM)) deallocate(iPhaseGEM)
+    if (allocated(dMolFractionGEM)) deallocate(dMolFractionGEM)
+    if (allocated(dActiveSlotMolFraction)) deallocate(dActiveSlotMolFraction)
+    if (allocated(dActiveSlotSiteFraction)) deallocate(dActiveSlotSiteFraction)
+    if (allocated(iLevelCandidatePhase)) deallocate(iLevelCandidatePhase)
+    if (allocated(iLevelCandidateSource)) deallocate(iLevelCandidateSource)
+    if (allocated(iLevelCandidateParentPhase)) deallocate(iLevelCandidateParentPhase)
+    if (allocated(iLevelCandidateDisplayPhase)) deallocate(iLevelCandidateDisplayPhase)
+    if (allocated(iLevelCandidateIdentityOrdinal)) deallocate(iLevelCandidateIdentityOrdinal)
+    if (allocated(iLevelCandidateFromLevel)) deallocate(iLevelCandidateFromLevel)
+    if (allocated(dLevelCandidateMolFraction)) deallocate(dLevelCandidateMolFraction)
+    if (allocated(iSUBOMTwoSetTraceStage)) deallocate(iSUBOMTwoSetTraceStage)
+    if (allocated(iSUBOMTwoSetTraceIterPEA)) deallocate(iSUBOMTwoSetTraceIterPEA)
+    if (allocated(iSUBOMTwoSetTraceIterGlobal)) deallocate(iSUBOMTwoSetTraceIterGlobal)
+    if (allocated(iSUBOMTwoSetTracePhase)) deallocate(iSUBOMTwoSetTracePhase)
+    if (allocated(iSUBOMTwoSetTraceOrdinal)) deallocate(iSUBOMTwoSetTraceOrdinal)
+    if (allocated(iSUBOMTwoSetTraceSlot)) deallocate(iSUBOMTwoSetTraceSlot)
+    if (allocated(iSUBOMTwoSetStoredPhase)) deallocate(iSUBOMTwoSetStoredPhase)
+    if (allocated(iSUBOMTwoSetStoredOrdinal)) deallocate(iSUBOMTwoSetStoredOrdinal)
+    if (allocated(iSUBOMOrderingGateIterPEA)) deallocate(iSUBOMOrderingGateIterPEA)
+    if (allocated(iSUBOMOrderingGateModeCount)) deallocate(iSUBOMOrderingGateModeCount)
+    if (allocated(iSUBOMOrderingGateInfo)) deallocate(iSUBOMOrderingGateInfo)
+    if (allocated(dSUBOMTwoSetTraceAmount)) deallocate(dSUBOMTwoSetTraceAmount)
+    if (allocated(dSUBOMTwoSetStoredMol)) deallocate(dSUBOMTwoSetStoredMol)
+    if (allocated(dSUBOMTwoSetTraceMol)) deallocate(dSUBOMTwoSetTraceMol)
+    if (allocated(dSUBOMTwoSetTraceSite)) deallocate(dSUBOMTwoSetTraceSite)
+    if (allocated(dSUBOMOrderingGateEigenMin)) deallocate(dSUBOMOrderingGateEigenMin)
+    if (allocated(lSUBOMOrderingGateUnstable)) deallocate(lSUBOMOrderingGateUnstable)
+    if (allocated(iAssemblageGEM)) deallocate(iAssemblageGEM)
+    if (allocated(iLevel2LagrangeInputAssemblage)) deallocate(iLevel2LagrangeInputAssemblage)
+    if (allocated(iLevel2LagrangeInputPhase)) deallocate(iLevel2LagrangeInputPhase)
+    if (allocated(iLevel2LagrangeInputCandidate)) deallocate(iLevel2LagrangeInputCandidate)
+    if (allocated(iLevel2LagrangeInputSource)) deallocate(iLevel2LagrangeInputSource)
+    if (allocated(iLevel2LagrangeOutputAssemblage)) deallocate(iLevel2LagrangeOutputAssemblage)
+    if (allocated(iActiveSlotThermoPhase)) deallocate(iActiveSlotThermoPhase)
+    if (allocated(iActiveSlotDisplayPhase)) deallocate(iActiveSlotDisplayPhase)
+    if (allocated(iActiveSlotIdentityOrdinal)) deallocate(iActiveSlotIdentityOrdinal)
+    if (allocated(dLevel2LagrangeInputMoles)) deallocate(dLevel2LagrangeInputMoles)
+    if (allocated(dLevel2LagrangeOutputMoles)) deallocate(dLevel2LagrangeOutputMoles)
+    if (allocated(dLevel2LagrangeElementPotentialIn)) deallocate(dLevel2LagrangeElementPotentialIn)
+    if (allocated(dLevel2LagrangeElementPotentialOut)) deallocate(dLevel2LagrangeElementPotentialOut)
+    if (allocated(dGEMAnalyticalSpeciesDirection)) deallocate(dGEMAnalyticalSpeciesDirection)
+    if (allocated(lGEMAnalyticalSpeciesDirection)) deallocate(lGEMAnalyticalSpeciesDirection)
+    if (allocated(iPEALevelIterHist)) deallocate(iPEALevelIterHist)
+    if (allocated(iPEAPolishAttemptHist)) deallocate(iPEAPolishAttemptHist)
+    if (allocated(iPEAPolishAcceptedHist)) deallocate(iPEAPolishAcceptedHist)
+    if (allocated(iPEAPolishReasonHist)) deallocate(iPEAPolishReasonHist)
+    if (allocated(iPEAPolishIterGlobalHist)) deallocate(iPEAPolishIterGlobalHist)
+    if (allocated(iPEALagrangianHandoffRepeatHist)) deallocate(iPEALagrangianHandoffRepeatHist)
+    if (allocated(iPEALagrangianHandoffFirstIterHist)) deallocate(iPEALagrangianHandoffFirstIterHist)
+    if (allocated(iPEAGatePassHist)) deallocate(iPEAGatePassHist)
+    if (allocated(iPEAGateBlockHist)) deallocate(iPEAGateBlockHist)
+    if (allocated(iPEAGatePotBlockHist)) deallocate(iPEAGatePotBlockHist)
+    if (allocated(iPEAGateDFBlockHist)) deallocate(iPEAGateDFBlockHist)
+    if (allocated(iPEADirectHandoffHist)) deallocate(iPEADirectHandoffHist)
+    if (allocated(iPEADirectPhaseHist)) deallocate(iPEADirectPhaseHist)
+    if (allocated(iPEARepeatExitHist)) deallocate(iPEARepeatExitHist)
+    if (allocated(iPEARepeatExitReasonHist)) deallocate(iPEARepeatExitReasonHist)
+    if (allocated(iPEAAssemblageHist)) deallocate(iPEAAssemblageHist)
+    if (allocated(iPEALagrangianHandoffHist)) deallocate(iPEALagrangianHandoffHist)
+    if (allocated(dPEAMinPhasePotentialHist)) deallocate(dPEAMinPhasePotentialHist)
+    if (allocated(dPEAMaxElementPotentialHist)) deallocate(dPEAMaxElementPotentialHist)
+    if (allocated(dPEAGEMFunctionNormHist)) deallocate(dPEAGEMFunctionNormHist)
+    if (allocated(dPEAPolishNormHist)) deallocate(dPEAPolishNormHist)
+    if (allocated(dPEAPolishPotentialChangeHist)) deallocate(dPEAPolishPotentialChangeHist)
+    if (allocated(dPEAElementPotentialHist)) deallocate(dPEAElementPotentialHist)
+    if (allocated(lPhaseChangeHistory)) deallocate(lPhaseChangeHistory)
+    if (allocated(iPhaseChangeReasonHistory)) deallocate(iPhaseChangeReasonHistory)
+    if (allocated(iGEMNewtonSolverHist)) deallocate(iGEMNewtonSolverHist)
+    if (allocated(iGEMNewtonInfoHist)) deallocate(iGEMNewtonInfoHist)
+    if (allocated(iGEMNewtonKKTSizeHist)) deallocate(iGEMNewtonKKTSizeHist)
+    if (allocated(iGEMNewtonPivot1x1Hist)) deallocate(iGEMNewtonPivot1x1Hist)
+    if (allocated(iGEMNewtonPivot2x2Hist)) deallocate(iGEMNewtonPivot2x2Hist)
+    if (allocated(iGEMNewtonPivotPositiveHist)) deallocate(iGEMNewtonPivotPositiveHist)
+    if (allocated(iGEMNewtonPivotNegativeHist)) deallocate(iGEMNewtonPivotNegativeHist)
+    if (allocated(iGEMNewtonPivotZeroHist)) deallocate(iGEMNewtonPivotZeroHist)
+    if (allocated(iGEMLSIterHist)) deallocate(iGEMLSIterHist)
+    if (allocated(iGEMLSNegFactorHist)) deallocate(iGEMLSNegFactorHist)
+    if (allocated(iGEMLSNegPhaseHist)) deallocate(iGEMLSNegPhaseHist)
+    if (allocated(iGEMLSFloorHist)) deallocate(iGEMLSFloorHist)
+    if (allocated(iGEMLSNoDescentHist)) deallocate(iGEMLSNoDescentHist)
+    if (allocated(iGEMLSNoDescentClassHist)) deallocate(iGEMLSNoDescentClassHist)
+    if (allocated(iGEMPreLMNoDescentHist)) deallocate(iGEMPreLMNoDescentHist)
+    if (allocated(iGEMPreLMNoDescentClassHist)) deallocate(iGEMPreLMNoDescentClassHist)
+    if (allocated(iGEMTraceInactiveHist)) deallocate(iGEMTraceInactiveHist)
+    if (allocated(iGEMTraceReinjectedHist)) deallocate(iGEMTraceReinjectedHist)
+    if (allocated(iGEMTraceRemoveHist)) deallocate(iGEMTraceRemoveHist)
+    if (allocated(iGEMTraceReinjectHist)) deallocate(iGEMTraceReinjectHist)
+    if (allocated(iGEMResidualLMHist)) deallocate(iGEMResidualLMHist)
+    if (allocated(iGEMResidualLMRawNegativeHist)) deallocate(iGEMResidualLMRawNegativeHist)
+    if (allocated(iGEMResidualLMNoDescentHist)) deallocate(iGEMResidualLMNoDescentHist)
+    if (allocated(iGEMResidualLMNoDescentClassHist)) deallocate(iGEMResidualLMNoDescentClassHist)
+    if (allocated(iGEMResidualLMEventCallSite)) deallocate(iGEMResidualLMEventCallSite)
+    if (allocated(iGEMResidualLMEventIterPEA)) deallocate(iGEMResidualLMEventIterPEA)
+    if (allocated(iGEMResidualLMEventIterGlobal)) deallocate(iGEMResidualLMEventIterGlobal)
+    if (allocated(iGEMResidualLMEventReason)) deallocate(iGEMResidualLMEventReason)
+    if (allocated(iGEMResidualLMEventNoDescentClass)) deallocate(iGEMResidualLMEventNoDescentClass)
+    if (allocated(iGEMResidualLMEventNewtonInfo)) deallocate(iGEMResidualLMEventNewtonInfo)
+    if (allocated(iGEMResidualLMEventKKTSize)) deallocate(iGEMResidualLMEventKKTSize)
+    if (allocated(iGEMResidualLMEventNPrimal)) deallocate(iGEMResidualLMEventNPrimal)
+    if (allocated(iGEMResidualLMEventNConstraint)) deallocate(iGEMResidualLMEventNConstraint)
+    if (allocated(iGEMResidualLMEventPivot1x1)) deallocate(iGEMResidualLMEventPivot1x1)
+    if (allocated(iGEMResidualLMEventPivot2x2)) deallocate(iGEMResidualLMEventPivot2x2)
+    if (allocated(iGEMResidualLMEventPivotPositive)) deallocate(iGEMResidualLMEventPivotPositive)
+    if (allocated(iGEMResidualLMEventPivotNegative)) deallocate(iGEMResidualLMEventPivotNegative)
+    if (allocated(iGEMResidualLMEventPivotZero)) deallocate(iGEMResidualLMEventPivotZero)
+    if (allocated(iGEMLMEventODOrdPhase)) then
+        deallocate(iGEMLMEventODOrdPhase)
+    end if
+    if (allocated(iGEMLMEventODCompPhase)) then
+        deallocate(iGEMLMEventODCompPhase)
+    end if
+    if (allocated(iGEMResidualLMEventAssemblage)) deallocate(iGEMResidualLMEventAssemblage)
+    if (allocated(iGEMCoalesceHist)) deallocate(iGEMCoalesceHist)
+    if (allocated(iGEMStabilizeHist)) deallocate(iGEMStabilizeHist)
+    if (allocated(iGEMBoundaryRemovalHist)) deallocate(iGEMBoundaryRemovalHist)
+    if (allocated(iGEMRawNegativeRemovalHist)) deallocate(iGEMRawNegativeRemovalHist)
+    if (allocated(iGEMRawNegativePhaseSlotHist)) deallocate(iGEMRawNegativePhaseSlotHist)
+    if (allocated(iGEMRawNegativePhaseSolnHist)) deallocate(iGEMRawNegativePhaseSolnHist)
+    if (allocated(iGEMRawNegativePhaseSpeciesHist)) deallocate(iGEMRawNegativePhaseSpeciesHist)
+    if (allocated(iGEMRawNegCompHist)) deallocate(iGEMRawNegCompHist)
+    if (allocated(iGEMInvalidCompBoundAttemptedHist)) deallocate(iGEMInvalidCompBoundAttemptedHist)
+    if (allocated(iGEMInvalidCompBoundAcceptedHist)) deallocate(iGEMInvalidCompBoundAcceptedHist)
+    if (allocated(iGEMInvalidCompBoundRejectedHist)) deallocate(iGEMInvalidCompBoundRejectedHist)
+    if (allocated(iGEMInvalidCompBoundVerdictHist)) deallocate(iGEMInvalidCompBoundVerdictHist)
+    if (allocated(iGEMBoundaryPinnedRemovalHist)) deallocate(iGEMBoundaryPinnedRemovalHist)
+    if (allocated(iGEMTinyBoundaryRemovalHist)) deallocate(iGEMTinyBoundaryRemovalHist)
+    if (allocated(iGEMBoundaryRemovalSlotHist)) deallocate(iGEMBoundaryRemovalSlotHist)
+    if (allocated(iGEMBoundaryRemovalPhaseHist)) deallocate(iGEMBoundaryRemovalPhaseHist)
+    if (allocated(iGEMTinyBoundaryRemovalSlotHist)) deallocate(iGEMTinyBoundaryRemovalSlotHist)
+    if (allocated(iGEMTinyBoundaryRemovalPhaseHist)) deallocate(iGEMTinyBoundaryRemovalPhaseHist)
+    if (allocated(iGEMBoundaryRankGuardHist)) deallocate(iGEMBoundaryRankGuardHist)
+    if (allocated(iGEMBoundaryRankGuardSlotHist)) deallocate(iGEMBoundaryRankGuardSlotHist)
+    if (allocated(iGEMBoundaryRankGuardPhaseHist)) deallocate(iGEMBoundaryRankGuardPhaseHist)
+    if (allocated(iGEMTraceRemoveSpeciesHist)) deallocate(iGEMTraceRemoveSpeciesHist)
+    if (allocated(iGEMTraceRemovePhaseHist)) deallocate(iGEMTraceRemovePhaseHist)
+    if (allocated(iGEMTraceRemoveCountHist)) deallocate(iGEMTraceRemoveCountHist)
+    if (allocated(iGEMTraceReinjectSpeciesHist)) deallocate(iGEMTraceReinjectSpeciesHist)
+    if (allocated(iGEMTraceReinjectPhaseHist)) deallocate(iGEMTraceReinjectPhaseHist)
+    if (allocated(iGEMTraceReinjectCountHist)) deallocate(iGEMTraceReinjectCountHist)
+    if (allocated(iGEMCEFRetryActivationHist)) deallocate(iGEMCEFRetryActivationHist)
+    if (allocated(iGEMSUBGQRideAlongHist)) deallocate(iGEMSUBGQRideAlongHist)
+    if (allocated(iODPairHist)) deallocate(iODPairHist)
+    if (allocated(iODOrderingModeHist)) deallocate(iODOrderingModeHist)
+    if (allocated(dGEMNormHist)) deallocate(dGEMNormHist)
+    if (allocated(dGEMMassNormHist)) deallocate(dGEMMassNormHist)
+    if (allocated(dGEMChemNormHist)) deallocate(dGEMChemNormHist)
+    if (allocated(dGEMSolnChemNormHist)) deallocate(dGEMSolnChemNormHist)
+    if (allocated(dGEMCondChemNormHist)) deallocate(dGEMCondChemNormHist)
+    if (allocated(dGEMSublExchangeNormHist)) deallocate(dGEMSublExchangeNormHist)
+    if (allocated(dGEMNewtonSymResidualHist)) deallocate(dGEMNewtonSymResidualHist)
+    if (allocated(dGEMNewtonMinPivotScaleHist)) deallocate(dGEMNewtonMinPivotScaleHist)
+    if (allocated(dGEMNewtonMaxPivotScaleHist)) deallocate(dGEMNewtonMaxPivotScaleHist)
+    if (allocated(dGEMNewtonDirectionNormHist)) deallocate(dGEMNewtonDirectionNormHist)
+    if (allocated(dGEMLSInitialNormHist)) deallocate(dGEMLSInitialNormHist)
+    if (allocated(dGEMLSBestNormHist)) deallocate(dGEMLSBestNormHist)
+    if (allocated(dGEMLSFinalNormHist)) deallocate(dGEMLSFinalNormHist)
+    if (allocated(dGEMLSInitialStepHist)) deallocate(dGEMLSInitialStepHist)
+    if (allocated(dGEMLSBestStepHist)) deallocate(dGEMLSBestStepHist)
+    if (allocated(dGEMLSFinalStepHist)) deallocate(dGEMLSFinalStepHist)
+    if (allocated(dGEMLSMinRawPhaseMolesHist)) deallocate(dGEMLSMinRawPhaseMolesHist)
+    if (allocated(dGEMLSMinFinalPhaseMolesHist)) deallocate(dGEMLSMinFinalPhaseMolesHist)
+    if (allocated(dGEMLSInitialGibbsHist)) deallocate(dGEMLSInitialGibbsHist)
+    if (allocated(dGEMLSBestGibbsHist)) deallocate(dGEMLSBestGibbsHist)
+    if (allocated(dGEMLSFinalGibbsHist)) deallocate(dGEMLSFinalGibbsHist)
+    if (allocated(dGEMLSInitialMeritHist)) deallocate(dGEMLSInitialMeritHist)
+    if (allocated(dGEMLSBestMeritHist)) deallocate(dGEMLSBestMeritHist)
+    if (allocated(dGEMLSFinalMeritHist)) deallocate(dGEMLSFinalMeritHist)
+    if (allocated(dGEMPreLMInitNormHist)) deallocate(dGEMPreLMInitNormHist)
+    if (allocated(dGEMPreLMBestNormHist)) deallocate(dGEMPreLMBestNormHist)
+    if (allocated(dGEMPreLMInitGibbsHist)) deallocate(dGEMPreLMInitGibbsHist)
+    if (allocated(dGEMPreLMBestGibbsHist)) deallocate(dGEMPreLMBestGibbsHist)
+    if (allocated(dGEMPreLMInitMeritHist)) deallocate(dGEMPreLMInitMeritHist)
+    if (allocated(dGEMPreLMBestMeritHist)) deallocate(dGEMPreLMBestMeritHist)
+    if (allocated(dGEMPreLMMeritCandNormHist)) deallocate(dGEMPreLMMeritCandNormHist)
+    if (allocated(dGEMPreLMMeritCandMassHist)) deallocate(dGEMPreLMMeritCandMassHist)
+    if (allocated(dGEMPreLMMeritCandStepHist)) deallocate(dGEMPreLMMeritCandStepHist)
+    if (allocated(dGEMPreLMMeritCandGibbsHist)) deallocate(dGEMPreLMMeritCandGibbsHist)
+    if (allocated(dGEMPreLMMeritCandMeritHist)) deallocate(dGEMPreLMMeritCandMeritHist)
+    if (allocated(dGEMResidualLMEventNormSlope)) deallocate(dGEMResidualLMEventNormSlope)
+    if (allocated(dGEMResidualLMEventGibbsSlope)) deallocate(dGEMResidualLMEventGibbsSlope)
+    if (allocated(dGEMResidualLMEventMeritSlope)) deallocate(dGEMResidualLMEventMeritSlope)
+    if (allocated(dGEMResidualLMEventInitialNorm)) deallocate(dGEMResidualLMEventInitialNorm)
+    if (allocated(dGEMResidualLMEventBestNorm)) deallocate(dGEMResidualLMEventBestNorm)
+    if (allocated(dGEMResidualLMEventFinalNorm)) deallocate(dGEMResidualLMEventFinalNorm)
+    if (allocated(dGEMResidualLMEventInitialGibbs)) deallocate(dGEMResidualLMEventInitialGibbs)
+    if (allocated(dGEMResidualLMEventBestGibbs)) deallocate(dGEMResidualLMEventBestGibbs)
+    if (allocated(dGEMResidualLMEventFinalGibbs)) deallocate(dGEMResidualLMEventFinalGibbs)
+    if (allocated(dGEMResidualLMEventInitialMerit)) deallocate(dGEMResidualLMEventInitialMerit)
+    if (allocated(dGEMResidualLMEventBestMerit)) deallocate(dGEMResidualLMEventBestMerit)
+    if (allocated(dGEMResidualLMEventFinalMerit)) deallocate(dGEMResidualLMEventFinalMerit)
+    if (allocated(dGEMResidualLMEventMeritCandNorm)) deallocate(dGEMResidualLMEventMeritCandNorm)
+    if (allocated(dGEMResidualLMEventMeritCandMass)) deallocate(dGEMResidualLMEventMeritCandMass)
+    if (allocated(dGEMResidualLMEventMeritCandStep)) deallocate(dGEMResidualLMEventMeritCandStep)
+    if (allocated(dGEMResidualLMEventMeritCandGibbs)) deallocate(dGEMResidualLMEventMeritCandGibbs)
+    if (allocated(dGEMResidualLMEventMeritCandMerit)) deallocate(dGEMResidualLMEventMeritCandMerit)
+    if (allocated(dGEMResidualLMEventDirectionNorm)) deallocate(dGEMResidualLMEventDirectionNorm)
+    if (allocated(dGEMResidualLMEventMinPivot)) deallocate(dGEMResidualLMEventMinPivot)
+    if (allocated(dGEMResidualLMEventMaxPivot)) deallocate(dGEMResidualLMEventMaxPivot)
+    if (allocated(dGEMLMEventODAlign)) then
+        deallocate(dGEMLMEventODAlign)
+    end if
+    if (allocated(dGEMLMEventODEigen)) then
+        deallocate(dGEMLMEventODEigen)
+    end if
+    if (allocated(dGEMNewtonDirNormSlopeHist)) deallocate(dGEMNewtonDirNormSlopeHist)
+    if (allocated(dGEMNewtonDirGibbsSlopeHist)) deallocate(dGEMNewtonDirGibbsSlopeHist)
+    if (allocated(dGEMNewtonDirMeritSlopeHist)) deallocate(dGEMNewtonDirMeritSlopeHist)
+    if (allocated(dGEMRawNegativePhaseAmountHist)) deallocate(dGEMRawNegativePhaseAmountHist)
+    if (allocated(dGEMRawNegativePhaseDirectionHist)) deallocate(dGEMRawNegativePhaseDirectionHist)
+    if (allocated(dGEMRawNegPhaseResidualHist)) deallocate(dGEMRawNegPhaseResidualHist)
+    if (allocated(dGEMInvalidCompBoundPhiHist)) deallocate(dGEMInvalidCompBoundPhiHist)
+    if (allocated(dODCompDistHist)) deallocate(dODCompDistHist)
+    if (allocated(dODOrderNormHist)) deallocate(dODOrderNormHist)
+    if (allocated(dODOrderingEigenMinHist)) deallocate(dODOrderingEigenMinHist)
+    if (allocated(dGEMLSRawPhaseMoles)) deallocate(dGEMLSRawPhaseMoles)
+    if (allocated(dGEMLSFinalPhaseMoles)) deallocate(dGEMLSFinalPhaseMoles)
+    if (allocated(dGEMLSRawPhaseMolesHist)) deallocate(dGEMLSRawPhaseMolesHist)
+    if (allocated(dGEMLSFinalPhaseMolesHist)) deallocate(dGEMLSFinalPhaseMolesHist)
+    if (allocated(dGEMCEFPhaseResidual)) deallocate(dGEMCEFPhaseResidual)
+    if (allocated(lTraceSpeciesInactive)) deallocate(lTraceSpeciesInactive)
+    if (allocated(lTraceSpeciesReinjected)) deallocate(lTraceSpeciesReinjected)
+    if(allocated(iPhaseGEMinit)) deallocate(iPhaseGEMinit)
+    if(allocated(dStoichSpeciesGEMinit)) deallocate(dStoichSpeciesGEMinit)
+    if(allocated(dAtomFractionSpeciesGEMinit)) deallocate(dAtomFractionSpeciesGEMinit)
+    if(allocated(dChemicalPotentialGEMinit)) deallocate(dChemicalPotentialGEMinit)
+    if(allocated(dMolFractionGEMinit)) deallocate(dMolFractionGEMinit)
+    if(allocated(iAssemblageGEMinit)) deallocate(iAssemblageGEMinit)
+    if(allocated(dGramFraction)) deallocate(dGramFraction)
+    if(allocated(dGramSpecies)) deallocate(dGramSpecies)
+    if(allocated(dGramPhase)) deallocate(dGramPhase)
+    if(allocated(dGramElement)) deallocate(dGramElement)
+    if (i > 0) then
+        INFOThermo = 15
+    end if
+
+    return
+
+end subroutine ResetThermo
