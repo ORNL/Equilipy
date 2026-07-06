@@ -45,6 +45,17 @@ For standalone GUI installation, download the installer that matches your system
 - Linux 64-bit: [Equilipy-linux-x86_64](https://github.com/ORNL/Equilipy/releases/latest/download/Equilipy-linux-x86_64)
 - Linux ARM 64-bit: [Equilipy-linux-arm64](https://github.com/ORNL/Equilipy/releases/latest/download/Equilipy-linux-arm64)
 
+> **Note (macOS):** the installers are not yet notarized by Apple, so the first
+> launch shows a warning that Equilipy could not be verified. Click **Done**
+> (not *Move to Trash*), then use one of the following options:
+>
+> 1. **System Settings → Privacy & Security** → scroll down to
+>    *"Equilipy" was blocked* → **Open Anyway**
+> 2. Remove the quarantine flag in a terminal:
+>    `xattr -d com.apple.quarantine /Applications/Equilipy.app`
+> 3. Install through pip instead, which avoids this entirely:
+>    `pip install "equilipy[gui]"`
+
 For users who installed Equilipy with GUI dependencies, the GUI can also be
 launched from the terminal:
 ```

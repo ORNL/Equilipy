@@ -28,10 +28,10 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Install Fortran compiler
+      - name: Install Fortran compiler and LAPACK
         run: |
           sudo apt-get update
-          sudo apt-get install -y gfortran
+          sudo apt-get install -y gfortran liblapack-dev libblas-dev
 
       - name: Install documentation dependencies
         run: |

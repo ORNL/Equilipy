@@ -80,7 +80,8 @@
 
 
 
-subroutine AscertainMiscibilityGap(iSolnPhaseIndex,iFirst,iLast,nConstituents,dMolFractionMiscible,dMolFractionImmiscible,lDuplicate)
+subroutine AscertainMiscibilityGap(iSolnPhaseIndex,iFirst,iLast,nConstituents, &
+    dMolFractionMiscible,dMolFractionImmiscible,lDuplicate)
 
     USE ModuleThermo 
     USE ModuleGEMSolver

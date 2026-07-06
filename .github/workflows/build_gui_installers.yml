@@ -58,7 +58,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gfortran gcc g++ liblapack-dev
+          sudo apt-get install -y gfortran gcc g++ liblapack-dev libblas-dev
 
       - name: Install Fortran compiler (macOS)
         if: runner.os == 'macOS'
@@ -75,6 +75,28 @@ jobs:
           update: true
           install: mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-fortran
           path-type: inherit
+
+      # Same toolchain setup the wheel build uses (pyproject before-build):
+      # install gcc/gfortran/openblas into the runner's preinstalled MSYS2 at
+      # C:/msys64, which is where setup.py's default MINGW_PREFIX points.
+      - name: Install MinGW gfortran and OpenBLAS into C:/msys64 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          C:/msys64/usr/bin/bash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-fortran mingw-w64-x86_64-openblas"
+          Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\bin"
+          # Python 3.8+ does not search PATH for extension-module DLL
+          # dependencies, so place the MinGW runtime DLLs next to the
+          # in-tree equilifort extension (mirrors what delvewheel does
+          # for the released wheels). PyInstaller then bundles them.
+          Copy-Item `
+            C:\msys64\mingw64\bin\libopenblas*.dll, `
+            C:\msys64\mingw64\bin\libgfortran*.dll, `
+            C:\msys64\mingw64\bin\libquadmath*.dll, `
+            C:\msys64\mingw64\bin\libgcc_s_seh*.dll, `
+            C:\msys64\mingw64\bin\libwinpthread*.dll, `
+            C:\msys64\mingw64\bin\libgomp*.dll `
+            -Destination equilipy\
 
       - name: Install Equilipy GUI and PyInstaller
         env:
