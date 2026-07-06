@@ -100,8 +100,9 @@ solidification, and results handling, or [GUI](gui/index) for the desktop
 application.
 
 :::{note}
-Examples use the [Polars][polars] dataframe library, installed by default.
-On old CPUs use `pip install polars-lts-cpu`.
+Examples use the [Polars][polars] dataframe library and its `fastexcel`
+Excel reader, both installed by default. On old CPUs use
+`pip install polars-lts-cpu`.
 :::
 
 ## About the project

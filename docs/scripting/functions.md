@@ -38,7 +38,7 @@ one condition. Batch runs execute in parallel with `n_cpu` worker processes.
 ```python
 import polars as pl
 
-NPT = pl.read_excel("Input_ACMS.xlsx", sheet_name="AlCuMgSi").to_dict()  # needs fastexcel
+NPT = pl.read_excel("Input_ACMS.xlsx", sheet_name="AlCuMgSi").to_dict()  # fastexcel engine, installed with equilipy
 res = eq.equilib_batch(DB, NPT, unit=["K", "atm", "moles"])
 
 pl.DataFrame(res.to_dict()).write_csv("results.csv")

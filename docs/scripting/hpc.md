@@ -29,7 +29,7 @@ from equilipy.hpc import COMM, RANK, SIZE, split_condition, worker_count
 
 DB = eq.read_dat("AlCuMgSi_ORNL_FS83.dat")          # each rank parses locally
 
-NPT = pl.read_excel("Input_ACMS.xlsx", sheet_name="AlCuMgSi").to_dict()  # needs fastexcel
+NPT = pl.read_excel("Input_ACMS.xlsx", sheet_name="AlCuMgSi").to_dict()  # fastexcel engine, installed with equilipy
 chunk = split_condition(NPT)                         # this rank's rows
 
 res = eq.equilib_batch(

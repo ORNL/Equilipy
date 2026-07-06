@@ -1,4 +1,4 @@
-[![PyPI - Version](https://img.shields.io/pypi/v/equilipy)](https://pypi.org/project/equilipy/)
+[![PyPI - Version](https://img.shields.io/pypi/v/equilipy?cb=1)](https://pypi.org/project/equilipy/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/equilipy)](https://pypistats.org/packages/equilipy)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.06875/status.svg)](https://doi.org/10.21105/joss.06875)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13157235.svg)](https://doi.org/10.5281/zenodo.13157235)
@@ -135,13 +135,9 @@ If you use the NucleoScheil solidification model, please also cite
 We encourage you to contribute to Equilipy. Please see [contributing guidelines](CONTRIBUTING.md).
 
 ## Additional note
-Equilipy installs `polars` by default for fast dataframe processing. To read
-Excel condition tables with `polars.read_excel` (as in the batch examples),
-install:
-
-```
-pip install fastexcel
-```
+Equilipy installs `polars` (fast dataframe processing) and `fastexcel`
+(Excel reading with `polars.read_excel`, as in the batch examples) by
+default.
 
 For very large datasets (> 4 billion rows),
 install:
