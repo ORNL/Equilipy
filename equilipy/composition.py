@@ -122,7 +122,13 @@ def formula_or_database_species_stoichiometry(
             if species_stoichiometry:
                 return species_stoichiometry
             raise ValueError(
-                "Element(s) not found in selected database: " + ", ".join(missing)
+                "Element(s) not found in selected database: "
+                + ", ".join(
+                    name
+                    if name.isascii() and name.isprintable()
+                    else ascii(name)
+                    for name in missing
+                )
             )
     return stoichiometry
 

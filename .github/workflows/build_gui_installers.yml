@@ -58,7 +58,14 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gfortran gcc g++ liblapack-dev libblas-dev
+          # The xcb helper libraries must be present at build time so
+          # PyInstaller bundles them; otherwise the frozen GUI aborts on
+          # systems without them (Qt: "xcb-cursor0 is needed to load the
+          # Qt xcb platform plugin").
+          sudo apt-get install -y gfortran gcc g++ liblapack-dev libblas-dev \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xkb1 libxkbcommon-x11-0 \
+            xvfb
 
       - name: Install Fortran compiler (macOS)
         if: runner.os == 'macOS'
@@ -143,6 +150,32 @@ jobs:
       - name: Smoke test frozen parallel calculations (macOS)
         if: runner.os == 'macOS'
         run: pyinstaller-dist/Equilipy.app/Contents/MacOS/Equilipy --equilipy-smoke-calculation
+
+      - name: Verify bundled X11 libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          for lib in libxcb-cursor libxcb-icccm libxcb-image libxcb-keysyms \
+                     libxcb-render-util libxcb-shape libxcb-xkb; do
+            grep -a -q "$lib" pyinstaller-dist/Equilipy \
+              || { echo "::error::$lib is not bundled in the frozen binary"; exit 1; }
+          done
+
+      - name: Smoke test frozen GUI startup (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Offscreen pass: startup/shutdown logic without a display.
+          pyinstaller-dist/Equilipy --equilipy-smoke-gui
+          # Xvfb pass: loads the real xcb platform plugin end to end.
+          xvfb-run -a env QT_QPA_PLATFORM=xcb pyinstaller-dist/Equilipy --equilipy-smoke-gui
+
+      - name: Smoke test frozen GUI startup (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\pyinstaller-dist\Equilipy.exe --equilipy-smoke-gui
+
+      - name: Smoke test frozen GUI startup (macOS)
+        if: runner.os == 'macOS'
+        run: pyinstaller-dist/Equilipy.app/Contents/MacOS/Equilipy --equilipy-smoke-gui
 
       - name: Package GUI bundle (Linux)
         if: runner.os == 'Linux'

@@ -8,6 +8,7 @@ from pathlib import Path
 
 _SMOKE_ARG = "--equilipy-smoke-joblib"
 _CALCULATION_SMOKE_ARG = "--equilipy-smoke-calculation"
+_GUI_SMOKE_ARG = "--equilipy-smoke-gui"
 
 
 def _run_joblib_smoke() -> int:
@@ -95,6 +96,34 @@ def _run_calculation_smoke() -> int:
     return 0
 
 
+def _run_gui_smoke() -> int:
+    """Run the real GUI startup/shutdown path once, without a display.
+
+    Reproduces the console-less launch of a windowed build (double-clicked
+    app on Windows), where Python sets the stdio streams to None — startup
+    code such as the GUI log capture must tolerate that.
+    """
+    import os
+
+    os.environ["EQUILIPY_GUI_SMOKE"] = "1"
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+    original_stdout, original_stderr = sys.stdout, sys.stderr
+    sys.stdout = None
+    sys.stderr = None
+    try:
+        from equilipy.gui.app import main
+
+        exit_code = main([])
+    finally:
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
+    if exit_code != 0:
+        raise RuntimeError(f"GUI smoke exited with code {exit_code}")
+    print("Equilipy frozen GUI smoke passed.", flush=True)
+    return 0
+
+
 if __name__ == "__main__":
     from equilipy.gui._frozen_loky import loky_freeze_support
 
@@ -104,6 +133,8 @@ if __name__ == "__main__":
         raise SystemExit(_run_joblib_smoke())
     if _CALCULATION_SMOKE_ARG in sys.argv[1:]:
         raise SystemExit(_run_calculation_smoke())
+    if _GUI_SMOKE_ARG in sys.argv[1:]:
+        raise SystemExit(_run_gui_smoke())
 
     from equilipy.gui.app import main
 

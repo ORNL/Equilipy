@@ -26,6 +26,16 @@ def _is_filtered_log_line(line: str) -> bool:
     return any(pattern in line for pattern in _FILTERED_LOG_PATTERNS)
 
 
+def _flush_stream(stream) -> None:
+    """Flush a stdio stream, tolerating windowed builds where it is None."""
+    if stream is None:
+        return
+    try:
+        stream.flush()
+    except (OSError, ValueError):
+        pass
+
+
 class GuiLogCapture(QObject):
     """Tee process stdout/stderr to the GUI log and an optional file."""
 
@@ -48,14 +58,28 @@ class GuiLogCapture(QObject):
         if self._started:
             return
 
-        sys.stdout.flush()
-        sys.stderr.flush()
-        self._original_stdout_fd = os.dup(1)
-        self._original_stderr_fd = os.dup(2)
-        self._read_fd, write_fd = os.pipe()
-        os.dup2(write_fd, 1)
-        os.dup2(write_fd, 2)
-        os.close(write_fd)
+        _flush_stream(sys.stdout)
+        _flush_stream(sys.stderr)
+        try:
+            self._original_stdout_fd = os.dup(1)
+            self._original_stderr_fd = os.dup(2)
+            self._read_fd, write_fd = os.pipe()
+            os.dup2(write_fd, 1)
+            os.dup2(write_fd, 2)
+            os.close(write_fd)
+        except OSError:
+            # Windowed builds on Windows run without a console:
+            # sys.stdout/stderr are None and fds 1/2 are not usable.
+            # Run without console capture instead of failing startup.
+            for fd_attr in ("_original_stdout_fd", "_original_stderr_fd", "_read_fd"):
+                fd = getattr(self, fd_attr)
+                if fd is not None:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
+                    setattr(self, fd_attr, None)
+            return
         self._started = True
         self._reader_thread = threading.Thread(
             target=self._read_loop,
@@ -71,8 +95,8 @@ class GuiLogCapture(QObject):
             self._close_log_file()
             return
 
-        sys.stdout.flush()
-        sys.stderr.flush()
+        _flush_stream(sys.stdout)
+        _flush_stream(sys.stderr)
         if self._original_stdout_fd is not None:
             os.dup2(self._original_stdout_fd, 1)
             os.close(self._original_stdout_fd)

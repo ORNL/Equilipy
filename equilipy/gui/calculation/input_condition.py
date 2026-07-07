@@ -1087,6 +1087,17 @@ def _amount_range_editor_parts(text: str) -> list[str]:
     return (parts + ["", "", ""])[:3]
 
 
+# Zero-width and word-joiner code points that platform input methods
+# (notably X11/XIM over remote displays) can slip into line edits. They
+# are invisible in the widget but break element-symbol matching.
+_INVISIBLE_CHARS = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff"))
+
+
+def _sanitize_cell_text(text: str) -> str:
+    """Drop invisible characters and normalize NBSP before stripping."""
+    return text.translate(_INVISIBLE_CHARS).replace("\u00a0", " ").strip()
+
+
 def _table_cell_text(
     table: QTableWidget | CompositionEditor,
     row: int,
@@ -1094,7 +1105,7 @@ def _table_cell_text(
 ) -> str:
     widget = table.cellWidget(row, column)
     if isinstance(widget, QLineEdit):
-        return widget.text().strip()
+        return _sanitize_cell_text(widget.text())
     if isinstance(widget, QWidget) and bool(widget.property("amount_single_editor")):
         balance_button = _amount_range_balance_button(widget)
         editor = _amount_editor_line_edit(widget)
@@ -1102,9 +1113,9 @@ def _table_cell_text(
             total = _fixed_total_for_table(table)
             if total is not None:
                 return f"?{_balance_total_text(total)}"
-            total_text = editor.text().strip() if editor is not None else ""
+            total_text = _sanitize_cell_text(editor.text()) if editor is not None else ""
             return f"?{total_text}" if total_text else "?"
-        return editor.text().strip() if editor is not None else ""
+        return _sanitize_cell_text(editor.text()) if editor is not None else ""
     if isinstance(widget, QWidget) and bool(widget.property("amount_range_editor")):
         balance_button = _amount_range_balance_button(widget)
         editors = widget.findChildren(QLineEdit)
@@ -1112,12 +1123,12 @@ def _table_cell_text(
             total = _fixed_total_for_table(table)
             if total is not None:
                 return f"?{_balance_total_text(total)}"
-            total_text = editors[0].text().strip() if editors else ""
+            total_text = _sanitize_cell_text(editors[0].text()) if editors else ""
             return f"?{total_text}" if total_text else "?"
-        values = [editor.text().strip() for editor in editors]
+        values = [_sanitize_cell_text(editor.text()) for editor in editors]
         return " ".join(value for value in values if value)
     item = table.item(row, column)
-    return item.text().strip() if item is not None else ""
+    return _sanitize_cell_text(item.text()) if item is not None else ""
 
 
 def _set_table_cell_text(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import faulthandler
+import os
 import sys
 from datetime import datetime
 from multiprocessing import freeze_support
@@ -46,6 +47,14 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Optional DatabaseIR JSON or TDB file to open.",
     )
+    parser.add_argument(
+        "--setup-linux-libs",
+        action="store_true",
+        help=(
+            "Copy X11 client libraries missing from PySide6 into its Qt/lib "
+            "directory so the GUI runs without system packages (Linux only)."
+        ),
+    )
     return parser
 
 
@@ -57,8 +66,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = _parse_launch_args(parser, argv)
 
+    if getattr(args, "setup_linux_libs", False):
+        from .linux_libs import setup_linux_libs
+
+        return setup_linux_libs()
+
     try:
-        from PySide6.QtCore import Qt
+        from PySide6.QtCore import Qt, QTimer
         from PySide6.QtGui import QColor, QIcon, QPalette
         from PySide6.QtWidgets import QApplication
     except ModuleNotFoundError:
@@ -93,6 +107,11 @@ def main(argv: list[str] | None = None) -> int:
         window.setWindowIcon(QIcon(str(app_icon_path)))
     window.resize(1200, 760)
     window.show()
+    if os.environ.get("EQUILIPY_GUI_SMOKE") == "1":
+        # Smoke mode (CI): run one event-loop pass through the full
+        # startup path, then quit so the process exits with app.exec()'s
+        # return code.
+        QTimer.singleShot(0, app.quit)
     return app.exec()
 
 

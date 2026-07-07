@@ -1979,10 +1979,12 @@ def _render_result_figure_series(
 
     x_axis = QValueAxis()
     y_axis = QValueAxis()
-    _configure_result_figure_axis(x_axis, x_title)
-    _configure_result_figure_axis(y_axis, y_title)
-    x_axis.setRange(*_result_figure_axis_range(plotted_x, forced=x_bounds))
-    y_axis.setRange(*_result_figure_axis_range(plotted_y))
+    x_range = _result_figure_axis_range(plotted_x, forced=x_bounds)
+    y_range = _result_figure_axis_range(plotted_y)
+    _configure_result_figure_axis(x_axis, x_title, value_range=x_range)
+    _configure_result_figure_axis(y_axis, y_title, value_range=y_range)
+    x_axis.setRange(*x_range)
+    y_axis.setRange(*y_range)
 
     chart.addAxis(x_axis, Qt.AlignmentFlag.AlignBottom)
     chart.addAxis(y_axis, Qt.AlignmentFlag.AlignLeft)
@@ -2003,7 +2005,11 @@ def _result_figure_chart(chart_view: Any) -> Any | None:
         return None
 
 
-def _configure_result_figure_axis(axis: Any, title: str) -> None:
+def _configure_result_figure_axis(
+    axis: Any,
+    title: str,
+    value_range: tuple[float, float] | None = None,
+) -> None:
     axis.setTitleText(title)
     title_font = QFont()
     title_font.setPointSizeF(float(_RESULT_FIGURE_AXIS_TITLE_SIZE))
@@ -2012,7 +2018,28 @@ def _configure_result_figure_axis(axis: Any, title: str) -> None:
     label_font.setPointSizeF(float(_RESULT_FIGURE_AXIS_LABEL_SIZE))
     axis.setTitleFont(title_font)
     axis.setLabelsFont(label_font)
-    axis.setLabelFormat("%.3g")
+    if value_range is None:
+        axis.setLabelFormat("%.3g")
+    else:
+        axis.setLabelFormat(_result_figure_axis_label_format(*value_range))
+
+
+def _result_figure_axis_label_format(low: float, high: float) -> str:
+    """Return a plain printf label format sized to the axis span.
+
+    Wide axes (temperatures, energies) read as integers; narrow axes keep
+    just enough decimals to distinguish adjacent ticks.  Scientific notation
+    is never used.
+    """
+    span = abs(high - low)
+    if not np.isfinite(span) or span <= 0.0:
+        span = max(abs(low), abs(high), 1.0)
+    if span >= 20.0:
+        return "%.0f"
+    decimals = 2
+    if span < 1.0:
+        decimals = min(6, int(np.ceil(-np.log10(span))) + 2)
+    return f"%.{decimals}f"
 
 
 def _result_figure_axis_range(
