@@ -41,7 +41,6 @@ subroutine CompOrderingModeSUBOM(iSolnIndex, nModeDim, dOrderingHessian, &
     USE ModuleThermo
     USE ModuleThermoIO
     USE ModuleGEMSolver
-    USE, INTRINSIC :: ieee_arithmetic, ONLY: ieee_is_finite
 
     implicit none
 
@@ -675,4 +674,12 @@ contains
         return
     end function UpperName
 
+    pure logical function ieee_is_finite(dValue)
+        ! Portable finiteness test: the manylinux2014 aarch64 gfortran lacks
+        ! the ieee_arithmetic intrinsic module. NaN fails dValue == dValue;
+        ! the infinities exceed HUGE; HUGE itself is finite, hence <=.
+        real(8), intent(in) :: dValue
+        ieee_is_finite = (dValue == dValue) .AND. (ABS(dValue) <= HUGE(dValue))
+    end function ieee_is_finite
+!
 end subroutine CompOrderingModeSUBOM
