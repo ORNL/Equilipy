@@ -85,8 +85,12 @@ def _equilib_batch(
             minimize()
             points.append(EquilibPoint.from_fortran())
 
-        except EquilibError:
-            points.append(EquilibPoint.for_error())
+        except EquilibError as error:
+            warning_result = EquilibResult(context=res.context)
+            if warning_result.append_postprocess_warning(error):
+                points.append(warning_result.point)
+            else:
+                points.append(EquilibPoint.for_error(error))
 
         fort.resetthermo()
 

@@ -55,7 +55,7 @@ if __name__ == "__main__":
             segment.y,
             "-",
             lw=2,
-            color=colors[i],
+            color=colors[i % len(colors)],
             label=segment.label,
         )
 

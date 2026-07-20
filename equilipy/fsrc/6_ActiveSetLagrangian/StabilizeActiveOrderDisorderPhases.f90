@@ -23,9 +23,7 @@
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   07/01/2026      S.Y. Kwon           Original active SUBOM stability audit.
-    !   07/02/2026      S.Y. Kwon           Synchronized accepted SUBOM restarts into active-slot
-    !                                       mole/site-fraction state used by CEF Lagrangian.
+    !   07/20/2026      S.Y. Kwon           Coalesced degenerate order/disorder phases and synchronized accepted constitutions into active slots.
     !
     ! Purpose:
     ! ========

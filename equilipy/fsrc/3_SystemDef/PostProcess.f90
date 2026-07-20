@@ -14,32 +14,16 @@
 !> \date    January 14, 2013
 !> \sa      RunLagrangianGEM.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   01/14/2013      M.H.A. Piro         Original code.
-!   12/14/2024      S.Y. Kwon           Revised code.
-!   06/24/2026      S.Y. Kwon           Tested perturbed-temperature Leveling initialization for
-!                                        active order/disorder phases during heat-capacity postprocess.
-!   06/24/2026      S.Y. Kwon           Removed SUBOM-only dT override so PostProcess uses dTemperatureDiff.
-!   06/24/2026      S.Y. Kwon           Kept heat-capacity perturbations on fixed-assemblage Lagrangian GEM
-!                                        and normalized solution properties to the occupied-atom basis.
-!   06/25/2026      S.Y. Kwon           Tightened both endpoints of heat-capacity finite differences with
-!                                        fixed-assemblage Lagrangian GEM.
-!   06/25/2026      S.Y. Kwon           Reordered heat-capacity postprocess to solve T-dT before the final
-!                                        requested-T fixed-assemblage solve.
-!   06/25/2026      S.Y. Kwon           Removed occupied-atom denominator from solution property sums so
-!                                        formula-stoichiometric solution phases satisfy G = lambda dot N.
-!   07/04/2026      S.Y. Kwon           Tagged fixed-assemblage residual-LM events by T-dT and T
-!                                        postprocess call site for C3-a2 diagnostics.
-!   07/05/2026      S.Y. Kwon           Fitted compound-only fixed-assemblage elemental potentials during
-!                                        postprocess so rank-reduced pseudo-component endpoints keep a
-!                                        consistent T/T-dT diagnostic plane.
-!   07/05/2026      S.Y. Kwon           Kept the postprocess flag active while storing endpoint norms.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   01/14/2013      M.H.A. Piro         Original code.
+    !   12/14/2024      S.Y. Kwon           Revised code.
+    !   07/20/2026      S.Y. Kwon           Accumulated same-parent composition sets from slot-local properties and preserved terminal solver failures.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -99,6 +83,8 @@
 !   PostProcess must not divide their phase contribution by formula atom count.
 ! - Phase and species amounts are normalized to the original user input only
 !   after the final requested-T state has been accumulated.
+! - Multiple composition sets of one ordered parent share the legacy phase
+!   arrays, so their integral and mass properties use slot-local snapshots.
 !
 !-------------------------------------------------------------------------------------------------------------
 
@@ -112,12 +98,13 @@ subroutine PostProcess
 !
     implicit none
     integer:: i, j, k, iFirstPP, iLastPP
+    integer:: iPostProcessFailureStatus, iPostProcessFailureReason
     integer, dimension(:), allocatable :: iAssemblageBeforePostProcess
     real(8):: dTemp, dOutputScale, dTemperatureAtT, dTemperatureStepPP
     real(8):: dPostProcessNormTolerance
     real(8):: dEnthalpySysTemp, dEntropySysTemp, dGibbsEnergySysTemp
     real(8):: dEnthalpySysAtT, dEntropySysAtT, dGibbsEnergySysAtT, dHeatCapacitySysAtT
-    logical:: lCompEveryPhases
+    logical:: lCompEveryPhases, lUseSlotProperties, lPostProcessFailure
 
 !
     !1. Recalculate Elemental potential if nElement/=nElementSys
@@ -141,6 +128,21 @@ subroutine PostProcess
     dPostProcessGEMNormPerturbed = dGEMFunctionNorm
     iPostProcessIterPerturbed    = iterGlobal
     lCompEveryPhases = .False.
+    ! Postprocess may refine a fixed assemblage for property evaluation, but it
+    ! cannot turn an unsettled minimizer state into a successful equilibrium.
+    ! Preserve the incoming raw failure before either endpoint solve resets the
+    ! Lagrangian status fields.
+    lPostProcessFailure = (.NOT.lConverged).OR.&
+        (iGEMExitStatus /= GEM_EXIT_STATUS_OK)
+    if (lPostProcessFailure) then
+        iPostProcessFailureStatus = iGEMExitStatus
+        if (iPostProcessFailureStatus == GEM_EXIT_STATUS_OK) &
+            iPostProcessFailureStatus = GEM_EXIT_STATUS_LAGRANGIAN_UNCONVERGED
+        iPostProcessFailureReason = iPhaseChangeReason
+    else
+        iPostProcessFailureStatus = GEM_EXIT_STATUS_OK
+        iPostProcessFailureReason = PHASE_CHANGE_REASON_NONE
+    end if
 
     lPostProcessAssemblageChanged = .FALSE.
 
@@ -160,6 +162,12 @@ subroutine PostProcess
             lPostProcess = .TRUE.
             iGEMLagrangianCallSite = 3
             call RunLagrangianGEM
+            if ((.NOT.lConverged).OR.&
+                (iGEMExitStatus /= GEM_EXIT_STATUS_OK)) then
+                lPostProcessFailure = .TRUE.
+                iPostProcessFailureStatus = iGEMExitStatus
+                iPostProcessFailureReason = iPhaseChangeReason
+            end if
             iGEMLagrangianCallSite = 1
             call CompChemicalPotential(lCompEveryPhases)
             call CompFunctionNorm
@@ -196,18 +204,45 @@ subroutine PostProcess
                 dTemp= dMolesPhase(i)
                 iFirstPP = nSpeciesPhase(-j-1) + 1
                 iLastPP = nSpeciesPhase(-j)
-                dMolesSpecies(iFirstPP:iLastPP)= dTemp*dMolFraction(iFirstPP:iLastPP)
-
-                do k =iFirstPP, iLastPP
-                    if(dTemp>0D0.and.dMolesSpecies(k)>0D0) then
-                        dEntropySysTemp     = dEntropySysTemp + &
-                            dPartialEntropy(k)*dMolesSpecies(k)
-                        dEnthalpySysTemp    = dEnthalpySysTemp + &
-                            dPartialEnthalpy(k)*dMolesSpecies(k)
-                        dGibbsEnergySysTemp = dGibbsEnergySysTemp + &
-                            dChemicalPotential(k)*dMolesSpecies(k)
+                if (.NOT.PartitionPhaseActive(-j)) then
+                    dMolesSpecies(iFirstPP:iLastPP)= dTemp*dMolFraction(iFirstPP:iLastPP)
+                    do k =iFirstPP, iLastPP
+                        if(dTemp>0D0.and.dMolesSpecies(k)>0D0) then
+                            dEntropySysTemp     = dEntropySysTemp + &
+                                dPartialEntropy(k)*dMolesSpecies(k)
+                            dEnthalpySysTemp    = dEnthalpySysTemp + &
+                                dPartialEnthalpy(k)*dMolesSpecies(k)
+                            dGibbsEnergySysTemp = dGibbsEnergySysTemp + &
+                                dChemicalPotential(k)*dMolesSpecies(k)
+                        end if
+                    end do
+                else
+                    lUseSlotProperties = UseActiveSlotProperties(i, -j)
+                    if (lUseSlotProperties) then
+                        dMolesSpecies(iFirstPP:iLastPP) = dMolesSpecies(iFirstPP:iLastPP) + &
+                            dTemp*dActiveSlotMolFraction(i,iFirstPP:iLastPP)
+                    else
+                        dMolesSpecies(iFirstPP:iLastPP) = dTemp*dMolFraction(iFirstPP:iLastPP)
                     end if
-                end do
+
+                    do k =iFirstPP, iLastPP
+                        if(dTemp>0D0.and.dMolesSpecies(k)>0D0) then
+                            if (lUseSlotProperties) then
+                                dEntropySysTemp = dEntropySysTemp + dActiveSlotPartialS(i,k) * &
+                                    dTemp*dActiveSlotMolFraction(i,k)
+                                dEnthalpySysTemp = dEnthalpySysTemp + dActiveSlotPartialH(i,k) * &
+                                    dTemp*dActiveSlotMolFraction(i,k)
+                                dGibbsEnergySysTemp = dGibbsEnergySysTemp + dActiveSlotChemPot(i,k) * &
+                                    dTemp*dActiveSlotMolFraction(i,k)
+                            else
+                                dEntropySysTemp = dEntropySysTemp + dPartialEntropy(k)*dTemp*dMolFraction(k)
+                                dEnthalpySysTemp = dEnthalpySysTemp + dPartialEnthalpy(k)*dTemp*dMolFraction(k)
+                                dGibbsEnergySysTemp = dGibbsEnergySysTemp + &
+                                    dChemicalPotential(k)*dTemp*dMolFraction(k)
+                            end if
+                        end if
+                    end do
+                end if
             end if
         end do
         dGibbsEnergySysTemp = dGibbsEnergySysTemp* dIdealConstant * dTemperature*dOutputScale
@@ -226,6 +261,13 @@ subroutine PostProcess
             lPostProcess = .TRUE.
             iGEMLagrangianCallSite = 4
             call RunLagrangianGEM
+            if (((.NOT.lConverged).OR.&
+                (iGEMExitStatus /= GEM_EXIT_STATUS_OK)).AND.&
+                (.NOT.lPostProcessFailure)) then
+                lPostProcessFailure = .TRUE.
+                iPostProcessFailureStatus = iGEMExitStatus
+                iPostProcessFailureReason = iPhaseChangeReason
+            end if
             iGEMLagrangianCallSite = 1
             call CompChemicalPotential(lCompEveryPhases)
             call CompFunctionNorm
@@ -272,19 +314,50 @@ subroutine PostProcess
             dTemp= dMolesPhase(i)
             iFirstPP = nSpeciesPhase(-j-1) + 1
             iLastPP = nSpeciesPhase(-j)
-            dMolesSpecies(iFirstPP:iLastPP)= dTemp*dMolFraction(iFirstPP:iLastPP)
-            do k =iFirstPP, iLastPP
-                if(dTemp>0D0.and.dMolesSpecies(k)>0D0) then
-                    dEnthalpySysAtT     = dEnthalpySysAtT + &
-                        dPartialEnthalpy(k)*dMolesSpecies(k)
-                    dEntropySysAtT      = dEntropySysAtT + &
-                        dPartialEntropy(k)*dMolesSpecies(k)
-                    dGibbsEnergySysAtT  = dGibbsEnergySysAtT + &
-                        dChemicalPotential(k)*dMolesSpecies(k)
-                    dHeatCapacitySysAtT = dHeatCapacitySysAtT + &
-                        dPartialHeatCapacity(k)*dMolesSpecies(k)
+            if (.NOT.PartitionPhaseActive(-j)) then
+                dMolesSpecies(iFirstPP:iLastPP)= dTemp*dMolFraction(iFirstPP:iLastPP)
+                do k =iFirstPP, iLastPP
+                    if(dTemp>0D0.and.dMolesSpecies(k)>0D0) then
+                        dEnthalpySysAtT     = dEnthalpySysAtT + &
+                            dPartialEnthalpy(k)*dMolesSpecies(k)
+                        dEntropySysAtT      = dEntropySysAtT + &
+                            dPartialEntropy(k)*dMolesSpecies(k)
+                        dGibbsEnergySysAtT  = dGibbsEnergySysAtT + &
+                            dChemicalPotential(k)*dMolesSpecies(k)
+                        dHeatCapacitySysAtT = dHeatCapacitySysAtT + &
+                            dPartialHeatCapacity(k)*dMolesSpecies(k)
+                    end if
+                end do
+            else
+                lUseSlotProperties = UseActiveSlotProperties(i, -j)
+                if (lUseSlotProperties) then
+                    dMolesSpecies(iFirstPP:iLastPP) = dMolesSpecies(iFirstPP:iLastPP) + &
+                        dTemp*dActiveSlotMolFraction(i,iFirstPP:iLastPP)
+                else
+                    dMolesSpecies(iFirstPP:iLastPP) = dTemp*dMolFraction(iFirstPP:iLastPP)
                 end if
-            end do
+                do k =iFirstPP, iLastPP
+                    if(dTemp>0D0.and.dMolesSpecies(k)>0D0) then
+                        if (lUseSlotProperties) then
+                            dEnthalpySysAtT = dEnthalpySysAtT + dActiveSlotPartialH(i,k) * &
+                                dTemp*dActiveSlotMolFraction(i,k)
+                            dEntropySysAtT = dEntropySysAtT + dActiveSlotPartialS(i,k) * &
+                                dTemp*dActiveSlotMolFraction(i,k)
+                            dGibbsEnergySysAtT = dGibbsEnergySysAtT + dActiveSlotChemPot(i,k) * &
+                                dTemp*dActiveSlotMolFraction(i,k)
+                            dHeatCapacitySysAtT = dHeatCapacitySysAtT + dActiveSlotPartialCp(i,k) * &
+                                dTemp*dActiveSlotMolFraction(i,k)
+                        else
+                            dEnthalpySysAtT = dEnthalpySysAtT + dPartialEnthalpy(k)*dTemp*dMolFraction(k)
+                            dEntropySysAtT = dEntropySysAtT + dPartialEntropy(k)*dTemp*dMolFraction(k)
+                            dGibbsEnergySysAtT = dGibbsEnergySysAtT + &
+                                dChemicalPotential(k)*dTemp*dMolFraction(k)
+                            dHeatCapacitySysAtT = dHeatCapacitySysAtT + &
+                                dPartialHeatCapacity(k)*dTemp*dMolFraction(k)
+                        end if
+                    end if
+                end do
+            end if
         end if
     end do
     dGibbsEnergySysAtT  = dGibbsEnergySysAtT* dIdealConstant * dTemperature*dOutputScale
@@ -342,7 +415,15 @@ subroutine PostProcess
             ! Solution phase
             iFirstPP = nSpeciesPhase(-j-1) + 1
             iLastPP = nSpeciesPhase(-j)
-            dGramPhase(i)=sum(dGramSpecies(iFirstPP:iLastPP))
+            if (.NOT.PartitionPhaseActive(-j)) then
+                dGramPhase(i)=sum(dGramSpecies(iFirstPP:iLastPP))
+            else if (UseActiveSlotProperties(i, -j)) then
+                dGramPhase(i) = dMolesPhase(i) * SUM(&
+                    dActiveSlotMolFraction(i,iFirstPP:iLastPP) * &
+                    MATMUL(dStoichSpecies(iFirstPP:iLastPP,:),dAtomicMass))
+            else
+                dGramPhase(i)=sum(dGramSpecies(iFirstPP:iLastPP))
+            end if
         end if
     end do
     
@@ -353,6 +434,17 @@ subroutine PostProcess
         dGramFraction(iFirstPP:iLastPP) = dGramFraction(iFirstPP:iLastPP)/sum(dGramFraction(iFirstPP:iLastPP))
     end do
 
+    ! The requested-T solve must not erase a failure at T-dT.  Postprocess
+    ! properties may have been populated for diagnostics, but the raw terminal
+    ! status remains failed and Python exposes the stage and reason.
+    if (lPostProcessFailure) then
+        lConverged = .FALSE.
+        iGEMExitStatus = iPostProcessFailureStatus
+        if (iGEMExitStatus == GEM_EXIT_STATUS_OK) &
+            iGEMExitStatus = GEM_EXIT_STATUS_LAGRANGIAN_UNCONVERGED
+        iPhaseChangeReason = iPostProcessFailureReason
+    end if
+
 
 
 
@@ -361,6 +453,59 @@ subroutine PostProcess
     return
 !
 contains
+
+    logical function UseActiveSlotProperties(iSlotIn, iPhaseIn)
+
+        implicit none
+
+        integer, intent(in) :: iSlotIn, iPhaseIn
+        integer             :: iOtherSlot
+
+        UseActiveSlotProperties = .FALSE.
+        if (.NOT.PartitionPhaseActive(iPhaseIn)) return
+        if (.NOT.allocated(lActiveSlotPropValid)) return
+        if (.NOT.allocated(iActiveSlotThermoPhase)) return
+        if (.NOT.allocated(dActiveSlotMolFraction)) return
+        if (.NOT.allocated(dActiveSlotChemPot)) return
+        if (.NOT.allocated(dActiveSlotPartialH)) return
+        if (.NOT.allocated(dActiveSlotPartialS)) return
+        if (.NOT.allocated(dActiveSlotPartialCp)) return
+        if ((iSlotIn < 1).OR.(iSlotIn > SIZE(lActiveSlotPropValid))) return
+        if (iActiveSlotThermoPhase(iSlotIn) /= iPhaseIn) return
+        if (.NOT.lActiveSlotPropValid(iSlotIn)) return
+!
+!       Global phase arrays remain the authoritative legacy path for one
+!       composition set.  Slot-local properties are required only when two
+!       active slots share one thermodynamic parent and would otherwise
+!       overwrite each other's constitution and partial properties.
+        do iOtherSlot = 1, MIN(nElements,SIZE(iActiveSlotThermoPhase))
+            if (iOtherSlot == iSlotIn) cycle
+            if (iAssemblage(iOtherSlot) /= -iPhaseIn) cycle
+            if (iActiveSlotThermoPhase(iOtherSlot) /= iPhaseIn) cycle
+            UseActiveSlotProperties = .TRUE.
+            return
+        end do
+
+        return
+    end function UseActiveSlotProperties
+
+
+    logical function PartitionPhaseActive(iPhaseIn)
+
+        implicit none
+
+        integer, intent(in) :: iPhaseIn
+
+        PartitionPhaseActive = .FALSE.
+        if (.NOT.lODPartitionUnifiedActive) return
+        if (.NOT.allocated(iODTopologyClass)) return
+        if ((iPhaseIn < 1).OR.(iPhaseIn > SIZE(iODTopologyClass))) return
+        PartitionPhaseActive = &
+            (iODTopologyClass(iPhaseIn) >= OD_TOPOLOGY_HELPER_STANDALONE).AND.&
+            (iODTopologyClass(iPhaseIn) <= OD_TOPOLOGY_HELPER_ONLY)
+
+        return
+    end function PartitionPhaseActive
 
     subroutine FitCompoundOnlyPostProcessPlane
 

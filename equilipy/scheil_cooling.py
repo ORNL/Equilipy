@@ -14,11 +14,16 @@ import equilipy.equilifort as fort
 from ._parallel import starmap_joblib
 from .composition import expand_condition_species
 from .equilib_single import _equilib_single
-from .exceptions import EquilibError, TransitionError
+from .exceptions import (
+    EquilibError,
+    TransitionError,
+    liquidus_search_failure_warning,
+)
 from .find_transition import (
     _PhaseState,
     capture_phase_state,
     find_first_transition,
+    find_liquidus_transition,
     find_transitions,
 )
 from .list_phases import list_phases
@@ -340,6 +345,7 @@ def scheil_cooling(
     unit_local = unit.copy()
     unit_local[2] = "moles"
     # Start from liquidus
+    liquidus_warning = None
     if start_from_liquidus:
         if phases is not None and not any(
             phase != liquid_phase_name for phase in phases
@@ -350,28 +356,34 @@ def scheil_cooling(
         Tmax = current_condition["T"]
         Tmin = max(current_condition["T"] * 0.1, _transition_search_floor(unit_local))
         try:
-            Ts = find_first_transition(
+            Ts = find_liquidus_transition(
                 database,
                 current_condition,
+                liquid_phase_name,
                 Tmax,
                 Tmin,
                 unit=unit_local,
                 phases=phases,
             )
-        except TransitionError:
-            Ts = None
-        if Ts is None:
-            # Some high-temperature starts are already fully liquid but still
-            # numerically awkward for transition bracketing. In that case, keep
-            # the user-provided starting point and let the initial equilibrium
-            # calculation below verify that the liquid phase is stable.
-            pass
+        except TransitionError as exc:
+            liquidus_warning = liquidus_search_failure_warning(exc)
         else:
             current_condition["T"] = Ts + 0.1
 
     # --- Initial Equilibrium Calculation ---
     # Perform a single equilibrium calculation to establish the starting point
-    _equilib_single(database, current_condition, unit=unit_local, phases=phases)
+    # Scheil evolves phase amounts and the remaining-liquid composition; it does
+    # not consume an equilibrium heat-capacity perturbation.  At a solved phase
+    # boundary, the fixed-assemblage T-dT auxiliary state may not exist.  Keep
+    # every path solve on the requested temperature and use the fixed-state Cp
+    # assembled there.
+    _equilib_single(
+        database,
+        current_condition,
+        unit=unit_local,
+        phases=phases,
+        include_heat_capacity=False,
+    )
     state_old = capture_phase_state()
     assemblage_old = set(state_old.ids)
 
@@ -380,6 +392,12 @@ def scheil_cooling(
         input_unit=unit,
         context=result_context,
     )
+    if liquidus_warning is not None:
+        _emit_cooling_warning(
+            res,
+            liquidus_warning,
+            progress_callback=progress_callback,
+        )
     if default_excluded_ordered_phases:
         _emit_cooling_warning(
             res,
@@ -477,7 +495,13 @@ def scheil_cooling(
         step_equilibrium_failed = False
         used_stable_set_retry = False
         try:
-            _equilib_single(database, current_condition, unit=unit_local, phases=phases)
+            _equilib_single(
+                database,
+                current_condition,
+                unit=unit_local,
+                phases=phases,
+                include_heat_capacity=False,
+            )
             if solidification_started and _is_pure_liquid_state(liquid_phase_name):
                 retry_phases = _previous_stable_phase_retry(
                     res,
@@ -494,6 +518,7 @@ def scheil_cooling(
                             current_condition,
                             unit=unit_local,
                             phases=retry_phases,
+                            include_heat_capacity=False,
                         )
                         used_stable_set_retry = True
                     except Exception:
@@ -513,6 +538,7 @@ def scheil_cooling(
                         current_condition,
                         unit=unit_local,
                         phases=retry_phases,
+                        include_heat_capacity=False,
                     )
                     used_stable_set_retry = True
                 except Exception:
@@ -555,6 +581,7 @@ def scheil_cooling(
                         current_condition,
                         unit=unit_local,
                         phases=phases,
+                        include_heat_capacity=False,
                     )
                 except Exception:
                     current_condition["T"] = Tmax
@@ -586,6 +613,7 @@ def scheil_cooling(
                         current_condition,
                         unit=unit_local,
                         phases=phases,
+                        include_heat_capacity=False,
                     )
                     if solidification_started and _is_pure_liquid_state(
                         liquid_phase_name
@@ -608,6 +636,7 @@ def scheil_cooling(
                             hot_side_condition,
                             unit=unit_local,
                             phases=phases,
+                            include_heat_capacity=False,
                         )
                         if not _is_pure_liquid_state(liquid_phase_name):
                             _insert_transition_hot_side_point(
@@ -633,6 +662,7 @@ def scheil_cooling(
                         current_condition,
                         unit=unit_local,
                         phases=phases,
+                        include_heat_capacity=False,
                     )
                 except Exception:
                     terminal_search_needed = True
@@ -658,6 +688,7 @@ def scheil_cooling(
                             current_condition,
                             unit=unit_local,
                             phases=phases,
+                            include_heat_capacity=False,
                         )
                         reached_terminal_liquidus = True
                     except TransitionError:

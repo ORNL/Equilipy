@@ -10,8 +10,27 @@ on:
     types: [published]
 
 jobs:
+  version-guard:
+    name: Tag/version guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify pyproject version and release tag agree
+        run: |
+          set -e
+          VERSION=$(python3 -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "pyproject version: $VERSION"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+            echo "release tag: $TAG"
+            if [ "$TAG" != "v$VERSION" ]; then
+              echo "::error::Release tag $TAG does not match pyproject version v$VERSION — refusing to build/publish."
+              exit 1
+            fi
+          fi
   build_wheels:
     name: Build wheels on ${{ matrix.buildplat[0] }} (${{ matrix.buildplat[1] }})
+    needs: version-guard
     runs-on: ${{ matrix.buildplat[0] }}
     strategy:
       fail-fast: false
@@ -60,6 +79,7 @@ jobs:
 
   build_wheels_i686:
     name: Build wheels on ubuntu-latest (i686) - Python ${{ matrix.python }}
+    needs: version-guard
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -124,3 +144,6 @@ jobs:
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
           packages-dir: ./dist/
+          # A release-job retry can encounter files uploaded by its first
+          # attempt. PyPI artifacts are immutable, so keep the retry idempotent.
+          skip-existing: true

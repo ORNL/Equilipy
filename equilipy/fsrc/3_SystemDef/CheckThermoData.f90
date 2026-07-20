@@ -22,11 +22,11 @@ subroutine CheckThermoData
     ! Revisions:
     ! ==========
     !
-    !    Date          Programmer       Description of change
-    !    ----          ----------       ---------------------
-    !    09/02/2011    M.H.A. Piro      Original code
-    !    10/20/2011    M.H.A. Piro      Updated modules
-    !    02/25/2021    S.K. Kwon        Revised to implement phase selection for stoichiometric compounds
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   09/02/2011      M.H.A. Piro         Original code
+    !   10/20/2011      M.H.A. Piro         Updated modules
+    !   02/25/2021      S.K. Kwon           Revised to implement phase selection for stoichiometric compounds
     !
     ! Purpose:
     ! ========

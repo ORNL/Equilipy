@@ -14,9 +14,9 @@ subroutine GetElementName(cElementNamePT)
     ! Revisions:
     ! ==========
     !
-    !    Date          Programmer        Description of change
-    !    ----          ----------        ---------------------
-    !    10/18/2011    M.H.A. Piro       Original code
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   10/18/2011      M.H.A. Piro         Original code
     !
     !
     ! Purpose:

@@ -11,32 +11,12 @@ subroutine CompMinSolnPoint
     ! Revisions:
     ! ==========
     !
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!
-!   05/04/2022      S.Y. Kwon           Original code
-!   06/25/2026      S.Y. Kwon           Added corrected symmetry-broken SUBOM starts during PEA solution
-!                                       minimization so ordered phases do not remain trapped at random states
-!   06/25/2026      S.Y. Kwon           Limited SUBOM PEA starts to the nElements lowest endmember driving
-!                                       forces after subtracting the elemental-potential plane
-!   06/25/2026      S.Y. Kwon           Refresh active PEA solution-slot mole fractions after subminimization
-!                                       updates a selected solution candidate row
-!   06/26/2026      S.Y. Kwon           Rejected unknown submin starts from refreshed PEA pseudo-compound rows.
-!   06/27/2026      S.Y. Kwon           Accepted general negative driving-force witnesses as valid
-!                                       refreshed PEA pseudo-compound rows.
-!   06/28/2026      S.Y. Kwon           Preferred converged starts over early-exit witnesses when ranking
-!                                       refreshed PEA pseudo-compound candidates.
-!   06/28/2026      S.Y. Kwon           Stopped overwriting active PEA slot fractions without refreshing
-!                                       the matching pseudo-compound stoichiometry.
-!   07/01/2026      S.Y. Kwon           Skipped mapped ordered phases without active ordering degrees of
-!                                       freedom during refreshed PEA solution-candidate generation.
-!   07/01/2026      S.Y. Kwon           Ranked converged and negative-witness SUBOM starts together by
-!                                       driving force so ordered below-plane witnesses survive PEA.
-!   07/01/2026      S.Y. Kwon           Included all refreshed SUBOM endpoint starts tied within the
-!                                       Leveling-potential cutoff.
-!   07/03/2026      S.Y. Kwon           Registered switch-gated second SUBOM composition-set rows in the
-!                                       PEA candidate pool after refreshed solution minimization.
-!
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !
+    !   05/04/2022      S.Y. Kwon           Original code
+    !   07/20/2026      S.Y. Kwon           Refreshed typed solution candidates from model-appropriate starts and used one best grid point per phase in grid-mode certification sweeps.
+    !
     !
     !
     ! Purpose:
@@ -50,18 +30,23 @@ subroutine CompMinSolnPoint
     USE ModuleThermo
     USE ModuleThermoIO
     USE ModuleGEMSolver
+    USE GridDiscovery, ONLY: GridTangentRowIndex
 !
     implicit none
 !
-    integer :: i,j,k,l,m,n,nConstituents,nStartConstituents
+    integer :: i,j,k,l,m,n,iLoop,iLevelRow,iBaseLevelRow,nConstituents,nElementOrConstituent
+    integer :: iPoint, iBestPoint, iGridRow, iGridOffset
+    integer :: nStartCount, nEndpointStartCount
     real(8):: dNormComponent, dStartMinMoleFraction, dStartMaxMoleFraction
+    real(8):: dSubMinElapsed
     real(8), parameter :: dEndpointTieTolerance = 1D-12
-    real(8) :: dEndpointCutoffPotential
+    real(8) :: dEndpointCutoffPotential, dGridPotential, dBestGridPotential
     logical :: lAddPhase, lSelectedCandidateValid, lSelectedCandidateDistinct
     logical :: lHasConvergedStart, lHasNegativeWitnessStart
+    logical :: lUseSortedEndmemberStartsOnly
     logical :: OrderDisorderPhaseIsEligible
     integer, dimension(:), allocatable :: iIndex, iEndmemberPotential, iCandidateStatusTemp
-    real(8), dimension(:), allocatable :: dDrivingForceTemp, dEndmemberPotential
+    real(8), dimension(:), allocatable :: dDrivingForceTemp, dEndmemberPotential, dSubMinTimeTemp
     real(8), dimension(:,:), allocatable :: dAtomFractionTemp, dStoichSpeciesTemp, dMolFractionTemp
 !
 !
@@ -88,7 +73,6 @@ subroutine CompMinSolnPoint
         dPartialEnthalpyXS(nSpecies),&
         dPartialEntropyXS(nSpecies),&
         dPartialHeatCapacityXS(nSpecies))
-    ! dChemicalPotential(nSpecies+1:)=5D9
     dPartialExcessGibbs=0D0
     dPartialEnthalpyXS=0D0
     dPartialEntropyXS=0D0
@@ -101,32 +85,59 @@ subroutine CompMinSolnPoint
     dMolFractionOld=dMolFraction
     dChemicalPotentialOld = dChemicalPotential(:nSpecies)
     k = 1
-    LOOP_Soln: do i = 1, nSolnPhasesSys
+    LOOP_Soln: do iLoop = 1, nSolnPhasesSys
+        i = iLoop
+        if (lPEADFSweepReversePhaseOrder) i = nSolnPhasesSys + 1 - iLoop
         !initialize variables
         m                = nSpeciesPhase(i-1) + 1      ! First constituent in phase.
         n                = nSpeciesPhase(i)            ! Last  constituent in phase.
+        iLevelRow        = GridTangentRowIndex(i)
         nConstituents    = n - m + 1
+        lUseSortedEndmemberStartsOnly = .FALSE.
         lAddPhase        = .False.
         if (.NOT.OrderDisorderPhaseIsEligible(i)) then
-            iPhaseLevel(nSpecies+i) = i
-            dChemicalPotential(nSpecies+i) = 5D9
-            dPhasePotential(nSpecies+i) = 5D9
-            call SetLevelingSolutionCandidateRow(nSpecies+i, i, dMolFraction(m:n), .FALSE.)
+            iPhaseLevel(iLevelRow) = i
+            dChemicalPotential(iLevelRow) = 5D9
+            dPhasePotential(iLevelRow) = 5D9
+            call SetLevelingSolutionCandidateRow(iLevelRow, i, dMolFraction(m:n), .FALSE.)
             cycle LOOP_Soln
         end if
 
-        if (TRIM(cSolnPhaseType(i)) == 'SUBOM') then
-            nStartConstituents = MIN(nConstituents, nElements)
+        if (lGridFrontEndActive.AND.allocated(iGridPointPhase).AND.&
+            allocated(iGridPointLevelRow).AND.allocated(iGridPointFractionOffset).AND.&
+            allocated(dGridPointFraction)) then
+            iBestPoint = 0
+            dBestGridPotential = HUGE(1D0)
+            do iPoint = 1, nGridPoint
+                if (iGridPointPhase(iPoint) /= i) cycle
+                iGridRow = iGridPointLevelRow(iPoint)
+                if ((iGridRow < 1).OR.(iGridRow > nSpeciesLevel)) cycle
+                dGridPotential = dLevelingChemicalPotential(iGridRow) - &
+                    dot_product(dLevelingCompositionSpecies(iGridRow,:),dElementPotential)
+                if (dGridPotential < dBestGridPotential) then
+                    dBestGridPotential = dGridPotential
+                    iBestPoint = iPoint
+                end if
+            end do
+            if (iBestPoint > 0) then
+                iGridOffset = iGridPointFractionOffset(iBestPoint)
+                dMolFraction(m:n) = dGridPointFraction(iGridOffset:iGridOffset+nConstituents-1)
+            end if
+        else if (TRIM(cSolnPhaseType(i)) == 'SUBOM') then
+            lUseSortedEndmemberStartsOnly = .TRUE.
+        end if
 
-            if (allocated(iIndex)) deallocate(iIndex)
-            if (allocated(iEndmemberPotential)) deallocate(iEndmemberPotential)
-            if (allocated(dDrivingForceTemp)) deallocate(dDrivingForceTemp)
-            if (allocated(dEndmemberPotential)) deallocate(dEndmemberPotential)
-            if (allocated(dAtomFractionTemp)) deallocate(dAtomFractionTemp)
-            if (allocated(dStoichSpeciesTemp)) deallocate(dStoichSpeciesTemp)
-            if (allocated(dMolFractionTemp)) deallocate(dMolFractionTemp)
-            if (allocated(iCandidateStatusTemp)) deallocate(iCandidateStatusTemp)
+        if (allocated(iIndex)) deallocate(iIndex)
+        if (allocated(iEndmemberPotential)) deallocate(iEndmemberPotential)
+        if (allocated(dDrivingForceTemp)) deallocate(dDrivingForceTemp)
+        if (allocated(dEndmemberPotential)) deallocate(dEndmemberPotential)
+        if (allocated(dSubMinTimeTemp)) deallocate(dSubMinTimeTemp)
+        if (allocated(dAtomFractionTemp)) deallocate(dAtomFractionTemp)
+        if (allocated(dStoichSpeciesTemp)) deallocate(dStoichSpeciesTemp)
+        if (allocated(dMolFractionTemp)) deallocate(dMolFractionTemp)
+        if (allocated(iCandidateStatusTemp)) deallocate(iCandidateStatusTemp)
 
+        if (lUseSortedEndmemberStartsOnly) then
             allocate(iEndmemberPotential(nConstituents))
             allocate(dEndmemberPotential(nConstituents))
 
@@ -134,95 +145,119 @@ subroutine CompMinSolnPoint
                 MATMUL(dLevelingCompositionSpecies(m:n,:), dElementPotential)
             call Qsort(dEndmemberPotential, iEndmemberPotential, nConstituents)
 
-            dEndpointCutoffPotential = dEndmemberPotential(nStartConstituents)
-            do while (nStartConstituents < nConstituents)
-                if (DABS(dEndmemberPotential(nStartConstituents+1) - &
+            nElementOrConstituent = MIN(nElements,nConstituents)
+            nEndpointStartCount = nElementOrConstituent
+            dEndpointCutoffPotential = dEndmemberPotential(nElementOrConstituent)
+            do while (nEndpointStartCount < nConstituents)
+                if (DABS(dEndmemberPotential(nEndpointStartCount+1) - &
                     dEndpointCutoffPotential) > dEndpointTieTolerance) exit
-                nStartConstituents = nStartConstituents + 1
+                nEndpointStartCount = nEndpointStartCount + 1
             end do
-
-            allocate(iIndex(nStartConstituents), iCandidateStatusTemp(nStartConstituents))
-            allocate(dDrivingForceTemp(nStartConstituents))
-            allocate(dAtomFractionTemp(nStartConstituents,nElements))
-            allocate(dStoichSpeciesTemp(nStartConstituents,nElements))
-            allocate(dMolFractionTemp(nStartConstituents,nConstituents))
-
-            iIndex = 1
-            iCandidateStatusTemp = SUBMIN_CANDIDATE_UNKNOWN
-            dDrivingForceTemp = 9D5
-            dAtomFractionTemp = 0D0
-            dStoichSpeciesTemp = 0D0
-            dMolFractionTemp = 0D0
-
-            do j = 1, nStartConstituents
-                dMolFraction(m:n) = dStartMinMoleFraction
-                dStartMaxMoleFraction = 1D0 - dStartMinMoleFraction * DFLOAT(nConstituents-1)
-                dMolFraction(m+iEndmemberPotential(j)-1) = &
-                    DMAX1(dStartMaxMoleFraction, 0.99D0)
-
-                call Subminimization(i, lAddPhase)
-                call CompStoichSolnPhase(i)
-
-                dDrivingForceTemp(j) = dDrivingForceSoln(i)
-                iCandidateStatusTemp(j) = iSubMinCandidateStatusSoln(i)
-                dMolFractionTemp(j,:) = dMolFraction(m:n)
-                dAtomFractionTemp(j,:) = dEffStoichSolnPhase(i,:) / SUM(dEffStoichSolnPhase(i,:))
-                dStoichSpeciesTemp(j,:) = dEffStoichSolnPhase(i,:)
-            end do
-
-            ! Multiple starts should escape bad endpoints.  A negative witness is a
-            ! thermodynamic phase-entry proof, so rank it with converged starts by
-            ! driving force instead of letting a converged random state hide it.
-            lHasConvergedStart = ANY(iCandidateStatusTemp == SUBMIN_CANDIDATE_CONVERGED)
-            lHasNegativeWitnessStart = ANY(iCandidateStatusTemp == SUBMIN_CANDIDATE_NEGATIVE_WITNESS)
-            if (lHasConvergedStart.OR.lHasNegativeWitnessStart) then
-                do j = 1, nStartConstituents
-                    if ((iCandidateStatusTemp(j) /= SUBMIN_CANDIDATE_CONVERGED).AND.&
-                        (iCandidateStatusTemp(j) /= SUBMIN_CANDIDATE_NEGATIVE_WITNESS)) then
-                        dDrivingForceTemp(j) = 9D5
-                    end if
-                end do
-            end if
-
-            call Qsort(dDrivingForceTemp, iIndex, nStartConstituents)
-
-            dMolFraction(m:n) = dMolFractionTemp(iIndex(1),:)
-            dGibbsSolnPhase(i) = 0D0
-            call CompExcessGibbsEnergy(i)
-            call CompStoichSolnPhase(i)
-            dDrivingForceSoln(i) = dDrivingForceTemp(1)
-            iSubMinCandidateStatusSoln(i) = iCandidateStatusTemp(iIndex(1))
+            nStartCount = nEndpointStartCount
         else
-            call Subminimization(i, lAddPhase)
+            nStartCount = 1
         end if
 
+        allocate(iIndex(nStartCount), iCandidateStatusTemp(nStartCount))
+        allocate(dDrivingForceTemp(nStartCount), dSubMinTimeTemp(nStartCount))
+        allocate(dAtomFractionTemp(nStartCount,nElements))
+        allocate(dStoichSpeciesTemp(nStartCount,nElements))
+        allocate(dMolFractionTemp(nStartCount,nConstituents))
+
+        iIndex = 1
+        iCandidateStatusTemp = SUBMIN_CANDIDATE_UNKNOWN
+        dDrivingForceTemp = 9D5
+        dSubMinTimeTemp = 0D0
+        dAtomFractionTemp = 0D0
+        dStoichSpeciesTemp = 0D0
+        dMolFractionTemp = 0D0
+        if (lUseSortedEndmemberStartsOnly) then
+            dStartMaxMoleFraction = 1D0 - dStartMinMoleFraction * DFLOAT(nConstituents-1)
+            dStartMaxMoleFraction = DMAX1(dStartMaxMoleFraction, 0.99D0)
+        end if
+
+        do j = 1, nStartCount
+            if (lUseSortedEndmemberStartsOnly) then
+                dMolFraction(m:n) = dStartMinMoleFraction
+                dMolFraction(m+iEndmemberPotential(j)-1) = dStartMaxMoleFraction
+            else
+                if (SUM(dMolFraction(m:n)) > 0D0) then
+                    dMolFraction(m:n) = dMolFraction(m:n) / SUM(dMolFraction(m:n))
+                else
+                    dMolFraction(m:n) = 1D0 / DFLOAT(nConstituents)
+                end if
+            end if
+
+            call TimedCandidateSubminimization(i, lAddPhase, dSubMinElapsed)
+            call CompStoichSolnPhase(i)
+
+            dDrivingForceTemp(j) = dDrivingForceSoln(i)
+            dSubMinTimeTemp(j) = dSubMinElapsed
+            iCandidateStatusTemp(j) = iSubMinCandidateStatusSoln(i)
+            dMolFractionTemp(j,:) = dMolFraction(m:n)
+            dAtomFractionTemp(j,:) = dEffStoichSolnPhase(i,:) / SUM(dEffStoichSolnPhase(i,:))
+            dStoichSpeciesTemp(j,:) = dEffStoichSolnPhase(i,:)
+        end do
+
+        ! Multiple starts should escape bad endpoints.  A negative witness is a
+        ! thermodynamic phase-entry proof, so rank it with converged starts by
+        ! driving force instead of letting a converged random state hide it.
+        lHasConvergedStart = ANY(iCandidateStatusTemp == SUBMIN_CANDIDATE_CONVERGED)
+        lHasNegativeWitnessStart = ANY(iCandidateStatusTemp == SUBMIN_CANDIDATE_NEGATIVE_WITNESS)
+        if (lHasConvergedStart.OR.lHasNegativeWitnessStart) then
+            do j = 1, nStartCount
+                if ((iCandidateStatusTemp(j) /= SUBMIN_CANDIDATE_CONVERGED).AND.&
+                    (iCandidateStatusTemp(j) /= SUBMIN_CANDIDATE_NEGATIVE_WITNESS)) then
+                    dDrivingForceTemp(j) = 9D5
+                end if
+            end do
+        end if
+
+        call Qsort(dDrivingForceTemp, iIndex, nStartCount)
+        do j = 1, nStartCount
+            call RecordCandidateCertificate(i, j, iLevelRow, &
+                iCandidateStatusTemp(iIndex(j)), &
+                dDrivingForceTemp(j), dSubMinTimeTemp(iIndex(j)), m, n, j, &
+                dMolFractionTemp(iIndex(j),:))
+        end do
+
+        dMolFraction(m:n) = dMolFractionTemp(iIndex(1),:)
+        dGibbsSolnPhase(i) = 0D0
+        call CompExcessGibbsEnergy(i)
         call CompStoichSolnPhase(i)
-        ! print*,'Composition',i,m,n,dMolFraction(m:n),dDrivingForceSoln(i)
-        dAtomFractionSpecies(nSpecies+i,:) = dEffStoichSolnPhase(i,:)/sum(dEffStoichSolnPhase(i,:))
-        dStoichSpeciesLevel(nSpecies+i,:)  = dEffStoichSolnPhase(i,:)
-        iPhaseLevel(nSpecies+i)            = i
+        dDrivingForceSoln(i) = dDrivingForceTemp(1)
+        iSubMinCandidateStatusSoln(i) = iCandidateStatusTemp(iIndex(1))
+
+        call CompStoichSolnPhase(i)
+        dAtomFractionSpecies(iLevelRow,:) = &
+            dEffStoichSolnPhase(i,:)/sum(dEffStoichSolnPhase(i,:))
+        dStoichSpeciesLevel(iLevelRow,:) = dEffStoichSolnPhase(i,:)
+        iPhaseLevel(iLevelRow) = i
         lSelectedCandidateDistinct          = .TRUE.
         if (lMiscibility(i)) then
-            if (sum(abs(dAtomFractionSpecies(nSpecies+i,:)-dAtomFractionSpecies(nSpecies+k,:)))/DFLOAT(nElements)>1D-4) then
-                dChemicalPotential(nSpecies+i)     = dDrivingForceSoln(i) + &
-                dot_product(dAtomFractionSpecies(nSpecies+i,:),dElementPotential(:))
+            iBaseLevelRow = GridTangentRowIndex(k)
+            if (sum(abs(dAtomFractionSpecies(iLevelRow,:)-&
+                dAtomFractionSpecies(iBaseLevelRow,:)))/DFLOAT(nElements)>1D-4) then
+                dChemicalPotential(iLevelRow) = dDrivingForceSoln(i) + &
+                    dot_product(dAtomFractionSpecies(iLevelRow,:),dElementPotential(:))
             else
-                dChemicalPotential(nSpecies+i) = 5D9
+                dChemicalPotential(iLevelRow) = 5D9
                 lSelectedCandidateDistinct = .FALSE.
             end if
         else
             k=i
-            dChemicalPotential(nSpecies+i)     = dDrivingForceSoln(i) + &
-            dot_product(dAtomFractionSpecies(nSpecies+i,:),dElementPotential(:))  
+            dChemicalPotential(iLevelRow) = dDrivingForceSoln(i) + &
+                dot_product(dAtomFractionSpecies(iLevelRow,:),dElementPotential(:))
         end if
         lSelectedCandidateValid = (iSubMinCandidateStatusSoln(i) == SUBMIN_CANDIDATE_CONVERGED).OR.&
             (iSubMinCandidateStatusSoln(i) == SUBMIN_CANDIDATE_NEGATIVE_WITNESS)
         lSelectedCandidateValid = lSelectedCandidateValid.AND.lSelectedCandidateDistinct
-        call SetLevelingSolutionCandidateRow(nSpecies+i, i, dMolFraction(m:n), lSelectedCandidateValid)
+        call SetLevelingSolutionCandidateRow(iLevelRow, i, dMolFraction(m:n), lSelectedCandidateValid)
         
         
     end do LOOP_Soln
 
+    call ReconcileOrderDisorderCandidateRows
     call RegisterSUBOMTwoSetCandidateRows
 
     ! Calculate functional norm: Mass balance 
@@ -256,6 +291,159 @@ subroutine CompMinSolnPoint
     *DFLOAT(iParticlesPerMole)/ dSpeciesTotalAtoms
 !
 !
+contains
+
+    subroutine RecordCandidateCertificate(iSolnPhaseIn, iCopyIn, iLevelRowIn, &
+        iSubMinStatusIn, dDrivingForceIn, dTimingIn, iFirstSpeciesIn, iLastSpeciesIn, iRankIn, &
+        dFractionIn)
+
+        implicit none
+
+        integer, intent(in) :: iSolnPhaseIn, iCopyIn, iLevelRowIn
+        integer, intent(in) :: iSubMinStatusIn, iFirstSpeciesIn, iLastSpeciesIn, iRankIn
+        real(8), intent(in) :: dDrivingForceIn, dTimingIn
+        real(8), dimension(:), intent(in) :: dFractionIn
+
+        integer :: iCopy, iRecord, nCopyCapacity, nPlane
+
+        nGEMCertEmissionCount = nGEMCertEmissionCount + 1
+        call StagePEADFCandidate(iSolnPhaseIn,iLevelRowIn,CertificateBasis(iSolnPhaseIn),&
+            CertificateStatus(iSubMinStatusIn,dDrivingForceIn),CertificateProof(iSubMinStatusIn),&
+            iRankIn,dDrivingForceIn,dTimingIn,iFirstSpeciesIn,iLastSpeciesIn,dFractionIn)
+        if (.NOT.allocated(iGEMCertPhase)) return
+        if (nGEMCertCapacity <= 0) return
+
+        nCopyCapacity = MAX(1,nElements)
+        if ((iCopyIn < 1).OR.(iCopyIn > nCopyCapacity)) then
+            nGEMCertDropped = nGEMCertDropped + 1
+            return
+        end if
+        iCopy = iCopyIn
+        iRecord = (iSolnPhaseIn - 1) * nCopyCapacity + iCopy
+        if ((iRecord < 1).OR.(iRecord > nGEMCertCapacity)) then
+            nGEMCertDropped = nGEMCertDropped + 1
+            return
+        end if
+
+        if (iGEMCertPhase(iRecord) == 0) then
+            nGEMCertCount = nGEMCertCount + 1
+        end if
+
+        iGEMCertPhase(iRecord) = iSolnPhaseIn
+        iGEMCertCopy(iRecord) = iCopy
+        iGEMCertLevelRow(iRecord) = iLevelRowIn
+        iGEMCertBasis(iRecord) = CertificateBasis(iSolnPhaseIn)
+        iGEMCertNorm(iRecord) = GEM_CERT_NORMALIZATION_PER_MOLE_ATOMS
+        iGEMCertStatus(iRecord) = CertificateStatus(iSubMinStatusIn, dDrivingForceIn)
+        iGEMCertProof(iRecord) = CertificateProof(iSubMinStatusIn)
+        iGEMCertSubMinStatus(iRecord) = iSubMinStatusIn
+        iGEMCertRank(iRecord) = iRankIn
+        iGEMCertFirstSpecies(iRecord) = iFirstSpeciesIn
+        iGEMCertLastSpecies(iRecord) = iLastSpeciesIn
+        dGEMCertDrivingForce(iRecord) = dDrivingForceIn
+        ! Timing records only the Subminimization call; emission overhead is not included.
+        dGEMCertTiming(iRecord) = dTimingIn
+        if (allocated(dGEMCertPlane)) then
+            dGEMCertPlane(iRecord,:) = 0D0
+            nPlane = MIN(nElements,SIZE(dGEMCertPlane,2))
+            if (nPlane > 0) dGEMCertPlane(iRecord,:nPlane) = dElementPotential(:nPlane)
+        end if
+
+        return
+
+    end subroutine RecordCandidateCertificate
+
+    integer function CertificateBasis(iSolnPhaseIn)
+
+        implicit none
+
+        integer, intent(in) :: iSolnPhaseIn
+
+        select case (TRIM(cSolnPhaseType(iSolnPhaseIn)))
+        case ('SUBL','SUBLM','SUBOM')
+            CertificateBasis = GEM_CERT_BASIS_SITE_FRACTION
+        case ('SUBG')
+            CertificateBasis = GEM_CERT_BASIS_PAIR_FRACTION
+        case ('SUBQ')
+            CertificateBasis = GEM_CERT_BASIS_QUADRUPLET_FRACTION
+        case default
+            CertificateBasis = GEM_CERT_BASIS_ENDMEMBER_FRACTION
+        end select
+
+        return
+
+    end function CertificateBasis
+
+    integer function CertificateStatus(iSubMinStatusIn, dDrivingForceIn)
+
+        implicit none
+
+        integer, intent(in) :: iSubMinStatusIn
+        real(8), intent(in) :: dDrivingForceIn
+
+        select case (iSubMinStatusIn)
+        case (SUBMIN_CANDIDATE_CONVERGED, SUBMIN_CANDIDATE_NEGATIVE_WITNESS)
+            if (dDrivingForceIn < 0D0) then
+                CertificateStatus = GEM_CERT_STATUS_FAVORABLE
+            else
+                CertificateStatus = GEM_CERT_STATUS_FRESH_NEGATIVE
+            end if
+        case (SUBMIN_CANDIDATE_MAX_ITER, SUBMIN_CANDIDATE_REJECTED)
+            CertificateStatus = GEM_CERT_STATUS_FAILED
+        case (SUBMIN_CANDIDATE_DUPLICATE)
+            CertificateStatus = GEM_CERT_STATUS_DUPLICATE
+        case default
+            CertificateStatus = GEM_CERT_STATUS_UNKNOWN
+        end select
+
+        return
+
+    end function CertificateStatus
+
+    integer function CertificateProof(iSubMinStatusIn)
+
+        implicit none
+
+        integer, intent(in) :: iSubMinStatusIn
+
+        select case (iSubMinStatusIn)
+        case (SUBMIN_CANDIDATE_CONVERGED)
+            CertificateProof = GEM_CERT_PROOF_SUBMIN_CONVERGED
+        case (SUBMIN_CANDIDATE_NEGATIVE_WITNESS)
+            CertificateProof = GEM_CERT_PROOF_NEGATIVE_WITNESS
+        case (SUBMIN_CANDIDATE_MAX_ITER)
+            CertificateProof = GEM_CERT_PROOF_MAX_ITER
+        case (SUBMIN_CANDIDATE_REJECTED)
+            CertificateProof = GEM_CERT_PROOF_REJECTED
+        case (SUBMIN_CANDIDATE_DUPLICATE)
+            CertificateProof = GEM_CERT_PROOF_DUPLICATE
+        case default
+            CertificateProof = GEM_CERT_PROOF_UNKNOWN
+        end select
+
+        return
+
+    end function CertificateProof
+
+    subroutine TimedCandidateSubminimization(iSolnPhaseIn, lAddPhaseOut, dElapsedOut)
+
+        implicit none
+
+        integer, intent(in) :: iSolnPhaseIn
+        logical, intent(out) :: lAddPhaseOut
+        real(8), intent(out) :: dElapsedOut
+
+        real(8) :: dStartTime, dStopTime
+
+        call cpu_time(dStartTime)
+        call Subminimization(iSolnPhaseIn, lAddPhaseOut)
+        call cpu_time(dStopTime)
+        dElapsedOut = DMAX1(0D0,dStopTime - dStartTime)
+
+        return
+
+    end subroutine TimedCandidateSubminimization
+
 end subroutine CompMinSolnPoint
 !
 !

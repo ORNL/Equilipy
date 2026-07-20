@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
 import equilipy.equilifort as fort
 import equilipy.variables as var
 
-from .exceptions import EquilibError
+from .exceptions import EquilibError, SolverFailureReason
 
 _DEBUG_MODE = False
 
@@ -26,6 +28,155 @@ def _gem_exit_status() -> int:
     if hasattr(value, "item"):
         value = value.item()
     return int(value)
+
+
+@dataclass(frozen=True, slots=True)
+class SolverStatus:
+    """Raw terminal solver facts and their named public failure reason."""
+
+    converged: bool
+    thermo_status: int
+    gem_exit_status: int
+    phase_change_reason: int
+    pea_exit_status: int
+    pea_exit_reason: int
+    grid_fallback_reason: int
+    residual_norm: float
+    failure_reason: SolverFailureReason | None
+
+    @property
+    def failed(self) -> bool:
+        """Return whether the raw facts describe a failed terminal state."""
+        return self.failure_reason is not None
+
+
+def classify_solver_failure(
+    *,
+    stage: str,
+    converged: bool,
+    thermo_status: int,
+    gem_exit_status: int,
+    pea_exit_status: int,
+    pea_exit_reason: int,
+    grid_fallback_reason: int,
+    residual_norm: float,
+) -> SolverFailureReason | None:
+    """Classify raw solver facts without changing any of them.
+
+    Parameters
+    ----------
+    stage
+        Name of the completed Fortran stage.
+    converged
+        Raw Lagrangian convergence flag.
+    thermo_status
+        Raw ``INFOThermo`` value.
+    gem_exit_status
+        Raw GEM exit status.
+    pea_exit_status
+        Raw strict PEA certificate status.
+    pea_exit_reason
+        Raw PEA exit-path reason.
+    grid_fallback_reason
+        Raw static-grid failure reason.
+    residual_norm
+        Final GEM residual norm.
+
+    Returns
+    -------
+    SolverFailureReason or None
+        Named failure reason, or ``None`` for a coherent successful state.
+    """
+    gem = fort.modulegemsolver
+    failure_present = (
+        thermo_status != 0
+        or gem_exit_status != int(getattr(gem, "gem_exit_status_ok", 0))
+        or not converged
+    )
+
+    if failure_present and grid_fallback_reason != int(
+        getattr(gem, "grid_fallback_none", 0)
+    ):
+        if grid_fallback_reason == int(
+            getattr(gem, "grid_fallback_lagrangian", 2)
+        ):
+            return SolverFailureReason.PEALG_FAILED
+        if grid_fallback_reason == int(
+            getattr(gem, "grid_fallback_certificate", 3)
+        ):
+            return SolverFailureReason.DF_SWEEP_UNKNOWN
+        return SolverFailureReason.GRID_SEED_INVALID
+
+    if failure_present and pea_exit_reason == int(
+        getattr(gem, "pea_exit_reason_max_iter", 8)
+    ):
+        return SolverFailureReason.PEA_MAX
+
+    if stage in {"pealg", "pea_lagrangian"} and failure_present:
+        return SolverFailureReason.PEALG_FAILED
+    if stage in {"df_sweep", "candidate_sweep"} and failure_present:
+        return SolverFailureReason.DF_SWEEP_UNKNOWN
+    if stage == "postprocess" and failure_present:
+        return SolverFailureReason.POSTPROCESS_FAILED
+
+    if failure_present and gem_exit_status == int(
+        getattr(gem, "gem_exit_status_pea_uncertified_handoff", 2)
+    ):
+        error_reasons = {
+            int(getattr(gem, "pea_exit_reason_error_direct_handoff", 1)),
+            int(getattr(gem, "pea_exit_reason_error_leveling", 2)),
+        }
+        if pea_exit_reason in error_reasons:
+            return SolverFailureReason.DF_SWEEP_UNKNOWN
+        return SolverFailureReason.PEA_UNCERTIFIED
+
+    if thermo_status != 0:
+        return SolverFailureReason.FORTRAN_STAGE_FAILED
+    if not converged and gem_exit_status == int(
+        getattr(gem, "gem_exit_status_ok", 0)
+    ):
+        return SolverFailureReason.STATUS_INCONSISTENT
+    if not converged or gem_exit_status != int(
+        getattr(gem, "gem_exit_status_ok", 0)
+    ):
+        return SolverFailureReason.LAGRANGIAN_UNCONVERGED
+    if residual_norm > 1e-5:
+        return SolverFailureReason.RESIDUAL_NOT_CONVERGED
+    return None
+
+
+def capture_solver_status(stage: str = "gemsolver") -> SolverStatus:
+    """Capture immutable raw solver facts after a Fortran stage."""
+    gem = fort.modulegemsolver
+    converged = bool(getattr(gem, "lconverged", False))
+    thermo_status = _thermo_info()
+    gem_exit_status = _gem_exit_status()
+    phase_change_reason = int(getattr(gem, "iphasechangereason", 0))
+    pea_exit_status = int(getattr(gem, "ipeaexitstatus", 0))
+    pea_exit_reason = int(getattr(gem, "ipeaexitreason", 0))
+    grid_fallback_reason = int(getattr(gem, "igridfallbackreason", 0))
+    residual_norm = float(getattr(gem, "dgemfunctionnorm", np.inf))
+    failure_reason = classify_solver_failure(
+        stage=stage,
+        converged=converged,
+        thermo_status=thermo_status,
+        gem_exit_status=gem_exit_status,
+        pea_exit_status=pea_exit_status,
+        pea_exit_reason=pea_exit_reason,
+        grid_fallback_reason=grid_fallback_reason,
+        residual_norm=residual_norm,
+    )
+    return SolverStatus(
+        converged=converged,
+        thermo_status=thermo_status,
+        gem_exit_status=gem_exit_status,
+        phase_change_reason=phase_change_reason,
+        pea_exit_status=pea_exit_status,
+        pea_exit_reason=pea_exit_reason,
+        grid_fallback_reason=grid_fallback_reason,
+        residual_norm=residual_norm,
+        failure_reason=failure_reason,
+    )
 
 
 def set_debug_mode(enabled: bool = True) -> None:
@@ -52,7 +203,31 @@ def _raise_fortran_status(stage: str) -> None:
     """Raise if a Fortran stage set INFOThermo without throwing."""
     info = _thermo_info()
     if info != 0:
-        raise EquilibError(f"Equilifort {stage} failed: infothermo={info}")
+        raise EquilibError(
+            f"Equilifort {stage} failed: infothermo={info}",
+            reason=SolverFailureReason.FORTRAN_STAGE_FAILED,
+        )
+
+
+def _raise_solver_status(stage: str) -> None:
+    """Raise with immutable raw facts when a terminal solver stage failed."""
+    status = capture_solver_status(stage)
+    if not status.failed:
+        return
+    raise EquilibError(
+        "Equilibrium calculation failed: "
+        f"reason={status.failure_reason.value}; "
+        f"converged={status.converged}; "
+        f"infothermo={status.thermo_status}; "
+        f"gem_exit_status={status.gem_exit_status}; "
+        f"phase_change_reason={status.phase_change_reason}; "
+        f"pea_exit_status={status.pea_exit_status}; "
+        f"pea_exit_reason={status.pea_exit_reason}; "
+        f"grid_fallback_reason={status.grid_fallback_reason}; "
+        f"dGEMFunctionNorm={status.residual_norm}",
+        reason=status.failure_reason,
+        solver_status=status,
+    )
 
 
 def _run_fortran_stage(stage: str) -> None:
@@ -63,9 +238,13 @@ def _run_fortran_stage(stage: str) -> None:
     except Exception as e:
         info = _thermo_info()
         raise EquilibError(
-            f"Equilifort {stage} failed: infothermo={info}, Error: {e}"
+            f"Equilifort {stage} failed: infothermo={info}, Error: {e}",
+            reason=SolverFailureReason.FORTRAN_STAGE_FAILED,
         ) from e
-    _raise_fortran_status(stage)
+    if stage in {"gemsolver", "postprocess", "runlagrangiangem"}:
+        _raise_solver_status(stage)
+    else:
+        _raise_fortran_status(stage)
 
 
 def prepare_minimization() -> None:
@@ -100,18 +279,17 @@ def minimize():
     # Estimate the equilibrium phase assemblage and other important properties
     # using the Leveling algorithm:
     _run_fortran_stage("gemsolver")
+    equilibrium_status = capture_solver_status("gemsolver")
 
     # Perform post-processing calculations of results:
-    _run_fortran_stage("postprocess")
-
-    if fort.modulegemsolver.dgemfunctionnorm > 1e-5:
-        status = _gem_exit_status()
-        reason = int(getattr(fort.modulegemsolver, "iphasechangereason", 0))
-        raise EquilibError(
-            "Equilibrium calculation failed: "
-            f"dGEMFunctionNorm={fort.modulegemsolver.dgemfunctionnorm}; "
-            f"gem_exit_status={status}; phase_change_reason={reason}"
-        )
+    try:
+        _run_fortran_stage("postprocess")
+    except EquilibError as error:
+        # Postprocess may fail after GEM has already certified the requested-T
+        # equilibrium.  Preserve that independent fact so public result
+        # construction can retain the valid equilibrium as a warning result.
+        error.equilibrium_status = equilibrium_status
+        raise
 
     return None
 

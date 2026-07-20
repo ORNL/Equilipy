@@ -11,9 +11,9 @@
     ! Revisions:
     ! ==========
     !
-    !    Date          Programmer       Description of change
-    !    ----          ----------       ---------------------
-    !    10/21/2011    M.H.A. Piro      Original code.
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   10/21/2011      M.H.A. Piro         Original code.
     !
     !
     ! Purpose:

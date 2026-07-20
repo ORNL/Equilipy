@@ -4,18 +4,16 @@
 !> \brief   Shared input, output, and status state for Equilipy/Thermochimica calls.
 !
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   10/17/2011      M.H.A. Piro         Original code
-!   04/23/2012      M.H.A. Piro         Added dOxygen documentation
-!   06/23/2026      S.Y. Kwon           Removed unused legacy Thermochimica I/O buffers
-!   06/23/2026      S.Y. Kwon           Organized declarations by rank and role
-!   06/26/2026      S.Y. Kwon           Added dependent element flags for pseudo-component bases
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   10/17/2011      M.H.A. Piro         Original code
+    !   04/23/2012      M.H.A. Piro         Added dOxygen documentation
+    !   07/20/2026      S.Y. Kwon           Added input and diagnostic state for reduced element bases and subminimization behavior.
+    !
+    !
 ! Purpose:
 ! ========
 !

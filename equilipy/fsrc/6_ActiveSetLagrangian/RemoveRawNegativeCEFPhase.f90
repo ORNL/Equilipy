@@ -15,17 +15,14 @@
 !> \sa      RunLagrangianGEM.f90
 !> \sa      GEMNewtonCEF.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/25/2026      S.Y. Kwon           Original raw-negative CEF phase-removal helper.
-!   06/25/2026      S.Y. Kwon           Shared active-phase compaction with a slot-based helper.
-!   06/25/2026      S.Y. Kwon           Added CEF phase-boundary removal after line-search stagnation.
-!   06/30/2026      S.Y. Kwon           Added generic tiny solution boundary-phase removal for stagnation.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Added guarded removal of CEF and tiny solution phases that cross the active phase boundary.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -115,21 +112,20 @@ end subroutine RemoveRawNegativeCEFPhase
 !> \sa      RunLagrangianGEM.f90
 !> \sa      GEMLineSearchCEF.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/25/2026      S.Y. Kwon           Added CEF boundary-phase removal after line search.
-!   07/04/2026      S.Y. Kwon           Recorded selected boundary phase for passive C2-a census.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Removed CEF boundary phases only when both raw and accepted phase amounts are non-positive.
+    !
+    !
 ! Purpose:
 ! ========
 !
 !> \details The purpose of this routine is to avoid wasting Lagrangian
-!! iterations on an inactive CEF solution phase whose phase amount has reached
-!! the numerical boundary.  The phase is removed only when line search has
+!! iterations on an inactive CEF solution phase whose phase amount is
+!! non-positive.  The phase is removed only when line search has
 !! failed to make useful progress and the raw Newton step and accepted
 !! line-search state agree that the phase is at the boundary.
 !
@@ -141,7 +137,6 @@ end subroutine RemoveRawNegativeCEFPhase
 ! dMolesPhase                 Current active phase amounts.
 ! dGEMLSRawPhaseMoles         Raw full-step phase amounts from the latest CEF line search.
 ! dGEMLSFinalPhaseMoles       Accepted phase amounts from the latest CEF line search.
-! dTolerance(7)               Phase-mole numerical tolerance from InitThermo.
 !
 !
 ! Output/updated variables:
@@ -178,7 +173,7 @@ end subroutine RemoveRawNegativeCEFPhase
 !   single phase.
 ! - The line search must either fail to find descent or exhaust the
 !   backtracking attempts with less than 0.1% relative norm improvement.
-! - The phase must be at the boundary in both raw and accepted line-search
+! - The phase amount must be non-positive in both raw and accepted line-search
 !   phase amounts.  A merely small finite phase is not enough.
 !
 !-------------------------------------------------------------------------------------------------------------
@@ -195,7 +190,7 @@ subroutine RemoveCEFBoundaryPhaseAfterLineSearch(lRemoved)
     logical, intent(out) :: lRemoved
 
     integer :: i, iEntry, iFirstSolnSlot, iSelectedSlot
-    real(8) :: dActivePhaseScale, dAcceptedMoles, dBestAcceptedMoles, dFinalBoundaryTol, dRawBoundaryTol
+    real(8) :: dAcceptedMoles, dBestAcceptedMoles
     real(8) :: dRawMoles, dNormScale, dRelativeNormImprovement
 
     lRemoved = .FALSE.
@@ -211,12 +206,8 @@ subroutine RemoveCEFBoundaryPhaseAfterLineSearch(lRemoved)
         if (dRelativeNormImprovement > 1D-3) return
     end if
 
-    dActivePhaseScale = DMAX1(SUM(DABS(dMolesPhase)), 1D0)
-    dRawBoundaryTol = DMAX1(dTolerance(7), 1D-14 * dActivePhaseScale)
-    dFinalBoundaryTol = DMAX1(1000D0 * dTolerance(7), 1D-12 * dActivePhaseScale)
-
     iSelectedSlot = 0
-    dBestAcceptedMoles = dFinalBoundaryTol
+    dBestAcceptedMoles = 0D0
     iFirstSolnSlot = nElements - nSolnPhases + 1
     do i = iFirstSolnSlot, nElements
         if ((i < 1).OR.(i > nElements)) cycle
@@ -225,7 +216,8 @@ subroutine RemoveCEFBoundaryPhaseAfterLineSearch(lRemoved)
 
         dRawMoles = dGEMLSRawPhaseMoles(i)
         dAcceptedMoles = dGEMLSFinalPhaseMoles(i)
-        if ((dRawMoles <= dRawBoundaryTol).AND.(dAcceptedMoles <= dBestAcceptedMoles)) then
+        if ((dRawMoles <= 0D0).AND.(dAcceptedMoles <= 0D0).AND.&
+            ((iSelectedSlot == 0).OR.(dAcceptedMoles < dBestAcceptedMoles))) then
             iSelectedSlot = i
             dBestAcceptedMoles = dAcceptedMoles
         end if
@@ -244,30 +236,30 @@ end subroutine RemoveCEFBoundaryPhaseAfterLineSearch
 
 
 
-!> \brief Remove a tiny active solution phase after Lagrangian stagnation.
+!> \brief Remove a non-positive active solution phase after Lagrangian stagnation.
 !!
-!! \details Drops a solution phase whose phase amount is already at a
-!! numerical boundary, then compacts the active assemblage while preserving
-!! retained phase compositions.  This is intentionally used only after the
-!! fixed-assemblage solver has classified stagnation, so finite phase amounts
-!! are not pruned during normal Newton progress.
+!! \details Drops a solution phase whose phase amount is non-positive, then
+!! compacts the active assemblage while preserving retained phase compositions.
+!! This is intentionally used only after the fixed-assemblage solver has
+!! classified stagnation.  Finite-positive phase amounts remain active; active
+!! set changes for small but positive phases belong to the phase-assemblage
+!! logic, not to a numerical pruning tolerance.
 !
 !-------------------------------------------------------------------------------------------------------------
 !
 !> \file    RemoveRawNegativeCEFPhase.f90
-!> \brief   Remove a tiny active solution phase from a stalled Lagrangian set.
+!> \brief   Remove a non-positive active solution phase from a stalled Lagrangian set.
 !> \author  S.Y. Kwon
 !> \date    Jun. 30, 2026
 !> \sa      RunLagrangianGEM.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/30/2026      S.Y. Kwon           Added tiny active solution-phase removal after stagnation.
-!   07/04/2026      S.Y. Kwon           Recorded selected tiny-boundary phase for passive C2-a census.
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Restricted tiny-boundary removal to non-positive solution-phase remnants.
+    !
 !-------------------------------------------------------------------------------------------------------------
 
 
@@ -284,7 +276,7 @@ subroutine RemoveTinyBoundarySolutionPhase(lRemoved)
     integer :: i, iSlot, iEntry, iSolnPhase, iFirst, iLast, iDest
     integer :: iSelectedSlot, nConPhasesNew, nSolnPhasesNew
     integer, dimension(nElements) :: iAssemblageNew
-    real(8) :: dActivePhaseScale, dTinyPhaseTol, dSmallestMoles
+    real(8) :: dSmallestMoles
     real(8), dimension(nElements) :: dMolesPhaseNew
     real(8), dimension(nSpecies) :: dMolesSpeciesNew
 
@@ -293,16 +285,14 @@ subroutine RemoveTinyBoundarySolutionPhase(lRemoved)
     if (nSolnPhases <= 0) return
     if (nConPhases + nSolnPhases <= 1) return
 
-    dActivePhaseScale = DMAX1(SUM(DABS(dMolesPhase)), 1D0)
-    dTinyPhaseTol = DMAX1(1000D0 * dTolerance(7), 1D-6 * dActivePhaseScale)
-
     iSelectedSlot = 0
-    dSmallestMoles = dTinyPhaseTol
+    dSmallestMoles = 0D0
     do iSlot = nElements - nSolnPhases + 1, nElements
         if ((iSlot < 1).OR.(iSlot > nElements)) cycle
         iEntry = iAssemblage(iSlot)
         if (iEntry >= 0) cycle
-        if (dMolesPhase(iSlot) <= dSmallestMoles) then
+        if ((dMolesPhase(iSlot) <= 0D0).AND.&
+            ((iSelectedSlot == 0).OR.(dMolesPhase(iSlot) < dSmallestMoles))) then
             iSelectedSlot = iSlot
             dSmallestMoles = dMolesPhase(iSlot)
         end if
@@ -388,17 +378,14 @@ end subroutine RemoveTinyBoundarySolutionPhase
 !> \date    Jun. 25, 2026
 !> \sa      RemoveRawNegativeCEFPhase.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/25/2026      S.Y. Kwon           Extracted shared CEF active-phase removal compaction.
-!   06/26/2026      S.Y. Kwon           Require the reduced active set to satisfy a full-rank nonnegative
-!                                       mass-balance solve before removing a CEF phase.
-!   07/04/2026      S.Y. Kwon           Recorded rejected rank/mass guard candidates for C2-a census.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Compacted the active phase set only when rank and nonnegative mass balance remain valid.
+    !
+    !
 ! Purpose:
 ! ========
 !

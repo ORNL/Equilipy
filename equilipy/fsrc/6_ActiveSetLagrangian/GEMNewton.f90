@@ -20,27 +20,11 @@ subroutine GEMNewton(INFOLocal)
     !   04/25/2012      M.H.A. Piro         Original code (new GEM solver)
     !   05/25/2012      M.H.A. Piro         Check for a NAN immediately after call to DGESV.
     !   01/31/2013      M.H.A. Piro         Check if a charged phase is contained in the database, but is
-    !                                        not represented by the current phase assemblage.
+    !                                       not represented by the current phase assemblage.
     !   03/04/2013      M.H.A. Piro         Fix bug in correction process when dealing with ionic phases
-    !                                        the loop should count back from the number of constraints,
-    !                                        not the number of charged phases).
-    !   06/27/2026      S.Y. Kwon           Restored formula-scaled effective solution stoichiometry in
-    !                                        GEM phase rows for multi-particle solution species.
-    !   06/28/2026      S.Y. Kwon           Added analytical non-CEF solution Hessian directions for
-    !                                        Lagrangian line-search species updates.
-    !   06/28/2026      S.Y. Kwon           Reused analytical SUBL/SUBLM/SUBOM endmember Hessians in the
-    !                                        legacy mixed active-set Lagrangian path.
-    !   06/28/2026      S.Y. Kwon           Projected analytical solution constitution directions back onto
-    !                                        the active-set mass-balance plane before line search.
-    !   06/29/2026      S.Y. Kwon           Added a Gunnar-style frozen-activity linearization when projected
-    !                                        solution Hessians are not suitable for the active-set direction.
-    !   06/29/2026      S.Y. Kwon           Made analytical SUBG/SUBQ Hessians the default active-set
-    !                                        direction and kept ideal-log curvature as the fallback.
-!   07/02/2026      S.Y. Kwon           Added passive DSYSV pivot and direction-norm diagnostics.
-!   07/02/2026      S.Y. Kwon           Reported 2x2 pivot scale from eigenvalues so near-null
-!                                        Bunch-Kaufman blocks are not hidden by large off-diagonal entries.
-!   07/03/2026      S.Y. Kwon           Removed the explicit SUBG/SUBQ no-descent ideal-log retry
-!                                        while keeping ideal-log curvature for failed projected solves.
+    !                                       the loop should count back from the number of constraints,
+    !                                       not the number of charged phases).
+    !   07/20/2026      S.Y. Kwon           Added analytical solution-phase Newton directions with projected constitution and descent safeguards.
     !
     !
     ! Purpose:

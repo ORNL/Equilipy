@@ -626,6 +626,10 @@ def _pyvar2fvar(var: object) -> None:
     fort.moduleparsecs.nsublatticephasecs = var.nSublatticePhaseCS  #
     fort.moduleparsecs.iphasesublatticecs = var.iPhaseSublatticeCS  #
     fort.moduleparsecs.idisorderedphasecs = var.iDisorderedPhaseCS
+    fort.moduleparsecs.iorderdisordertopologycs = var.iOrderDisorderTopologyCS
+    fort.moduleparsecs.iorderdisorderstandalonephasecs = (
+        var.iOrderDisorderStandalonePhaseCS
+    )
     fort.moduleparsecs.datomicmasscs = var.dAtomicMass
 
     if var.nParamCS == 0:

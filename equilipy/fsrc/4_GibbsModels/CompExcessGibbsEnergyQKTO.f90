@@ -17,11 +17,11 @@ subroutine CompExcessGibbsEnergyQKTO(iSolnIndex)
     ! Revisions:
     ! ==========
     !
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/13/2012      M.H.A. Piro         Original code.
-!   11/11/2020      S.Y.   Kwon         dPartialGParam is assigned as module state due to the compatibility issue with F2PY
-!   06/26/2026      S.Y. Kwon           Allowed QKTOM to reuse QKTO excess-energy evaluation.
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   06/13/2012      M.H.A. Piro         Original code.
+    !   11/11/2020      S.Y. Kwon           dPartialGParam is assigned as module state due to the compatibility issue with F2PY
+    !   07/20/2026      S.Y. Kwon           Evaluated magnetic QKTO phases with the QKTO excess-energy model.
     !
     ! Purpose:
     ! ========

@@ -12,17 +12,14 @@
 !> \author  S.Y. Kwon
 !> \date    Jun. 27, 2026
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/27/2026      S.Y. Kwon           Restored phase-local state and evaluated duplicate checks with
-!                                       both dMolFraction and dMolesSpecies synchronized.
-!   06/27/2026      S.Y. Kwon           Preserved separate candidates when duplicate-check Gibbs evaluations
-!                                       are invalid instead of printing diagnostics.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Preserved physically distinct miscibility-gap candidates when duplicate energy checks are inconclusive.
+    !
+    !
 ! Purpose:
 ! ========
 !

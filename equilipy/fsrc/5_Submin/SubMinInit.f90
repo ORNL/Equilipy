@@ -9,20 +9,15 @@
 !> \sa      SubMinNewton.f90
 !> \sa      SubMinTraceSpeciesControl.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   08/21/2012      M.H.A. Piro         Original Subminimization initialization routine
-!   06/24/2026      S.Y. Kwon           Stored starting fractions for max-iteration diagnostics
-!   06/24/2026      S.Y. Kwon           Documented shared CEF/classic Subminimization setup
-!   06/24/2026      S.Y. Kwon           Reset CEF path diagnostics for each Subminimization call
-!   06/26/2026      S.Y. Kwon           Reset the per-phase PEA candidate status before each submin call.
-!   06/27/2026      S.Y. Kwon           Reset Henrian trace-estimate diagnostics for each submin call.
-!   06/28/2026      S.Y. Kwon           Reset analytical-Hessian Newton diagnostics for each submin call.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   08/21/2012      M.H.A. Piro         Original Subminimization initialization routine
+    !   07/20/2026      S.Y. Kwon           Initialized CEF site-fraction, trace, and analytical-curvature state for each subminimization solve.
+    !
+    !
 ! Purpose:
 ! ========
 !

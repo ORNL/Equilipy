@@ -22,9 +22,7 @@ logical function OrderDisorderPhaseIsEligible(iSolnPhase)
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   07/01/2026      S.Y. Kwon           Original helper for filtering one-element ordered phases in PEA.
-    !   07/01/2026      S.Y. Kwon           Counted active elements from screened phase stoichiometry instead
-    !                                       of CEF constituent names.
+    !   07/20/2026      S.Y. Kwon           Screened order/disorder phases using their active elemental stoichiometry and structural identity.
     !
     !
     ! Purpose:

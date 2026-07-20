@@ -22,74 +22,7 @@
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   06/24/2026      S.Y. Kwon           Documented fixed-assemblage GEM stage
-    !   06/24/2026      S.Y. Kwon           Recorded per-iteration Lagrangian diagnostics
-    !   06/25/2026      S.Y. Kwon           Dispatched CEF fixed assemblages to site-fraction Newton/line search
-    !   06/25/2026      S.Y. Kwon           Allow compound-only postprocess solves to update the elemental
-    !                                        potential plane at perturbed temperature.
-!   06/25/2026      S.Y. Kwon           Delayed raw CEF phase removal until the positivity-preserving line
-!                                        search fails to find descent.
-!   06/25/2026      S.Y. Kwon           Removed overfull CEF active phases pinned at the phase-amount
-!                                        boundary after stalled line search.
-!   06/25/2026      S.Y. Kwon           Marked when the CEF site-fraction KKT path is active so
-!                                        CompFunctionNorm uses matching residual coordinates.
-!   06/26/2026      S.Y. Kwon           Added a PEA-polish mode for refining elemental potentials
-!                                        inside CheckPhaseAssemblage.
-!   06/26/2026      S.Y. Kwon           Rejected CEF PEA-polish attempts on boundary/stagnation events
-!                                        instead of removing phases inside the embedded Lagrangian solve.
-!   06/27/2026      S.Y. Kwon           Coalesced degenerate random order/disorder active sets before
-!                                        accepting CEF Lagrangian convergence.
-!   06/27/2026      S.Y. Kwon           Let PEA-polish Lagrangian use the same coalescing, trace handling,
-!                                        and CEF boundary-removal rules as the final Lagrangian solve.
-!   06/29/2026      S.Y. Kwon           Added fixed-assemblage postprocess stagnation exit without
-!                                        requesting phase-assemblage repair.
-!   06/29/2026      S.Y. Kwon           Added a one-shot ideal-log retry when a SUBG/SUBQ analytical
-!                                        model-Hessian direction gives no line-search descent.
-!   06/30/2026      S.Y. Kwon           Removed tiny boundary solution phases before declaring stagnation.
-!   07/01/2026      S.Y. Kwon           Try the CEF residual-LM direction before line search when the
-!                                        analytical CEF Newton step would make a finite phase negative,
-!                                        including fixed-assemblage postprocess solves.
-!   06/30/2026      S.Y. Kwon           Activated CEF site-fraction retry only for stalled underfull sets.
-!   06/30/2026      S.Y. Kwon           Added debug-only max-iteration warnings for Lagrangian GEM.
-!   07/01/2026      S.Y. Kwon           Audited converged SUBOM phases for lower ordered active-phase
-!                                        minima before accepting a random-state stationary point.
-!   07/01/2026      S.Y. Kwon           Added a residual Levenberg fallback for stalled CEF site-fraction
-!                                        Newton directions while preserving trace-site complementarity.
-!   07/01/2026      S.Y. Kwon           Allowed the residual Levenberg fallback for single active CEF
-!                                        phases when the analytical site-fraction direction gives no descent.
-!   07/02/2026      S.Y. Kwon           Split Phase 0 scaffold counters for trace handling, CEF retry,
-!                                        raw-negative removal, and boundary-pinned removal.
-!   07/02/2026      S.Y. Kwon           Limited CEF residual-LM activation to SUBOM active sets so
-!                                        ordinary SUBL/SUBLM phases can use the positivity-preserving
-!                                        analytical KKT line search first.
-!   07/03/2026      S.Y. Kwon           Split residual-LM scaffold diagnostics by raw-negative and
-!                                        no-descent activation reason.
-!   07/03/2026      S.Y. Kwon           Tried a complementarity-valid bound-active CEF phase KKT solve
-!                                        before raw-negative residual-LM fallback.
-!   07/03/2026      S.Y. Kwon           Protected switch-gated two-composition-set SUBOM slots from the
-!                                        legacy order/disorder coalescer and endpoint stability restart.
-!   07/04/2026      S.Y. Kwon           Counted tiny-boundary removals separately from boundary-pinned
-!                                        removals for C1-a passive diagnostics.
-!   07/03/2026      S.Y. Kwon           Routed switch-gated two-set SUBOM raw-negative overshoots through
-!                                        the bound-active KKT retry before residual-LM fallback.
-!   07/03/2026      S.Y. Kwon           Let converged two-set SUBOM class-2 no-descent states reach
-!                                        CheckConvergence instead of residual-LM.
-!   07/03/2026      S.Y. Kwon           Coalesced duplicate same-parent SUBOM composition sets after
-!                                        convergence when their slot-local site fractions collapse.
-!   07/03/2026      S.Y. Kwon           Added per-minimization trial-7 and residual-LM activation totals
-!                                        so scaffold dependence is visible from Python tests.
-!   07/03/2026      S.Y. Kwon           Split passive totals for duplicate SUBOM coalescence, legacy
-!                                        order/disorder coalescence, and stability restarts.
-!   07/03/2026      S.Y. Kwon           Removed the SUBG/SUBQ ideal-log no-descent retry after
-!                                        validating the analytical pair derivative basis.
-!   07/04/2026      S.Y. Kwon           Routed invalid-complementarity raw-negative CEF phase events through
-!                                        a certified bound-active KKT multiplier before residual-LM fallback.
-!   07/04/2026      S.Y. Kwon           Snapshotted analytical-direction diagnostics before residual-LM
-!                                        fallback for C3-a2 event-buffer reporting.
-!   07/04/2026      S.Y. Kwon           Tried C3-c1 inertia-regularized CEF KKT directions before
-!                                        no-descent residual-LM fallback.
-!   07/05/2026      S.Y. Kwon           Set explicit GEM exit status when a nonconverged fixed-active-set
-!                                        solve exits through stagnation.
+    !   07/20/2026      S.Y. Kwon           Preserved finite-positive and parser-declared partition composition sets while reporting all nonconverged exits honestly.
     !
     ! Purpose:
     ! ========
@@ -362,7 +295,8 @@ subroutine RunLagrangianGEM
                 (iGEMLineSearchNegativePhaseCount == 0).AND.&
                 (.NOT.lResidualLMUsedThisIteration)) then
                 lUseResidualLMForNoDescent = lActiveSetContainsSUBOM
-                if (lSUBOMTwoSetCandidateEnabled.AND.lDistinctSUBOMCompositionSets.AND.&
+                if ((lSUBOMTwoSetCandidateEnabled.OR.lODPartitionUnifiedActive).AND.&
+                    lDistinctSUBOMCompositionSets.AND.&
                     (iGEMLineSearchNoDescentClass == 2).AND.&
                     (dGEMFunctionNorm < 1D-5)) then
                     lUseResidualLMForNoDescent = .FALSE.
@@ -466,7 +400,8 @@ subroutine RunLagrangianGEM
             end if
         end if
 
-        if (lUseCEFSiteGEM.AND.lConverged.AND.(.NOT.lPostProcess).AND.&
+        if (lUseCEFSiteGEM.AND.(lConverged.OR.CanonicalPartitionBranchRestartPending()).AND.&
+            (.NOT.lPostProcess).AND.&
             (.NOT.lDistinctSUBOMCompositionSets)) then
             lOrderDisorderStabilized = .FALSE.
             if (iCEFStabilityRestartCount < iCEFStabilityRestartMax) then
@@ -643,13 +578,10 @@ subroutine RunLagrangianGEM
     if ((.NOT.lConverged).AND.(.NOT.lPhaseChange).AND.&
         (iPhaseChangeReason == PHASE_CHANGE_REASON_NONE)) then
         iPhaseChangeReason = PHASE_CHANGE_REASON_LAGRANGIAN_UNCONVERGED
-        iGEMExitStatus = GEM_EXIT_STATUS_LAGRANGIAN_UNCONVERGED
         iterReason = MIN(MAX(iterGlobal,1),iterGlobalMax)
         iPhaseChangeReasonHistory(iterReason) = iPhaseChangeReason
     end if
-    if ((.NOT.lConverged).AND.(dGEMFunctionNorm > 1D-5)) then
-        iGEMExitStatus = GEM_EXIT_STATUS_LAGRANGIAN_UNCONVERGED
-    end if
+    call FinalizeLagrangianExitStatus
 
     lGEMCEFSiteLagrangianActive = lUseCEFSiteGEM
     lGEMCEFBndPhaseActive = .FALSE.
@@ -671,9 +603,10 @@ contains
         integer :: iSlotA, iSlotB, iPhaseA, iPhaseB
         real(8) :: dSiteDifference
         real(8), parameter :: dSameSetTolerance = 1D-8
+        logical :: lCanonicalPair
 
         DistinctRepeatedSUBOMCompositionSetsActive = .FALSE.
-        if (.NOT.lSUBOMTwoSetCandidateEnabled) return
+        if ((.NOT.lSUBOMTwoSetCandidateEnabled).AND.(.NOT.lODPartitionUnifiedActive)) return
         if (.NOT.allocated(iActiveSlotThermoPhase)) return
         if (.NOT.allocated(dActiveSlotSiteFraction)) return
 
@@ -682,6 +615,8 @@ contains
             iPhaseA = iActiveSlotThermoPhase(iSlotA)
             if ((iPhaseA <= 0).OR.(iPhaseA > nSolnPhasesSys)) cycle
             if (TRIM(cSolnPhaseType(iPhaseA)) /= 'SUBOM') cycle
+            if ((.NOT.lSUBOMTwoSetCandidateEnabled).AND.&
+                (CanonicalCompanionPhase(iPhaseA) <= 0)) cycle
 
             do iSlotB = iSlotA + 1, nElements
                 if (iAssemblage(iSlotB) >= 0) cycle
@@ -690,7 +625,14 @@ contains
 
                 dSiteDifference = MAXVAL(DABS(&
                     dActiveSlotSiteFraction(iSlotA,:,:) - dActiveSlotSiteFraction(iSlotB,:,:)))
-                if (dSiteDifference > dSameSetTolerance) then
+                lCanonicalPair = CanonicalCompanionPhase(iPhaseA) > 0
+                if (lCanonicalPair) then
+                    if (ANY(dActiveSlotSiteFraction(iSlotA,:,:) /= &
+                        dActiveSlotSiteFraction(iSlotB,:,:))) then
+                        DistinctRepeatedSUBOMCompositionSetsActive = .TRUE.
+                        return
+                    end if
+                else if (dSiteDifference > dSameSetTolerance) then
                     DistinctRepeatedSUBOMCompositionSetsActive = .TRUE.
                     return
                 end if
@@ -700,6 +642,64 @@ contains
         return
 
     end function DistinctRepeatedSUBOMCompositionSetsActive
+
+
+    logical function CanonicalPartitionBranchRestartPending()
+
+        implicit none
+
+        integer :: iSlot, iParentPhase
+
+        CanonicalPartitionBranchRestartPending = .FALSE.
+        if (.NOT.lODPartitionUnifiedActive) return
+        if (.NOT.lPhaseChange) return
+        if (iPhaseChangeReason /= PHASE_CHANGE_REASON_PHASE_POTENTIAL) return
+        if (.NOT.allocated(iActiveSlotThermoPhase)) return
+        if (.NOT.allocated(iODCompanionPhase)) return
+        if (.NOT.allocated(iODTopologyClass)) return
+        if (.NOT.allocated(iODCandidateClass)) return
+
+        do iSlot = 1, MIN(nElements, SIZE(iActiveSlotThermoPhase))
+            iParentPhase = iActiveSlotThermoPhase(iSlot)
+            if ((iParentPhase < 1).OR.(iParentPhase > SIZE(iODCompanionPhase))) cycle
+            if ((iODTopologyClass(iParentPhase) < OD_TOPOLOGY_HELPER_STANDALONE).OR.&
+                (iODTopologyClass(iParentPhase) > OD_TOPOLOGY_HELPER_ONLY)) cycle
+            if (iODCompanionPhase(iParentPhase) <= 0) cycle
+            if (iODCompanionPhase(iParentPhase) == iParentPhase) cycle
+            if (iParentPhase > SIZE(iODCandidateClass)) cycle
+            if (iODCandidateClass(iParentPhase) /= OD_CANDIDATE_AMBIGUOUS_UNSTABLE) cycle
+
+            ! The favorable row is an ordering branch of this active parent,
+            ! not an independent phase.  Let the existing endpoint audit seed
+            ! that branch before the active-set repair machinery sees it.
+            CanonicalPartitionBranchRestartPending = .TRUE.
+            return
+        end do
+
+        return
+
+    end function CanonicalPartitionBranchRestartPending
+
+
+    integer function CanonicalCompanionPhase(iParentPhase)
+
+        implicit none
+
+        integer, intent(in) :: iParentPhase
+
+        CanonicalCompanionPhase = 0
+        if (.NOT.lODPartitionUnifiedActive) return
+        if (.NOT.allocated(iODCompanionPhase)) return
+        if (.NOT.allocated(iODTopologyClass)) return
+        if ((iParentPhase < 1).OR.(iParentPhase > SIZE(iODCompanionPhase))) return
+        if ((iODTopologyClass(iParentPhase) < OD_TOPOLOGY_HELPER_STANDALONE).OR.&
+            (iODTopologyClass(iParentPhase) > OD_TOPOLOGY_HELPER_ONLY)) return
+        if (iODCompanionPhase(iParentPhase) == iParentPhase) return
+        CanonicalCompanionPhase = iODCompanionPhase(iParentPhase)
+
+        return
+
+    end function CanonicalCompanionPhase
 
     logical function CurrentGEMCEFInertiaWrong()
 

@@ -18,14 +18,11 @@
     !   01/17/2013      M.H.A. Piro         Original code.
     !   02/11/2013      M.H.A. Piro         Added capability of handling non-ideal terms.
     !   02/14/2013      M.H.A. Piro         Corrected handling of non-ideal terms with higher order
-    !                                        mixing parameters (happy valentine's day).
+    !                                       mixing parameters (happy valentine's day).
     !   02/15/2013      M.H.A. Piro         Fix bug in handling higher order terms from yesterday.
     !   02/27/2013      M.H.A. Piro         The sum of site fractions may not necessarily equal unity. Apply
-    !                                        an appropriate correction.
-    !   06/24/2026      S.Y. Kwon           Routed SUBOM correction through an explicit full-evaluation helper
-    !                                       so raw ordered evaluation stays internal to order/disorder mapping.
-    !   06/24/2026      S.Y. Kwon           Replaced the legacy CEF partial-property derivation with
-    !                                       CompGradientSUBL site-gradient projection.
+    !                                       an appropriate correction.
+    !   07/20/2026      S.Y. Kwon           Replaced legacy CEF partial properties with site-fraction derivatives and retained raw ordered SUBOM energies.
     !
     !
     ! Purpose:
@@ -304,7 +301,7 @@ subroutine ApplyFullOrderDisorderCorrectionSUBL(iSolnIndex)
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   06/24/2026      S.Y. Kwon           Original helper to keep raw ordered SUBOM evaluation internal.
+    !   07/20/2026      S.Y. Kwon           Kept raw ordered SUBOM energy evaluation internal to the sublattice model.
     !
     !
     ! Purpose:

@@ -15,20 +15,14 @@
 !> \sa      GEMNewtonCEF.f90
 !> \sa      GEMLineSearchCEF.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/25/2026      S.Y. Kwon           Original CEF raw phase-direction active-set audit.
-!   06/25/2026      S.Y. Kwon           Made raw negative phase directions diagnostic before CEF line search;
-!                                        removal is allowed only after line-search failure.
-!   06/26/2026      S.Y. Kwon           Clarified PEA-polish usage: raw phase-boundary evidence rejects
-!                                        the polish rather than removing a phase inside Lagrangian.
-!   07/03/2026      S.Y. Kwon           Added passive lower-bound complementarity classification for
-!                                        raw-negative phase candidates.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Classified raw CEF phase directions against phase-boundary complementarity during active-set repair.
+    !
+    !
 ! Purpose:
 ! ========
 !

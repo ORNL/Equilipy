@@ -22,13 +22,13 @@ subroutine CheckSystemExcess
     !   01/14/2013      M.H.A. Piro         Original code (relocated from CheckSystem.f90).
     !   01/14/2013      M.H.A. Piro         Add check for SUBL and SUBLM phases.
     !   02/05/2013      M.H.A. Piro         Fix bugs in applying the number of constituents per sublattice
-    !                                        and the constituent names in SUBL phases.
-!   09/06/2015      M.H.A. Piro         Fixed bug in checking mixing terms in SUBL when fewer phases
-!                                        are included in the system then from the database.  Specifically,
-!                                        the vector iPhaseSublattice was previously used when
-!                                        iPhaseSublatticeCS should be used instead in checking constituents.
-!   03/17/2018      M.H.A. Piro         Added capability to handle SUBG phases.
-!   06/26/2026      S.Y. Kwon           Enabled QKTOM parameter screening as magnetic QKTO.
+    !                                       and the constituent names in SUBL phases.
+    !   09/06/2015      M.H.A. Piro         Fixed bug in checking mixing terms in SUBL when fewer phases
+    !                                       are included in the system then from the database.  Specifically,
+    !                                       the vector iPhaseSublattice was previously used when
+    !                                       iPhaseSublatticeCS should be used instead in checking constituents.
+    !   03/17/2018      M.H.A. Piro         Added capability to handle SUBG phases.
+    !   07/20/2026      S.Y. Kwon           Screened magnetic QKTO interaction parameters through the QKTO model path.
     !
     !
     ! Purpose:

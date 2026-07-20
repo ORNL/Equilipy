@@ -106,11 +106,12 @@ def ParseCSHeader():
     var.cSpeciesNameCS = ["{:<30}".format("")] * var.nSpeciesCS
     var.cEndmemberNameCS = ["{:<30}".format("")] * var.nSpeciesCS
     var.cRegularParamCS = ["{:<1}".format("")] * 1000
-    var.cPairNameCS = np.empty(
-        (var.nSolnPhasesSysCS, var.nMaxSpeciesPhaseCS, 30), dtype="c"
+    var.cPairNameCS = np.full(
+        (var.nSolnPhasesSysCS, var.nMaxSpeciesPhaseCS, 30), b" ", dtype="c"
     )
-    var.cConstituentNameSUBCS = np.empty(
+    var.cConstituentNameSUBCS = np.full(
         (var.nSolnPhasesSysCS, var.nMaxSublatticeCS, var.nMaxSpeciesPhaseCS, 8),
+        b" ",
         dtype="c",
     )
 

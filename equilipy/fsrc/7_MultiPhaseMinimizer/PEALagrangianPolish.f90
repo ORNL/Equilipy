@@ -15,29 +15,14 @@
 !> \sa      Level2Lagrange.f90
 !> \sa      RunLagrangianGEM.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/26/2026      S.Y. Kwon           Original PEA-internal Lagrangian polish routine.
-!   06/26/2026      S.Y. Kwon           Rejected PEA-polish attempts on Lagrangian active-set
-!                                        invalidation instead of accepting reduced active sets.
-!   06/26/2026      S.Y. Kwon           Reset per-iteration polish state before guard returns.
-!   06/27/2026      S.Y. Kwon           Skipped embedded PEA polish for CEF active sets until the
-!                                        CEF polish path preserves metallic SUBL/SUBOM regressions.
-!   06/27/2026      S.Y. Kwon           Enabled embedded PEA polish for CEF active sets through the
-!                                        site-fraction Lagrangian path.
-!   06/27/2026      S.Y. Kwon           Matched PEA-polish Lagrangian solve rules to the final Lagrangian
-!                                        path while preserving PEA-owned trace masks on restore.
-!   06/27/2026      S.Y. Kwon           Recorded translated PEA-to-Lagrangian handoff assemblages and
-!                                        flagged repeated handoffs for oscillation diagnostics.
-!   07/02/2026      S.Y. Kwon           Snapshotted active-slot CEF composition-set state so rejected
-!                                        embedded polish attempts leave no slot-local state behind.
-!   07/03/2026      S.Y. Kwon           Persisted accepted SUBOM two-set slot constitutions as candidate-pool
-!                                        evidence before restoring the PEA state.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Made order/disorder ownership and slot-local reporting properties transactional during PEA Lagrangian polish.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -131,7 +116,10 @@ subroutine PEALagrangianPolish
     logical  :: lHadAssemblageGEM, lHadMolesPhaseLast, lHadMolFractionOld
     logical  :: lHadTraceInactive, lHadTraceReinjected, lTraceInactiveAfter
     logical  :: lHadActiveSlotThermo, lHadActiveSlotDisplay, lHadActiveSlotIdentity
+    logical  :: lHadActiveSlotODClass
     logical  :: lHadActiveSlotMol, lHadActiveSlotSite
+    logical  :: lHadActiveSlotChemPot, lHadActiveSlotPartialH, lHadActiveSlotPartialS
+    logical  :: lHadActiveSlotPartialCp, lHadActiveSlotPropValid
     logical  :: lHadGEMCEFSiteLast, lHadGEMCEFPhaseSiteLast
     real(8)  :: dNormBeforeSave, dNormLastSave, dTraceReducedNormSave
     real(8)  :: dMassNormSave, dChemNormSave, dSolnChemNormSave, dCondChemNormSave
@@ -142,6 +130,7 @@ subroutine PEALagrangianPolish
     integer, dimension(:), allocatable   :: iPhaseLevelSave, iAssemblageGEMSave
     integer, dimension(:), allocatable   :: iActiveSlotThermoSave, iActiveSlotDisplaySave
     integer, dimension(:), allocatable   :: iActiveSlotIdentitySave
+    integer, dimension(:), allocatable   :: iActiveSlotODClassSave
     real(8), dimension(:), allocatable   :: dMolesPhaseSave, dMolesSpeciesSave
     real(8), dimension(:), allocatable   :: dMolFractionSave, dElementPotentialSave
     real(8), dimension(:), allocatable   :: dElementPotentialLastSave, dPhasePotentialSave
@@ -162,6 +151,10 @@ subroutine PEALagrangianPolish
     real(8), dimension(:,:), allocatable :: dAtomFractionSpeciesGEMSave
     real(8), dimension(:,:), allocatable :: dMolFractionGEMSave
     real(8), dimension(:,:), allocatable :: dActiveSlotMolSave
+    real(8), dimension(:,:), allocatable :: dActiveSlotChemPotSave
+    real(8), dimension(:,:), allocatable :: dActiveSlotPartialHSave
+    real(8), dimension(:,:), allocatable :: dActiveSlotPartialSSave
+    real(8), dimension(:,:), allocatable :: dActiveSlotPartialCpSave
     real(8), dimension(:,:), allocatable :: dMolesPhaseHistorySave
     real(8), dimension(:,:), allocatable :: dEffStoichSolnPhaseSave
     real(8), dimension(:,:,:), allocatable :: dActiveSlotSiteSave
@@ -171,6 +164,7 @@ subroutine PEALagrangianPolish
     logical, dimension(:), allocatable   :: lSolnPhasesSave
     logical, dimension(:), allocatable   :: lTraceSpeciesInactiveSave
     logical, dimension(:), allocatable   :: lTraceSpeciesReinjectedSave
+    logical, dimension(:), allocatable   :: lActiveSlotPropValidSave
 
     lPEALagrangianPolishAccepted = .FALSE.
     iPEALagrangianPolishReason = PHASE_CHANGE_REASON_NONE
@@ -186,7 +180,7 @@ subroutine PEALagrangianPolish
     if (.NOT.allocated(iAssemblage)) return
     if (.NOT.allocated(dMolesPhase)) return
     if (ANY(iAssemblage == 0)) return
-    if (MINVAL(dMolesPhase) < -1D-10) return
+    if ((MINVAL(dMolesPhase) < -1D-10).AND.(.NOT.lODCommittedOwnershipApplied)) return
     if (INFOThermo /= 0) return
 
     call SnapshotPEAState
@@ -273,7 +267,7 @@ contains
         integer :: iSlotLocal, iSolnPhaseLocal, iFirstLocal, iLastLocal
         real(8) :: dNormLocal
 
-        if (.NOT.lSUBOMTwoSetCandidateEnabled) return
+        if ((.NOT.lSUBOMTwoSetCandidateEnabled).AND.(.NOT.lODPartitionUnifiedActive)) return
         if (.NOT.allocated(iActiveSlotThermoPhase)) return
         if (.NOT.allocated(iActiveSlotIdentityOrdinal)) return
         if (.NOT.allocated(dActiveSlotMolFraction)) return
@@ -297,6 +291,11 @@ contains
             iSolnPhaseLocal = iActiveSlotThermoPhase(iSlotLocal)
             if ((iSolnPhaseLocal < 1).OR.(iSolnPhaseLocal > nSolnPhasesSys)) cycle
             if (TRIM(cSolnPhaseType(iSolnPhaseLocal)) /= 'SUBOM') cycle
+            if (lODPartitionUnifiedActive) then
+                if (.NOT.allocated(iODTopologyClass)) cycle
+                if ((iODTopologyClass(iSolnPhaseLocal) < OD_TOPOLOGY_HELPER_STANDALONE).OR.&
+                    (iODTopologyClass(iSolnPhaseLocal) > OD_TOPOLOGY_HELPER_ONLY)) cycle
+            end if
             if (iActiveSlotIdentityOrdinal(iSlotLocal) <= 1) cycle
             if (iSolnPhaseLocal > SIZE(iSUBOMTwoSetStoredPhase)) cycle
 
@@ -354,8 +353,14 @@ contains
         lHadActiveSlotThermo = allocated(iActiveSlotThermoPhase)
         lHadActiveSlotDisplay = allocated(iActiveSlotDisplayPhase)
         lHadActiveSlotIdentity = allocated(iActiveSlotIdentityOrdinal)
+        lHadActiveSlotODClass = allocated(iActiveSlotODClass)
         lHadActiveSlotMol = allocated(dActiveSlotMolFraction)
         lHadActiveSlotSite = allocated(dActiveSlotSiteFraction)
+        lHadActiveSlotChemPot = allocated(dActiveSlotChemPot)
+        lHadActiveSlotPartialH = allocated(dActiveSlotPartialH)
+        lHadActiveSlotPartialS = allocated(dActiveSlotPartialS)
+        lHadActiveSlotPartialCp = allocated(dActiveSlotPartialCp)
+        lHadActiveSlotPropValid = allocated(lActiveSlotPropValid)
         lHadGEMCEFSiteLast = allocated(dGEMCEFSiteLast)
         lHadGEMCEFPhaseSiteLast = allocated(dGEMCEFPhaseSiteLast)
 
@@ -399,8 +404,14 @@ contains
         if (lHadActiveSlotThermo) iActiveSlotThermoSave = iActiveSlotThermoPhase
         if (lHadActiveSlotDisplay) iActiveSlotDisplaySave = iActiveSlotDisplayPhase
         if (lHadActiveSlotIdentity) iActiveSlotIdentitySave = iActiveSlotIdentityOrdinal
+        if (lHadActiveSlotODClass) iActiveSlotODClassSave = iActiveSlotODClass
         if (lHadActiveSlotMol) dActiveSlotMolSave = dActiveSlotMolFraction
         if (lHadActiveSlotSite) dActiveSlotSiteSave = dActiveSlotSiteFraction
+        if (lHadActiveSlotChemPot) dActiveSlotChemPotSave = dActiveSlotChemPot
+        if (lHadActiveSlotPartialH) dActiveSlotPartialHSave = dActiveSlotPartialH
+        if (lHadActiveSlotPartialS) dActiveSlotPartialSSave = dActiveSlotPartialS
+        if (lHadActiveSlotPartialCp) dActiveSlotPartialCpSave = dActiveSlotPartialCp
+        if (lHadActiveSlotPropValid) lActiveSlotPropValidSave = lActiveSlotPropValid
         if (lHadGEMCEFSiteLast) dGEMCEFSiteLastSave = dGEMCEFSiteLast
         if (lHadGEMCEFPhaseSiteLast) dGEMCEFPhaseSiteLastSave = dGEMCEFPhaseSiteLast
 
@@ -516,6 +527,12 @@ contains
             if (allocated(iActiveSlotIdentityOrdinal)) deallocate(iActiveSlotIdentityOrdinal)
         end if
 
+        if (lHadActiveSlotODClass) then
+            call RestoreInteger1D(iActiveSlotODClass, iActiveSlotODClassSave)
+        else
+            if (allocated(iActiveSlotODClass)) deallocate(iActiveSlotODClass)
+        end if
+
         if (lHadActiveSlotMol) then
             call RestoreReal2D(dActiveSlotMolFraction, dActiveSlotMolSave)
         else
@@ -526,6 +543,36 @@ contains
             call RestoreReal3D(dActiveSlotSiteFraction, dActiveSlotSiteSave)
         else
             if (allocated(dActiveSlotSiteFraction)) deallocate(dActiveSlotSiteFraction)
+        end if
+
+        if (lHadActiveSlotChemPot) then
+            call RestoreReal2D(dActiveSlotChemPot, dActiveSlotChemPotSave)
+        else
+            if (allocated(dActiveSlotChemPot)) deallocate(dActiveSlotChemPot)
+        end if
+
+        if (lHadActiveSlotPartialH) then
+            call RestoreReal2D(dActiveSlotPartialH, dActiveSlotPartialHSave)
+        else
+            if (allocated(dActiveSlotPartialH)) deallocate(dActiveSlotPartialH)
+        end if
+
+        if (lHadActiveSlotPartialS) then
+            call RestoreReal2D(dActiveSlotPartialS, dActiveSlotPartialSSave)
+        else
+            if (allocated(dActiveSlotPartialS)) deallocate(dActiveSlotPartialS)
+        end if
+
+        if (lHadActiveSlotPartialCp) then
+            call RestoreReal2D(dActiveSlotPartialCp, dActiveSlotPartialCpSave)
+        else
+            if (allocated(dActiveSlotPartialCp)) deallocate(dActiveSlotPartialCp)
+        end if
+
+        if (lHadActiveSlotPropValid) then
+            call RestoreLogical1D(lActiveSlotPropValid, lActiveSlotPropValidSave)
+        else
+            if (allocated(lActiveSlotPropValid)) deallocate(lActiveSlotPropValid)
         end if
 
         if (lHadGEMCEFSiteLast) then

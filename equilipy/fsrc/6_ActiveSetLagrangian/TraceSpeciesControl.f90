@@ -146,12 +146,7 @@ subroutine RemoveTraceSpeciesBelowThreshold(lChanged)
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-!   06/24/2026      S.Y. Kwon           Original Lagrangian trace-species removal routine.
-!   06/27/2026      S.Y. Kwon           Excluded SUBG/SUBQ pair phases from trace deletion so MQM
-!                                        pair-exchange residuals remain active.
-!   07/02/2026      S.Y. Kwon           Reapplied the inactive trace mask after model-property
-!                                        evaluation so CEF projection cannot restore removed traces.
-!   07/04/2026      S.Y. Kwon           Recorded trace-removal species identities for passive C2-a census.
+    !   07/20/2026      S.Y. Kwon           Removed trace species without breaking coupled SUBG and SUBQ phase constitutions.
     !
     ! Purpose:
     ! ========
@@ -304,10 +299,7 @@ subroutine ReinjectTraceSpecies(lChanged)
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   07/02/2026      S.Y. Kwon           Preserved explicit trace-reinjection fractions after
-    !                                       CEF model-property projection.
-    !   07/04/2026      S.Y. Kwon           Recorded trace-reinjection species identities for passive
-    !                                       C2-a census.
+    !   07/20/2026      S.Y. Kwon           Reinjected trace species while preserving explicit solution fractions and diagnostic identity.
     !
     ! Purpose:
     ! ========

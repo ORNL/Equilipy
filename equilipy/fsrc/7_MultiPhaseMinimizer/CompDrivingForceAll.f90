@@ -15,7 +15,7 @@ subroutine CompDrivingForceAll
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   12/20/2021      S.Y. Kwon         Original code
+    !   12/20/2021      S.Y. Kwon           Original code
     !
     !
     ! Purpose:

@@ -12,27 +12,10 @@
     ! Revisions:
     ! ==========
     !
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   04/25/2012      M.H.A. Piro         Original code
-!   06/24/2026      S.Y. Kwon           Stored mass and chemical-potential residual norms separately
-!   06/25/2026      S.Y. Kwon           Removed legacy SUBOM residual skip logic
-!   06/25/2026      S.Y. Kwon           Use CEF site-gradient exchange residuals instead of pseudo-endmember
-!                                        residuals for SUBOM active phases
-!   06/25/2026      S.Y. Kwon           Generalized the CEF site-gradient residual to SUBL/SUBLM/SUBOM
-!                                        active phases before site-fraction Lagrangian GEM
-!   06/25/2026      S.Y. Kwon           Use CEF exchange residuals only when the active fixed assemblage is
-!                                        being solved by the CEF site-fraction KKT path.
-!   06/27/2026      S.Y. Kwon           Restored effective solution stoichiometry for mass residuals so
-!                                        multi-particle solution species use the same basis as GEMNewton.
-!   06/27/2026      S.Y. Kwon           Kept CEF site-fraction Lagrangian mass residuals on the raw
-!                                        site-fraction stoichiometry basis used by GEMNewtonCEF.
-!   06/27/2026      S.Y. Kwon           Counted near-zero active solution species when their grand-potential
-!                                        residual indicates they should grow.
-!   07/01/2026      S.Y. Kwon           Documented that CEF convergence uses site-gradient exchange residuals,
-!                                        not product-endmember stationarity.
-!   07/05/2026      S.Y. Kwon           Excluded zero-amount solution remnants from fixed-assemblage
-!                                        postprocess stationarity diagnostics.
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   04/25/2012      M.H.A. Piro         Original code
+    !   07/20/2026      S.Y. Kwon           Extended the GEM residual norm to CEF site exchange, phase complementarity, and trace-bound conditions.
     !
     !
     ! Purpose:

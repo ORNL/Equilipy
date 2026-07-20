@@ -30,14 +30,15 @@ subroutine GetNewAssemblage(iter)
     !   07/31/2011      M.H.A. Piro         Clean up code: remove unnecessary variables, update variable names
     !   10/21/2011      M.H.A. Piro         Clean up code: modules, simplify iteration history check.
     !   01/21/2013      M.H.A. Piro         Improved the iteration history check and created the
-    !                                        CheckLevelingIterHistory subroutine.  Also, a previous check for
-    !                                        the mass balance constraints computed the sum of coefficients of
-    !                                        A along the 2nd dimension.  This was changed from an integer
-    !                                        vector to a double vector and the absolute quantity of each
-    !                                        coefficient is taken to appropriately handle anions.
+    !                                       CheckLevelingIterHistory subroutine.  Also, a previous check for
+    !                                       the mass balance constraints computed the sum of coefficients of
+    !                                       A along the 2nd dimension.  This was changed from an integer
+    !                                       vector to a double vector and the absolute quantity of each
+    !                                       coefficient is taken to appropriately handle anions.
     !   02/14/2013      M.H.A. Piro         The ShuffleDummySpecies subroutine was created to shuffle dummy
-    !                                        species to the front of the iAssemblage vector.
+    !                                       species to the front of the iAssemblage vector.
     !   03/24/2021      S.Y. Kwon           dLeveling is removed and dPhasePotential is introduced.
+    !   07/20/2026      S.Y. Kwon           Restored immutable grid constitutions during documented PEA exchanges without one-shot repetition state.
     !    
     !
     ! Purpose:
@@ -89,6 +90,7 @@ subroutine GetNewAssemblage(iter)
     USE ModuleThermo
     USE ModuleThermoIO
     USE ModuleGEMSolver
+    USE GridDiscovery, ONLY: CopyGridPointMolFraction
 !
     implicit none
 !
@@ -119,7 +121,6 @@ subroutine GetNewAssemblage(iter)
     
     ! Shuffle the phase assemblage to make the best candidate phase to be tested first:
     call ShuffleAssemblage(iNewPhase,iPhaseTypeOut)
-    ! call CheckMinRatio(iNewPhase,iPhaseTypeOut)
 !
     ! Shuffle variables according to the result of Shuffle Assemblage
     dTempChemicalPotentialGEM   = dChemicalPotentialGEM
@@ -153,11 +154,12 @@ subroutine GetNewAssemblage(iter)
     iTempiPhaseGEM = iPhaseGEM
 
 !
+    ! Step 1. Try replacing each current row with the most favorable candidate.
     ! Loop through all "phases" in the current phase assemblage to determine which one should be
     ! substituted for the new "phase":
     LOOP_NewAssemblage: do k = 1, nElements
 
-        !1. Adjust variables to the new assemblage
+        ! Install the candidate row and its selected solution constitution.
         iAssemblage(k)               = iNewPhase
         dChemicalPotentialGEM(k)     = dLevelingChemicalPotential(iNewPhase)
         dStoichSpeciesGEM(k,:)       = dStoichSpeciesLevel(iNewPhase,:)
@@ -172,20 +174,20 @@ subroutine GetNewAssemblage(iter)
                 dMolFractionGEM(k,m:n) = 0D0
                 dMolFractionGEM(k,iNewPhase) = 1D0
             else
-                call CopyLevelCandidateMolFraction(iNewPhase, k, j, lCandidateFound)
+                call CopyGridPointMolFraction(iNewPhase, k, j, lCandidateFound)
+                if (.NOT.lCandidateFound) &
+                    call CopyLevelCandidateMolFraction(iNewPhase, k, j, lCandidateFound)
                 if (.NOT.lCandidateFound) dMolFractionGEM(k,m:n) = dMolFraction(m:n)
             end if
         end if
 
-        ! 2. Calculate phase amount
+        ! Step 2. Solve phase amounts for this candidate assemblage.
         do i = 1, nElements
             do j = 1, nElements
                 A(j,i) = dStoichSpeciesGEM(i,j)
             end do
             dMolesPhase(i) = dMolesElement(i)
         end do
-        
-        ! 2.1 Call the linear equation solver to compute molar quantities of the phase assemblage:
         
         INFO = 0
         IPIV = 0
@@ -245,14 +247,14 @@ subroutine GetNewAssemblage(iter)
                     dMolFractionGEM(i,m:n) = 0D0
                     dMolFractionGEM(i,iNewPhase) = 1D0
                 else
-                    call CopyLevelCandidateMolFraction(iNewPhase, i, j, lCandidateFound)
+                    call CopyGridPointMolFraction(iNewPhase, i, j, lCandidateFound)
+                    if (.NOT.lCandidateFound) &
+                        call CopyLevelCandidateMolFraction(iNewPhase, i, j, lCandidateFound)
                     if (.NOT.lCandidateFound) dMolFractionGEM(i,m:n) = dMolFraction(m:n)
                 end if
-                ! dMolFractionGEM(i,m:n)      = dMolFraction(m:n)
-                
             end if
 
-            ! 2. Calculate phase amount
+            ! Solve phase amounts for the best tolerable replacement.
             do i = 1, nElements
                 do j = 1, nElements
                     A(j,i) = dStoichSpeciesGEM(i,j)
@@ -269,7 +271,7 @@ subroutine GetNewAssemblage(iter)
                 
     end do LOOP_NewAssemblage
 
-    ! Re-Calculate elemental potentiall based on new assemblage
+    ! Step 3. Recalculate the elemental-potential plane from the accepted rows.
     do j = 1,nElements
         do i = 1,nElements
             A(i,j) = dAtomFractionSpeciesGEM(i,j)
@@ -286,17 +288,13 @@ subroutine GetNewAssemblage(iter)
 !
     if (INFO /= 0) INFOThermo = 10
 
-    ! ! Calculate phase potential of each species
-    ! dPhasePotential = dChemicalPotential - MATMUL(dAtomFractionSpecies,dElementPotential)
-    ! dMinPhasePotential = MINVAL(dPhasePotential)
-
-    ! Check if this phase assemblage has been previously cosidered
+    ! Step 4. Stop a repeated finite-grid assemblage instead of exchanging it again.
+    ! Check if this phase assemblage has been previously considered.
     call CheckLevelingIterHistory(iter,lPhasePass)
 
     if(.NOT.(lPhasePass)) then
         ! Relax the criteria for phase potential
         dToleranceLevel = -1D-5
-        ! print*,'Repeated'
     end if
     return
      
@@ -306,21 +304,3 @@ subroutine GetNewAssemblage(iter)
 !
 !
 end subroutine GetNewAssemblage
-!
-!-------------------------------------------------------------------------------------------------------------
-!-------------------------------------------------------------------------------------------------------------
-!-------------------------------------------------------------------------------------------------------------
-!
-!
-!
-!
-!-------------------------------------------------------------------------------------------------------------
-!-------------------------------------------------------------------------------------------------------------
-!-------------------------------------------------------------------------------------------------------------
-!
-!
-!
-!
-    !---------------------------------------------------------------------------
-    !                       END - GetNewAssemblage.f90
-    !---------------------------------------------------------------------------

@@ -14,10 +14,10 @@ subroutine CheckThermoInput
     ! Revisions:
     ! ==========
     !
-    !    Date          Programmer        Description of change
-    !    ----          ----------        ---------------------
-    !    08/30/2011    M.H.A. Piro       Original code
-    !    11/03/2021      S.Y. Kwon       Removed Compound variables
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   08/30/2011      M.H.A. Piro         Original code
+    !   11/03/2021      S.Y. Kwon           Removed Compound variables
     !
     ! Purpose:
     ! ========

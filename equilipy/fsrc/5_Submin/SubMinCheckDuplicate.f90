@@ -15,7 +15,7 @@ subroutine SubMinCheckDuplicate(lDuplicate)
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
     !   08/30/2012      M.H.A. Piro         Original duplicate-composition check
-    !   06/23/2026      S.Y. Kwon           Used dTolEuclideanNorm for duplicate tolerance
+    !   07/20/2026      S.Y. Kwon           Used the shared Euclidean composition tolerance to identify duplicate subminimization solutions.
     !
     !
     ! Purpose:

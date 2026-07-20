@@ -26,12 +26,7 @@ subroutine PostLevelingSpeciesInit(lInitialized)
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   06/23/2026      S.Y. Kwon           Added documented Leveling-to-Lagrangian handoff
-    !   06/23/2026      S.Y. Kwon           Seed only zero endmembers and cap degenerate exp(0) at trace level
-    !   06/23/2026      S.Y. Kwon           Split Eriksson seeds across Leveling-equivalent endmember classes
-    !   06/28/2026      S.Y. Kwon           Preserved mass-balanced Leveling/PEA constitutions by using
-    !                                       Eriksson zero-endmember estimates as trace relative weights when
-    !                                       a solution phase already has selected species moles.
+    !   07/20/2026      S.Y. Kwon           Initialized post-Leveling species amounts from mass-balanced phase constitutions and formula-atom scales.
     !
     !
     ! Purpose:

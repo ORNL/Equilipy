@@ -33,7 +33,7 @@ subroutine CompHessianQKTO(iSolnIndex, nSpeciesDim, dSpeciesChemicalPotential, d
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   06/28/2026      S.Y. Kwon           Added analytical QKTO excess and ideal chemical-potential Jacobian.
+    !   07/20/2026      S.Y. Kwon           Added the analytical ideal and excess chemical-potential Jacobian for QKTO phases.
     !
     !
     ! Purpose:

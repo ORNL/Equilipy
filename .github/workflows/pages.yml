@@ -33,12 +33,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gfortran liblapack-dev libblas-dev
 
-      - name: Install documentation dependencies
-        run: |
-          python -m pip install -r docs/requirements.txt
-          # Build the checked-out source (not the PyPI release) so autodoc
-          # documents the tagged code and gets a loadable equilifort extension.
-          python -m pip install .
+      - name: Install constrained documentation toolchain
+        run: python -m pip install -r docs/requirements.txt
+
+      - name: Build and install checked-out Equilipy for autodoc
+        # Do not install Equilipy from PyPI: autodoc must use the tagged source
+        # and a locally built, loadable equilifort extension.
+        run: python -m pip install .
 
       - name: Setup Pages
         id: pages

@@ -21,7 +21,7 @@ subroutine PolyRegularQKTO(iSolnIndex,iParam)
     !   06/25/2011      M.H.A. Piro         Original code
     !   07/31/2011      M.H.A. Piro         Clean up code: remove unnecessary variables, update variable names
     !   10/27/2011      M.H.A. Piro         Clean up code: modules, remove unnecessary variables
-    !   11/11/2020      S.Y.   Kwon         Removed local dPartialGParam; it is assigned as module state
+    !   11/11/2020      S.Y. Kwon           Removed local dPartialGParam; it is assigned as module state
     !
     ! Purpose
     ! =======

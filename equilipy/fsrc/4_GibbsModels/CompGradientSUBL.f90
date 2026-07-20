@@ -37,11 +37,7 @@ subroutine CompGradientSUBL(iSolnIndex, nSiteDim, dSiteGradient, dScalarGibbs, &
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   06/24/2026      S.Y. Kwon           Added direct scalar CEF site-gradient for Subminimization.
-    !   06/24/2026      S.Y. Kwon           Replaced magnetic finite-difference derivatives with analytical ones.
-    !   06/24/2026      S.Y. Kwon           Added H/S/Cp scalar and site-gradient outputs.
-    !   07/01/2026      S.Y. Kwon           Corrected the high-temperature magnetic Tc derivative sign for
-    !                                       SUBL/SUBOM site-fraction gradients.
+    !   07/20/2026      S.Y. Kwon           Corrected CEF chemical-potential and magnetic-temperature derivatives for consistent sublattice gradients.
     !
     !
     ! Purpose:

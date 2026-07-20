@@ -15,9 +15,10 @@ subroutine ResetThermoParser
     ! Revisions:
     ! ==========
     !
-    !    Date          Programmer         Description of change
-    !    ----          ----------         ---------------------
-    !    02/17/2012    M.H.A. Piro        Original code
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   02/17/2012      M.H.A. Piro         Original code
+    !   07/20/2026      S.Y. Kwon           Reset parser state including structural order/disorder partition metadata.
     !
     !
     ! Purpose:
@@ -49,46 +50,159 @@ subroutine ResetThermoParser
     i    = 0
     INFO = 0
     INFOThermo = 0
+    nElementsCS = 0
+    nSpeciesCS = 0
+    nSolnPhasesSysCS = 0
+    iMiscSUBI = 0
+    nParamCS = 0
+    nCountSublatticeCS = 0
+    nMaxSpeciesPhaseCS = 0
+    nMagParamCS = 0
+    lEndmembers2Species = .FALSE.
 
-    ! Deallocate integer arrays from ModuleParseCS:
-    if (allocated(nSpeciesPhaseCS)) then
-        deallocate (nSpeciesPhaseCS,nGibbsEqSpecies,iPhaseCS,iParticlesPerMoleCS,nParamPhaseCS, &
-            iParamPassCS,dStoichSpeciesCS,iRegularParamCS,cRegularParamCS, &
-            nMagParamPhaseCS,iMagneticParamCS,dMagneticParamCS,iMagParamPassCS,STAT = INFO)
-        i = i + INFO
+    ! Deallocate each parser array under its own guard; Python-side database
+    ! transfer paths can allocate selected arrays without allocating the
+    ! historical group sentinel first.
+    INFO = 0
+    if (allocated(nSpeciesPhaseCS)) deallocate(nSpeciesPhaseCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(nGibbsEqSpecies)) deallocate(nGibbsEqSpecies, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iPhaseCS)) deallocate(iPhaseCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iParticlesPerMoleCS)) deallocate(iParticlesPerMoleCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(nParamPhaseCS)) deallocate(nParamPhaseCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iParamPassCS)) deallocate(iParamPassCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(nSublatticePhaseCS)) deallocate(nSublatticePhaseCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iPhaseSublatticeCS)) deallocate(iPhaseSublatticeCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iDisorderedPhaseCS)) deallocate(iDisorderedPhaseCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iOrderDisorderTopologyCS)) deallocate(iOrderDisorderTopologyCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iOrderDisorderStandalonePhaseCS)) then
+        deallocate(iOrderDisorderStandalonePhaseCS, STAT = INFO)
     end if
-
-    ! Deallocate real arrays from ModuleParseCS:
-    if (allocated(dAtomicMassCS)) then
-        deallocate (dAtomicMassCS, dGibbsCoeffSpeciesTemp, dRegularParamCS, dGibbsMagneticCS, STAT = INFO)
-        i = i + INFO
-    end if
-
-    ! Deallocate character arrays from ModuleParseCS:
-    if (allocated(cElementNameCS)) then
-        deallocate (cElementNameCS,cSolnPhaseTypeCS,cSolnPhaseNameCS,cSpeciesNameCS, STAT = INFO)
-        i = i + INFO
-    end if
-
-    ! Deallocate arrays used for sublattice phases:
-    if (allocated(cConstituentNameSUBCS)) then
-        deallocate(cConstituentNameSUBCS,iPhaseSublatticeCS,iDisorderedPhaseCS,nConstituentSublatticeCS, &
-            iConstituentSublatticeCS,dStoichSublatticeCS,nSublatticePhaseCS, &
-            nSublatticeElementsCS,dZetaSpeciesCS,dConstituentCoefficientsCS, &
-            dSublatticeChargeCS,dStoichPairsCS,iChemicalGroupCS,cPairNameCS,&
-            STAT = INFO)
-        i = i + INFO
-    end if
-
-    if (allocated(dGibbsMagneticCS)) then
-        deallocate(dGibbsMagneticCS,STAT = INFO)
-        i = i + INFO
-    end if
-
-    if (allocated(nPairsSROCS)) then
-        deallocate(nPairsSROCS,iPairIDCS,dCoordinationNumberCS, STAT = INFO)
-        i = i + INFO
-    end if
+    i = i + INFO
+    INFO = 0
+    if (allocated(iMagParamPassCS)) deallocate(iMagParamPassCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(nMagParamPhaseCS)) deallocate(nMagParamPhaseCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iSUBIMixTypeCS)) deallocate(iSUBIMixTypeCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(nInterpolationOverrideCS)) deallocate(nInterpolationOverrideCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dAtomicMassCS)) deallocate(dAtomicMassCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(cElementNameCS)) deallocate(cElementNameCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(cSolnPhaseTypeCS)) deallocate(cSolnPhaseTypeCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(cSolnPhaseNameCS)) deallocate(cSolnPhaseNameCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(cSpeciesNameCS)) deallocate(cSpeciesNameCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(cRegularParamCS)) deallocate(cRegularParamCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iRegularParamCS)) deallocate(iRegularParamCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(nConstituentSublatticeCS)) deallocate(nConstituentSublatticeCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(nPairsSROCS)) deallocate(nPairsSROCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iMagneticParamCS)) deallocate(iMagneticParamCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iSUBIParamDataCS)) deallocate(iSUBIParamDataCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(nSublatticeElementsCS)) deallocate(nSublatticeElementsCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dGibbsCoeffSpeciesTemp)) deallocate(dGibbsCoeffSpeciesTemp, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dRegularParamCS)) deallocate(dRegularParamCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dGibbsMagneticCS)) deallocate(dGibbsMagneticCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dMagneticParamCS)) deallocate(dMagneticParamCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dStoichSublatticeCS)) deallocate(dStoichSublatticeCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dStoichSpeciesCS)) deallocate(dStoichSpeciesCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dZetaSpeciesCS)) deallocate(dZetaSpeciesCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dStoichConstituentCS)) deallocate(dStoichConstituentCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dQKTOParamsCS)) deallocate(dQKTOParamsCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(cPairNameCS)) deallocate(cPairNameCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iInterpolationOverrideCS)) deallocate(iInterpolationOverrideCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iConstituentSublatticeCS)) deallocate(iConstituentSublatticeCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iPairIDCS)) deallocate(iPairIDCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(iChemicalGroupCS)) deallocate(iChemicalGroupCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dSublatticeChargeCS)) deallocate(dSublatticeChargeCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dStoichPairsCS)) deallocate(dStoichPairsCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dConstituentCoefficientsCS)) deallocate(dConstituentCoefficientsCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(dCoordinationNumberCS)) deallocate(dCoordinationNumberCS, STAT = INFO)
+    i = i + INFO
+    INFO = 0
+    if (allocated(cConstituentNameSUBCS)) deallocate(cConstituentNameSUBCS, STAT = INFO)
+    i = i + INFO
 
     ! Return an INFOThermo if deallocation of any of the allocatable variables failed:
     if (i > 0) then

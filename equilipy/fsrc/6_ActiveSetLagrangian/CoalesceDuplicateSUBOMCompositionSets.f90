@@ -14,19 +14,14 @@
 !> \sa      RunLagrangianGEM.f90
 !> \sa      Level2Lagrange.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   07/03/2026      S.Y. Kwon           Original duplicate same-parent SUBOM composition-set coalescence.
-!   07/03/2026      S.Y. Kwon           Used a disordered-manifold guard when retaining DIS_PART display rows.
-!   07/03/2026      S.Y. Kwon           Collapsed same-composition SUBOM ordering splits to the lower branch.
-!   07/03/2026      S.Y. Kwon           Synchronized disordered-manifold slots to the DIS_PART display phase.
-!   07/03/2026      S.Y. Kwon           Removed standalone display remapping so ordinary physical A2/B2
-!                                       assemblages remain switch-identical unless true duplicate slots collapse.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Coalesced same-parent SUBOM composition sets using exact structural and ordering identities while preserving distinct ordered states.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -75,8 +70,9 @@
 ! Numerical assumptions:
 ! ======================
 !
-! - Duplicate-site coalescence is allowed only when maximum site-fraction
-!   difference is below 1D-6.
+! - Parser-declared partition companions coalesce only at exact parent-site
+!   equality.  The legacy helper-only experimental path retains its historical
+!   numerical duplicate rule.
 ! - Same-composition ordering splits are collapsed to the lower fixed-site
 !   parent Gibbs branch; distinct element compositions are not changed.
 ! - If one duplicate slot is the DIS_PART companion display phase, that
@@ -101,12 +97,15 @@ subroutine CoalesceDuplicateSUBOMCompositionSets(lChanged)
     integer :: iSlotA, iSlotB, iPhaseA, iPhaseB, iKeepSlot, iRemoveSlot, iKeepPhase
     real(8) :: dSiteDifference, dCompositionDifference
     real(8), parameter :: dSameSetTolerance = 1D-6
+    logical :: lCanonicalPair, lDisplayChanged
 
     lChanged = .FALSE.
-    if (nSolnPhases <= 1) return
     if (.NOT.allocated(iActiveSlotThermoPhase)) return
     if (.NOT.allocated(iActiveSlotDisplayPhase)) return
     if (.NOT.allocated(dActiveSlotSiteFraction)) return
+
+    call SyncSUBOMDisplayPhases(lDisplayChanged)
+    if (nSolnPhases <= 1) return
 
     do iSlotA = 1, nElements - 1
         if (iAssemblage(iSlotA) >= 0) cycle
@@ -121,7 +120,13 @@ subroutine CoalesceDuplicateSUBOMCompositionSets(lChanged)
 
             dSiteDifference = MAXVAL(DABS(&
                 dActiveSlotSiteFraction(iSlotA,:,:) - dActiveSlotSiteFraction(iSlotB,:,:)))
-            if (dSiteDifference > dSameSetTolerance) cycle
+            lCanonicalPair = CanonicalCompanionPhase(iPhaseA) > 0
+            if (lCanonicalPair) then
+                if (ANY(dActiveSlotSiteFraction(iSlotA,:,:) /= &
+                    dActiveSlotSiteFraction(iSlotB,:,:))) cycle
+            else
+                if (dSiteDifference > dSameSetTolerance) cycle
+            end if
 
             call ChooseRetainedDuplicateSlot(iSlotA, iSlotB, iPhaseA, &
                 iKeepSlot, iRemoveSlot, iKeepPhase)
@@ -142,6 +147,7 @@ subroutine CoalesceDuplicateSUBOMCompositionSets(lChanged)
                 if (iAssemblage(iSlotB) >= 0) cycle
                 iPhaseB = iActiveSlotThermoPhase(iSlotB)
                 if (iPhaseB /= iPhaseA) cycle
+                if (CanonicalCompanionPhase(iPhaseA) > 0) cycle
 
                 dCompositionDifference = CompositionDifferenceFromSite(iPhaseA, &
                     dActiveSlotSiteFraction(iSlotA,:,:), dActiveSlotSiteFraction(iSlotB,:,:))
@@ -170,7 +176,8 @@ contains
             iEntry = iAssemblage(iSlot)
             if (iEntry >= 0) cycle
 
-            iDisplayPhase = -iEntry
+            iDisplayPhase = iActiveSlotDisplayPhase(iSlot)
+            if (iDisplayPhase <= 0) iDisplayPhase = -iEntry
             iParentPhase = iActiveSlotThermoPhase(iSlot)
             if ((iParentPhase <= 0).OR.(iParentPhase > nSolnPhasesSys)) cycle
             if (TRIM(cSolnPhaseType(iParentPhase)) /= 'SUBOM') cycle
@@ -179,7 +186,7 @@ contains
             if (iPreferredPhase <= 0) cycle
             if (iPreferredPhase == iDisplayPhase) cycle
 
-            iAssemblage(iSlot) = -iPreferredPhase
+            iActiveSlotDisplayPhase(iSlot) = iPreferredPhase
             lChangedOut = .TRUE.
         end do
 
@@ -191,10 +198,51 @@ contains
         integer, intent(in)  :: iSlotIn, iParentPhase
         integer, intent(out) :: iDisplayPhaseOut
 
-        integer :: iHelperPhase
+        integer :: iHelperPhase, iClass, iPriorClass
 
         iDisplayPhaseOut = iParentPhase
-        iHelperPhase = 0
+        iHelperPhase = CanonicalCompanionPhase(iParentPhase)
+        if (iHelperPhase > 0) then
+            iPriorClass = OD_CANDIDATE_NOT_EVALUATED
+            if (allocated(iActiveSlotODClass)) iPriorClass = iActiveSlotODClass(iSlotIn)
+            if (allocated(iODCandidateClass)) then
+                if ((iParentPhase >= 1).AND.&
+                    (iParentPhase <= SIZE(iODCandidateClass))) then
+                    if (iODCandidateClass(iParentPhase) /= &
+                        OD_CANDIDATE_NOT_EVALUATED) then
+                        iPriorClass = iODCandidateClass(iParentPhase)
+                    end if
+                end if
+            end if
+            call ClassifyOrderDisorderActiveSlot(iParentPhase, &
+                dActiveSlotSiteFraction(iSlotIn,:,:), iClass, iHelperPhase)
+            ! Structural equality classifies the site geometry; the candidate
+            ! sweep's curvature fact decides whether that symmetric point is a
+            ! stable disordered chart, an unstable ordering branch, or a node.
+            ! Preserve both directions of that typed decision without a
+            ! constitution-distance cutoff.
+            if (.NOT.RepeatedParentCompositionSetsActive(iParentPhase)) then
+                if ((iClass == OD_CANDIDATE_ORDERED).AND.&
+                    StableDisorderedCandidateClass(iPriorClass)) then
+                    iClass = OD_CANDIDATE_DISORDERED
+                end if
+                if ((iClass == OD_CANDIDATE_DISORDERED).AND.&
+                    (.NOT.StableDisorderedCandidateClass(iPriorClass)).AND.&
+                    (iPriorClass /= OD_CANDIDATE_NOT_EVALUATED)) then
+                    iClass = iPriorClass
+                end if
+            end if
+            if (allocated(iActiveSlotODClass)) iActiveSlotODClass(iSlotIn) = iClass
+            if (iClass == OD_CANDIDATE_DISORDERED) iDisplayPhaseOut = iHelperPhase
+            if (iClass == OD_CANDIDATE_ORDERED) iDisplayPhaseOut = iParentPhase
+            if ((iClass /= OD_CANDIDATE_DISORDERED).AND.&
+                (iClass /= OD_CANDIDATE_ORDERED)) then
+                if (iActiveSlotDisplayPhase(iSlotIn) > 0) then
+                    iDisplayPhaseOut = iActiveSlotDisplayPhase(iSlotIn)
+                end if
+            end if
+            return
+        end if
         if (allocated(iDisorderedPhase)) then
             if ((iParentPhase >= 1).AND.(iParentPhase <= SIZE(iDisorderedPhase))) then
                 iHelperPhase = iDisorderedPhase(iParentPhase)
@@ -207,6 +255,30 @@ contains
         return
     end subroutine PreferredDisplayForSite
 
+
+    logical function RepeatedParentCompositionSetsActive(iParentPhaseIn)
+        integer, intent(in) :: iParentPhaseIn
+
+        integer :: iSlot, nParentSlots
+
+        RepeatedParentCompositionSetsActive = .FALSE.
+        if (.NOT.allocated(iActiveSlotThermoPhase)) return
+
+        nParentSlots = 0
+        do iSlot = 1, MIN(nElements, SIZE(iActiveSlotThermoPhase))
+            if (iAssemblage(iSlot) >= 0) cycle
+            if (iActiveSlotThermoPhase(iSlot) /= iParentPhaseIn) cycle
+            nParentSlots = nParentSlots + 1
+            if (nParentSlots > 1) then
+                RepeatedParentCompositionSetsActive = .TRUE.
+                return
+            end if
+        end do
+
+        return
+    end function RepeatedParentCompositionSetsActive
+
+
     subroutine ChooseRetainedDuplicateSlot(iSlotAIn, iSlotBIn, iParentPhase, &
         iKeepSlotOut, iRemoveSlotOut, iKeepPhaseOut)
         integer, intent(in)  :: iSlotAIn, iSlotBIn, iParentPhase
@@ -217,8 +289,8 @@ contains
 
         iDisplayA = iActiveSlotDisplayPhase(iSlotAIn)
         iDisplayB = iActiveSlotDisplayPhase(iSlotBIn)
-        iHelperPhase = 0
-        if (allocated(iDisorderedPhase)) then
+        iHelperPhase = CanonicalCompanionPhase(iParentPhase)
+        if ((iHelperPhase == 0).AND.allocated(iDisorderedPhase)) then
             if ((iParentPhase >= 1).AND.(iParentPhase <= SIZE(iDisorderedPhase))) then
                 iHelperPhase = iDisorderedPhase(iParentPhase)
             end if
@@ -229,6 +301,11 @@ contains
         iKeepPhaseOut = iParentPhase
         lDisorderedManifold = IsDisorderedManifold(iParentPhase, &
             dActiveSlotSiteFraction(iSlotAIn,:,:))
+
+        if (CanonicalCompanionPhase(iParentPhase) > 0) then
+            iKeepPhaseOut = iParentPhase
+            return
+        end if
 
         if (lDisorderedManifold.AND.(iHelperPhase > 0).AND.(iDisplayA == iHelperPhase)) then
             iKeepSlotOut = iSlotAIn
@@ -276,8 +353,12 @@ contains
         integer :: iHelperPhase
 
         iDisplayPhaseOut = iParentPhase
-        iHelperPhase = 0
-        if (allocated(iDisorderedPhase)) then
+        iHelperPhase = CanonicalCompanionPhase(iParentPhase)
+        if (iHelperPhase > 0) then
+            call PreferredDisplayForSite(iSelectedSlot, iParentPhase, iDisplayPhaseOut)
+            return
+        end if
+        if ((iHelperPhase == 0).AND.allocated(iDisorderedPhase)) then
             if ((iParentPhase >= 1).AND.(iParentPhase <= SIZE(iDisorderedPhase))) then
                 iHelperPhase = iDisorderedPhase(iParentPhase)
             end if
@@ -299,11 +380,32 @@ contains
     end subroutine DisplayPhaseForSelectedSlot
 
 
+    logical function StableDisorderedCandidateClass(iClassIn)
+        integer, intent(in) :: iClassIn
+
+        StableDisorderedCandidateClass = &
+            (iClassIn == OD_CANDIDATE_DISORDERED).OR.&
+            (iClassIn == OD_CANDIDATE_DISORDERED_PROJECTED).OR.&
+            (iClassIn == OD_CANDIDATE_AMBIGUOUS_ROUNDOFF)
+
+        return
+
+    end function StableDisorderedCandidateClass
+
+
     logical function IsDisorderedManifold(iParentPhase, dSiteIn)
         integer, intent(in) :: iParentPhase
         real(8), dimension(nMaxSublatticeSys,nMaxConstituentSys), intent(in) :: dSiteIn
 
         integer :: iSublPhase, iSubA, iSubB, iCon, nConstituent
+        integer :: iClass, iCompanionPhase
+
+        if (CanonicalCompanionPhase(iParentPhase) > 0) then
+            call ClassifyOrderDisorderActiveSlot(iParentPhase, dSiteIn, &
+                iClass, iCompanionPhase)
+            IsDisorderedManifold = iClass == OD_CANDIDATE_DISORDERED
+            return
+        end if
 
         IsDisorderedManifold = .TRUE.
         iSublPhase = iPhaseSublattice(iParentPhase)
@@ -434,6 +536,7 @@ contains
 
         call CompactAfterRemovingSlot(iRemoveSlot)
         call RebuildActiveSlotState
+        call SyncSUBOMDisplayPhases(lDisplayChanged)
 
         deallocate(dProductFraction)
 
@@ -456,6 +559,7 @@ contains
         if (allocated(iActiveSlotThermoPhase)) iActiveSlotThermoPhase = 0
         if (allocated(iActiveSlotDisplayPhase)) iActiveSlotDisplayPhase = 0
         if (allocated(iActiveSlotIdentityOrdinal)) iActiveSlotIdentityOrdinal = 0
+        if (allocated(iActiveSlotODClass)) iActiveSlotODClass = OD_CANDIDATE_NOT_EVALUATED
         if (allocated(dActiveSlotMolFraction)) dActiveSlotMolFraction = 0D0
 
         do iSlot = 1, nElements
@@ -775,6 +879,7 @@ contains
         if (allocated(iActiveSlotThermoPhase)) iActiveSlotThermoPhase = 0
         if (allocated(iActiveSlotDisplayPhase)) iActiveSlotDisplayPhase = 0
         if (allocated(iActiveSlotIdentityOrdinal)) iActiveSlotIdentityOrdinal = 0
+        if (allocated(iActiveSlotODClass)) iActiveSlotODClass = OD_CANDIDATE_NOT_EVALUATED
         if (allocated(dActiveSlotMolFraction)) dActiveSlotMolFraction = 0D0
         if (allocated(dActiveSlotSiteFraction)) dActiveSlotSiteFraction = 0D0
 
@@ -826,7 +931,9 @@ contains
 
         do iOrderedPhase = 1, MIN(nSolnPhasesSys, SIZE(iDisorderedPhase))
             if (TRIM(cSolnPhaseType(iOrderedPhase)) /= 'SUBOM') cycle
-            if (iDisorderedPhase(iOrderedPhase) == iDisplayPhase) then
+            if ((CanonicalCompanionPhase(iOrderedPhase) == iDisplayPhase).OR.&
+                (lSUBOMTwoSetCandidateEnabled.AND.&
+                (iDisorderedPhase(iOrderedPhase) == iDisplayPhase))) then
                 ParentPhaseForDisplay = iOrderedPhase
                 return
             end if
@@ -834,6 +941,23 @@ contains
 
         return
     end function ParentPhaseForDisplay
+
+
+    integer function CanonicalCompanionPhase(iParentPhase)
+        integer, intent(in) :: iParentPhase
+
+        CanonicalCompanionPhase = 0
+        if (.NOT.lODPartitionUnifiedActive) return
+        if (.NOT.allocated(iODCompanionPhase)) return
+        if (.NOT.allocated(iODTopologyClass)) return
+        if ((iParentPhase < 1).OR.(iParentPhase > SIZE(iODCompanionPhase))) return
+        if ((iODTopologyClass(iParentPhase) < OD_TOPOLOGY_HELPER_STANDALONE).OR.&
+            (iODTopologyClass(iParentPhase) > OD_TOPOLOGY_HELPER_ONLY)) return
+        if (iODCompanionPhase(iParentPhase) == iParentPhase) return
+        CanonicalCompanionPhase = iODCompanionPhase(iParentPhase)
+
+        return
+    end function CanonicalCompanionPhase
 
 
     integer function ConstituentElementIndex(cName)

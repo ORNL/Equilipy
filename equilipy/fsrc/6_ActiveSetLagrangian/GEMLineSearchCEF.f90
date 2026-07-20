@@ -7,30 +7,14 @@
 !> \sa      GEMNewtonCEF.f90
 !> \sa      CompFunctionNorm.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/25/2026      S.Y. Kwon           Added positivity-preserving CEF site-fraction GEM line search.
-!   06/25/2026      S.Y. Kwon           Rebuilt active CEF species moles before saving line-search state.
-!   06/25/2026      S.Y. Kwon           Limited the initial CEF line-search step by analytical phase and
-!                                        site-fraction positivity bounds.
-!   06/28/2026      S.Y. Kwon           Extended the guarded line search to mixed CEF/non-CEF active sets.
-!   07/01/2026      S.Y. Kwon           Clarified that CEF trial directions are applied in site-fraction
-!                                        variables before product endmember fractions are rebuilt.
-!   07/02/2026      S.Y. Kwon           Added passive Gibbs/merit line-search diagnostics and
-!                                        residual-only no-descent classification.
-!   07/02/2026      S.Y. Kwon           Synchronized slot-local CEF site fractions during each feasible
-!                                        trial before residual evaluation.
-!   07/03/2026      S.Y. Kwon           Preserved bound-active phase-amount retry directions instead of
-!                                        overwriting them with mass-balance projection.
-!   07/03/2026      S.Y. Kwon           Preserved the lowest Gibbs+mass merit trial for pre-residual-LM
-!                                        class-1 diagnostics without accepting it as a state.
-!   07/04/2026      S.Y. Kwon           Removed rejected C3-c2 funnel acceptance while retaining
-!                                        passive merit diagnostics.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Added a bounded CEF site-fraction line search with monotone Gibbs acceptance and recovery safeguards.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -297,7 +281,10 @@ contains
 
         implicit none
 
-        integer :: iSlot, iSolnPhase, iSpecies
+        integer :: iSlot, iSoln, iSolnPhase, iSpecies
+        integer :: iPhaseID, nSiteCapacity, nSiteOut, iInfo
+        real(8) :: dScalarGibbs, dScalarH, dScalarS, dScalarCp
+        real(8), allocatable :: dGradient(:), dGradientH(:), dGradientS(:), dGradientCp(:)
 
         CurrentActiveGibbs = 0D0
         do iSlot = 1, nConPhases
@@ -307,12 +294,41 @@ contains
             end if
         end do
 
-        do iSlot = 1, nSolnPhases
-            iSolnPhase = -iAssemblage(nElements - iSlot + 1)
+        nSiteCapacity = nMaxSublatticeSys * nMaxConstituentSys
+        allocate(dGradient(nSiteCapacity), dGradientH(nSiteCapacity), &
+            dGradientS(nSiteCapacity), dGradientCp(nSiteCapacity))
+        do iSoln = 1, nSolnPhases
+            iSlot = nElements - iSoln + 1
+            iSolnPhase = -iAssemblage(iSlot)
+            if (allocated(iActiveSlotThermoPhase)) then
+                if ((iSlot <= SIZE(iActiveSlotThermoPhase)).AND.&
+                    (iActiveSlotThermoPhase(iSlot) > 0)) then
+                    iSolnPhase = iActiveSlotThermoPhase(iSlot)
+                end if
+            end if
             if ((iSolnPhase > 0).AND.(iSolnPhase <= nSolnPhasesSys)) then
-                CurrentActiveGibbs = CurrentActiveGibbs + dGibbsSolnPhase(iSolnPhase)
+                if (IsCEFLineSearchPhase(iSolnPhase).AND.allocated(dActiveSlotSiteFraction)) then
+                    iPhaseID = iPhaseSublattice(iSolnPhase)
+                    call SetCEFMolesFromSite(iSolnPhase, iPhaseID, &
+                        dActiveSlotSiteFraction(iSlot,:,:), dMolesPhase(iSlot))
+                    call CompGradientSUBL(iSolnPhase, nSiteCapacity, dGradient, dScalarGibbs, &
+                        dGradientH, dGradientS, dGradientCp, dScalarH, dScalarS, dScalarCp, &
+                        nSiteOut, iInfo)
+                    if (iInfo == 0) then
+                        CurrentActiveGibbs = CurrentActiveGibbs + &
+                            dMolesPhase(iSlot) * dScalarGibbs
+                    else
+                        CurrentActiveGibbs = HUGE(1D0)
+                    end if
+                else
+                    CurrentActiveGibbs = CurrentActiveGibbs + dGibbsSolnPhase(iSolnPhase)
+                end if
             end if
         end do
+        if (allocated(dGradient)) deallocate(dGradient)
+        if (allocated(dGradientH)) deallocate(dGradientH)
+        if (allocated(dGradientS)) deallocate(dGradientS)
+        if (allocated(dGradientCp)) deallocate(dGradientCp)
 
         return
 
@@ -370,6 +386,7 @@ contains
         real(8), intent(inout) :: dStepInOut
 
         integer :: iPhaseVar, iSiteVar, iSlot, iPhaseID, iSolnPhase, iSub, iCon, iRef
+        integer :: iTie, nTie
         integer :: iFirstLocal, iSpeciesLocal, iSpeciesRefLocal
         real(8) :: dDirection, dAvailable, dSiteFloorLocal, dCandidate
 
@@ -402,26 +419,30 @@ contains
 
             dDirection = dGEMCEFSiteDirection(iSiteVar)
             if (iPhaseID > 0) then
-                if (iSub <= 0) cycle
-                if (dDirection < -1D-300) then
-                    dAvailable = dGEMCEFPhaseSiteLast(iGEMCEFVarPhaseVar(iSiteVar),iSub,iCon) - &
-                        dSiteFloorLocal
-                    if (dAvailable <= 0D0) then
-                        dStepInOut = 0D0
-                        return
+                nTie = CEFLineVariableTieCount(iSiteVar)
+                do iTie = 1, nTie
+                    iSub = CEFLineVariableTiedSublattice(iSiteVar,iTie)
+                    if (iSub <= 0) cycle
+                    if (dDirection < -1D-300) then
+                        dAvailable = dGEMCEFPhaseSiteLast(iGEMCEFVarPhaseVar(iSiteVar),iSub,iCon) - &
+                            dSiteFloorLocal
+                        if (dAvailable <= 0D0) then
+                            dStepInOut = 0D0
+                            return
+                        end if
+                        dCandidate = 0.99D0 * dAvailable / (-dDirection)
+                        dStepInOut = DMIN1(dStepInOut, DMAX1(0D0, dCandidate))
+                    else if (dDirection > 1D-300) then
+                        dAvailable = dGEMCEFPhaseSiteLast(iGEMCEFVarPhaseVar(iSiteVar),iSub,iRef) - &
+                            dSiteFloorLocal
+                        if (dAvailable <= 0D0) then
+                            dStepInOut = 0D0
+                            return
+                        end if
+                        dCandidate = 0.99D0 * dAvailable / dDirection
+                        dStepInOut = DMIN1(dStepInOut, DMAX1(0D0, dCandidate))
                     end if
-                    dCandidate = 0.99D0 * dAvailable / (-dDirection)
-                    dStepInOut = DMIN1(dStepInOut, DMAX1(0D0, dCandidate))
-                else if (dDirection > 1D-300) then
-                    dAvailable = dGEMCEFPhaseSiteLast(iGEMCEFVarPhaseVar(iSiteVar),iSub,iRef) - &
-                        dSiteFloorLocal
-                    if (dAvailable <= 0D0) then
-                        dStepInOut = 0D0
-                        return
-                    end if
-                    dCandidate = 0.99D0 * dAvailable / dDirection
-                    dStepInOut = DMIN1(dStepInOut, DMAX1(0D0, dCandidate))
-                end if
+                end do
             else
                 iSolnPhase = iGEMCEFVarSolnPhase(iSiteVar)
                 iFirstLocal = nSpeciesPhase(iSolnPhase-1) + 1
@@ -460,6 +481,7 @@ contains
 
         integer :: iPhaseVar, iSiteVar, iSlot, iSolnPhase, iPhaseID
         integer :: iSub, iCon, iRef, iSpecies, iFirstLocal, iLastLocal
+        integer :: iTie, nTie
         integer :: iSpeciesLocal, iSpeciesRefLocal, iLocal
         real(8) :: dPhaseAmount, dSumLocal, dFractionFloorLocal
         real(8), allocatable :: dSiteTrial(:,:,:)
@@ -506,12 +528,15 @@ contains
                 iCon = iGEMCEFVarCon(iSiteVar)
                 iRef = iGEMCEFVarRef(iSiteVar)
                 if (iPhaseID > 0) then
-                    iSub = iGEMCEFVarSub(iSiteVar)
                     iPhaseVar = iGEMCEFVarPhaseVar(iSiteVar)
-                    dSiteTrial(iPhaseVar,iSub,iCon) = dSiteTrial(iPhaseVar,iSub,iCon) + &
-                        dStepIn * dGEMCEFSiteDirection(iSiteVar)
-                    dSiteTrial(iPhaseVar,iSub,iRef) = dSiteTrial(iPhaseVar,iSub,iRef) - &
-                        dStepIn * dGEMCEFSiteDirection(iSiteVar)
+                    nTie = CEFLineVariableTieCount(iSiteVar)
+                    do iTie = 1, nTie
+                        iSub = CEFLineVariableTiedSublattice(iSiteVar,iTie)
+                        dSiteTrial(iPhaseVar,iSub,iCon) = dSiteTrial(iPhaseVar,iSub,iCon) + &
+                            dStepIn * dGEMCEFSiteDirection(iSiteVar)
+                        dSiteTrial(iPhaseVar,iSub,iRef) = dSiteTrial(iPhaseVar,iSub,iRef) - &
+                            dStepIn * dGEMCEFSiteDirection(iSiteVar)
+                    end do
                 else
                     iSolnPhase = iGEMCEFVarSolnPhase(iSiteVar)
                     iFirstLocal = nSpeciesPhase(iSolnPhase-1) + 1
@@ -881,6 +906,42 @@ contains
         return
 
     end subroutine RebuildActiveCEFMolesFromStoredSites
+
+
+    integer function CEFLineVariableTieCount(iVarIn)
+
+        implicit none
+
+        integer, intent(in) :: iVarIn
+
+        CEFLineVariableTieCount = 1
+        if (.NOT.allocated(nGEMCEFVarTie)) return
+        if ((iVarIn <= 0).OR.(iVarIn > SIZE(nGEMCEFVarTie))) return
+        if (nGEMCEFVarTie(iVarIn) > 0) CEFLineVariableTieCount = nGEMCEFVarTie(iVarIn)
+
+        return
+
+    end function CEFLineVariableTieCount
+
+
+    integer function CEFLineVariableTiedSublattice(iVarIn, iTieIn)
+
+        implicit none
+
+        integer, intent(in) :: iVarIn, iTieIn
+
+        CEFLineVariableTiedSublattice = iGEMCEFVarSub(iVarIn)
+        if (.NOT.allocated(iGEMCEFVarTieSub)) return
+        if ((iVarIn <= 0).OR.(iVarIn > SIZE(iGEMCEFVarTieSub,1))) return
+        if ((iTieIn <= 0).OR.(iTieIn > SIZE(iGEMCEFVarTieSub,2))) return
+        if (iGEMCEFVarTieSub(iVarIn,iTieIn) > 0) then
+            CEFLineVariableTiedSublattice = iGEMCEFVarTieSub(iVarIn,iTieIn)
+        end if
+
+        return
+
+    end function CEFLineVariableTiedSublattice
+
 
     logical function IsCEFLineSearchPhase(iSolnPhaseIndexIn)
 

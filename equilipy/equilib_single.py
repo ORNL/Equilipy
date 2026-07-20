@@ -206,8 +206,9 @@ def equilib_single(
         minimize()
 
         res.append_output()
-    except EquilibError:
-        res.append_error()
+    except EquilibError as error:
+        if not res.append_postprocess_warning(error):
+            res.append_error(error)
 
     fort.resetthermo()
 

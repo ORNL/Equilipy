@@ -15,35 +15,9 @@ subroutine CheckPhaseAssemblage
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-!   05/02/2022      S.Y. Kwon            Original code
-!   10/21/2023      S.Y. Kwon            Cleaning the code
-!   06/26/2026      S.Y. Kwon            Added PEA-internal Lagrangian polish before refreshing
-!                                         solution driving-force candidates.
-!   06/26/2026      S.Y. Kwon            Allowed Lagrangian-certified PEA convergence once the polished
-!                                         plane passes the refreshed driving-force check.
-!   06/26/2026      S.Y. Kwon            Recorded per-iteration PEA diagnostics for active-set audits.
-!   06/27/2026      S.Y. Kwon            Scaled the accepted-polish driving-force check by the polished
-!                                         Lagrangian residual so approximate PEA witnesses do not force
-!                                         repeated identical PEA iterations.
-!   06/28/2026      S.Y. Kwon            Delayed PEA-Lagrangian polish until elemental potentials reach a
-!                                         loose plateau based on dMaxElementPotential.
-!   06/30/2026      S.Y. Kwon            Added debug-only max-iteration warnings for CheckPhaseAssemblage/PEA.
-!   07/01/2026      S.Y. Kwon            Allowed converged PEA-Lagrangian handoffs to exit when
-!                                         the refreshed driving-force check adds no phase.
-!   07/01/2026      S.Y. Kwon            Added direct inactive-witness handoff after accepted PEA-Lagrangian
-!                                         polish to avoid duplicate pseudo-compound Leveling oscillations.
-!   07/01/2026      S.Y. Kwon            Broke two-state PEA cycles once a direct-witness Lagrangian handoff
-!                                         repeats after both active-set alternatives were polished.
-!   07/01/2026      S.Y. Kwon            Stopped repeated accepted handoff cycles after multiple repeats when
-!                                         intervening PEA candidates do not yield an accepted Lagrangian state.
-!   07/01/2026      S.Y. Kwon            Prevented solution endmember rows from being classified as
-!                                         compound-only before PostProcessPEA converts them to solution phases.
-!   07/02/2026      S.Y. Kwon            Added driving-force backoff after rejected embedded PEA-Lagrangian
-!                                         polish attempts.
-!   07/04/2026      S.Y. Kwon            Added passive C4-a counters for polish gating, direct-witness
-!                                         handoff, and repeated-handoff exits.
-!   07/05/2026      S.Y. Kwon            Added passive timing/counting for inactive-candidate
-!                                         certification sweeps used by WS-a2.
+    !   05/02/2022      S.Y. Kwon           Original code
+    !   10/21/2023      S.Y. Kwon           Cleaning the code
+    !   07/20/2026      S.Y. Kwon           Made PEA exits and grid candidate refreshes atomic, certified, ownership-aware, and safe from self-replacement.
     !
     ! Purpose:
     ! ========
@@ -81,6 +55,7 @@ subroutine CheckPhaseAssemblage
     logical                             :: lDirectWitnessHandoff
     logical                             :: lRequireDrivingForceReadyForPolish, lDrivingForceReadyForPolish
     logical                             :: lMinPotentialActive, lRepeatedHandoffExit
+    logical                             :: lPEAExitCertified
     logical                             :: MinPotentialPhaseIsActive
     integer                             :: PhaseIndexForLevelingRow
 
@@ -93,8 +68,15 @@ subroutine CheckPhaseAssemblage
     dPreviousMinPhasePotential = -HUGE(1D0)
     lRequireDrivingForceReadyForPolish = .FALSE.
 
+    ! Reaching PEA means that no provisional compounds-only Leveling result is
+    ! terminal.  This also protects staged callers that invoke PEA directly:
+    ! embedded Lagrangian polish must not mistake the provisional flag for an
+    ! already certified return.
+    lCompbdOnly = .FALSE.
+
     ! Initializatrion: Allocate variables and calculate minimum points of each solution
     call InitCheckPhaseAssemblage
+    lPEAExitCertified = .FALSE.
 !
 !
 !
@@ -112,6 +94,7 @@ subroutine CheckPhaseAssemblage
         iPEADirectPhase = 0
         iPEARepeatExit = 0
         iPEARepeatExitReason = 0
+        iPEAExitFreshMinPointSweep = 0
         
 !
         ! Part 1: Leveling.  If the previous accepted PEA-Lagrangian polish
@@ -127,15 +110,25 @@ subroutine CheckPhaseAssemblage
             iterLevel = 1
             call GetNewAssemblage(iterLevel)
             dPhasePotential = dLevelingChemicalPotential - MATMUL(dLevelingCompositionSpecies,dElementPotential)
+            if (lGridFrontEndActive.AND.allocated(lLevelingRowExcluded)) then
+                where (lLevelingRowExcluded) dPhasePotential = HUGE(1D0)
+            end if
+            call MaskActiveMulticomponentGridRows
             dMinPhasePotential = MINVAL(dPhasePotential)
             if (INFOThermo /= 0) then
                 call cpu_time(dCertStart)
-                call CompMinSolnPoint
+                call RunTransactionalPEADFSweep
                 dPhasePotential = dLevelingChemicalPotential - MATMUL(dLevelingCompositionSpecies,dElementPotential)
+                if (lGridFrontEndActive.AND.allocated(lLevelingRowExcluded)) then
+                    where (lLevelingRowExcluded) dPhasePotential = HUGE(1D0)
+                end if
+                call MaskActiveMulticomponentGridRows
                 dMinPhasePotential = MINVAL(dPhasePotential)
                 call cpu_time(dCertStop)
                 dGEMTimingCertification = dGEMTimingCertification + MAX(0D0, dCertStop - dCertStart)
                 nGEMCertificationSweep = nGEMCertificationSweep + 1
+                iPEAExitFreshMinPointSweep = 1
+                iPEAExitReason = PEA_EXIT_REASON_ERROR_DIRECT_HANDOFF
                 exit LOOP_GEM
             end if
         else
@@ -143,6 +136,10 @@ subroutine CheckPhaseAssemblage
 
                 ! Calculate phase potential of each species
                 dPhasePotential = dLevelingChemicalPotential - MATMUL(dLevelingCompositionSpecies,dElementPotential)
+                if (lGridFrontEndActive.AND.allocated(lLevelingRowExcluded)) then
+                    where (lLevelingRowExcluded) dPhasePotential = HUGE(1D0)
+                end if
+                call MaskActiveMulticomponentGridRows
                 dMinPhasePotential = MINVAL(dPhasePotential)
                 ! Check global minimum: if all elements in phase potential are positive, the system is in global minimum
                 if ((dMinPhasePotential> dToleranceLevel)) exit LOOP_Leveling
@@ -154,12 +151,18 @@ subroutine CheckPhaseAssemblage
                 if (INFOThermo /= 0) then
 
                     call cpu_time(dCertStart)
-                    call CompMinSolnPoint
+                    call RunTransactionalPEADFSweep
                     dPhasePotential = dLevelingChemicalPotential - MATMUL(dLevelingCompositionSpecies,dElementPotential)
+                    if (lGridFrontEndActive.AND.allocated(lLevelingRowExcluded)) then
+                        where (lLevelingRowExcluded) dPhasePotential = HUGE(1D0)
+                    end if
+                    call MaskActiveMulticomponentGridRows
                     dMinPhasePotential = MINVAL(dPhasePotential)
                     call cpu_time(dCertStop)
                     dGEMTimingCertification = dGEMTimingCertification + MAX(0D0, dCertStop - dCertStart)
                     nGEMCertificationSweep = nGEMCertificationSweep + 1
+                    iPEAExitFreshMinPointSweep = 1
+                    iPEAExitReason = PEA_EXIT_REASON_ERROR_LEVELING
                     exit LOOP_GEM
                 end if
 !
@@ -181,11 +184,13 @@ subroutine CheckPhaseAssemblage
         nPolishAttemptBefore = nPEALagrangianPolishAttempt
         lDrivingForceReadyForPolish = (.NOT.lRequireDrivingForceReadyForPolish).OR.&
             (dPreviousMinPhasePotential >= -dPEALagrangianPolishMaxDrivingForce)
-        if ((dMaxElementPotential < dPEALagrangianPolishMaxElementPotential).AND.&
-            lDrivingForceReadyForPolish) then
+        if (lODCommittedOwnershipApplied.OR.&
+            ((dMaxElementPotential < dPEALagrangianPolishMaxElementPotential).AND.&
+            lDrivingForceReadyForPolish)) then
             iPEAGatePass = 1
             nPEAGatePassed = nPEAGatePassed + 1
             call PEALagrangianPolish
+            if (lODCommittedOwnershipApplied) lODCommittedOwnershipApplied = .FALSE.
         else
             iPEAGateBlock = 1
             nPEAGateBlocked = nPEAGateBlocked + 1
@@ -205,12 +210,17 @@ subroutine CheckPhaseAssemblage
         iPolishAttempted = 0
         if (nPEALagrangianPolishAttempt > nPolishAttemptBefore) iPolishAttempted = 1
         call cpu_time(dCertStart)
-        call CompMinSolnPoint
+        call RunTransactionalPEADFSweep
         dPhasePotential = dLevelingChemicalPotential - MATMUL(dLevelingCompositionSpecies,dElementPotential)
+        if (lGridFrontEndActive.AND.allocated(lLevelingRowExcluded)) then
+            where (lLevelingRowExcluded) dPhasePotential = HUGE(1D0)
+        end if
+        call MaskActiveMulticomponentGridRows
         dMinPhasePotential = MINVAL(dPhasePotential)
         call cpu_time(dCertStop)
         dGEMTimingCertification = dGEMTimingCertification + MAX(0D0, dCertStop - dCertStart)
         nGEMCertificationSweep = nGEMCertificationSweep + 1
+        iPEAExitFreshMinPointSweep = 1
 !
         
         ! Part3: Check convergence of Capitani algorithm
@@ -265,31 +275,47 @@ subroutine CheckPhaseAssemblage
                 if(iPhase(iAssemblage(i))>0) exit CheckCompdOnly
             end do 
             lCompbdOnly = .True.
+            iPEAExitReason = PEA_EXIT_REASON_COMPOUNDS_ONLY
             exit LOOP_GEM
         end if CheckCompdOnly
 
         ! When a single phase appears and the amount converges to unity, exit the loop
-        if((MINVAL(iAssemblage)==MAXVAL(iAssemblage)).AND.(MAXVAL(dMolesPhase)>=1000)) exit LOOP_GEM
+        if((MINVAL(iAssemblage)==MAXVAL(iAssemblage)).AND.(MAXVAL(dMolesPhase)>=1000)) then
+            iPEAExitReason = PEA_EXIT_REASON_SINGLE_PHASE_UNITY
+            exit LOOP_GEM
+        end if
 
         ! Global minimum from the original PEA residual.
         if ((dMinPhasePotential >=-dPEATol).AND.&
-        (dMaxElementPotential<dPEATol).AND.(dGEMFunctionNorm<dPEATol)) exit LOOP_GEM
+        (dMaxElementPotential<dPEATol).AND.(dGEMFunctionNorm<dPEATol)) then
+            iPEAExitReason = PEA_EXIT_REASON_SETTLED
+            exit LOOP_GEM
+        end if
+!
+        ! If the embedded Lagrangian solve converges and Leveling hands the
+        ! same active set back to Lagrangian, PEA has no new assemblage to add.
+        ! Requiring elemental-potential plateauing in this case can force the
+        ! loop to repeat the same certified active set until iterPEAMax.
+        if (lRepeatedHandoffExit) then
+            iPEAExitReason = PEA_EXIT_REASON_REPEATED_HANDOFF
+            exit LOOP_GEM
+        end if
 !
         ! Lagrangian-polished PEA convergence.  If the embedded Lagrangian
         ! solve converged and the refreshed solution-phase minima do not sit
         ! below the polished plane, PEA has no more active-set evidence to add.
         if (lPEALagrangianPolishAccepted.AND.&
             (dMinPhasePotential >= -dPolishDrivingForceTol).AND.&
-            (dPEALagrangianPolishNormAfter < 1D-5)) exit LOOP_GEM
-!
-        ! If the embedded Lagrangian solve converges and Leveling hands the
-        ! same active set back to Lagrangian, PEA has no new assemblage to add.
-        ! Requiring elemental-potential plateauing in this case can force the
-        ! loop to repeat the same certified active set until iterPEAMax.
-        if (lRepeatedHandoffExit) exit LOOP_GEM
+            (dPEALagrangianPolishNormAfter < 1D-5)) then
+            iPEAExitReason = PEA_EXIT_REASON_POLISH_HANDOFF
+            exit LOOP_GEM
+        end if
 !
     end do LOOP_GEM
     lHitPEAMax = (INFOThermo == 0).AND.(iterPEA > iterPEAMax)
+    if (lHitPEAMax.AND.(iPEAExitReason == PEA_EXIT_REASON_NONE)) then
+        iPEAExitReason = PEA_EXIT_REASON_MAX_ITER
+    end if
     if (lDebugMode.AND.lHitPEAMax) then
         print *, 'WARNING: CheckPhaseAssemblage/PEA hit max iterations ', &
             ' iterPEAMax=', iterPEAMax, &
@@ -308,6 +334,27 @@ subroutine CheckPhaseAssemblage
             ' lastIterGlobal=', iPEALagrangianPolishIterGlobal, &
             ' lastNormAfter=', dPEALagrangianPolishNormAfter
     end if
+    ! iPEAExitReason names the exit path.  For example, SETTLED fires at the
+    ! looser -dPEATol residual test.  iPEAExitStatus is the strict certificate:
+    ! a fresh exit-pass minimum-point sweep plus dMinPhasePotential above the
+    ! Leveling tolerance.  Status is authoritative; a SETTLED-reason exit can
+    ! legitimately be UNSETTLED-status.
+    dPEAExitMinPhasePotential = dMinPhasePotential
+    dPEAExitTolerance = dToleranceLevel
+    lPEAExitCertified = (INFOThermo == 0).AND.&
+        (iPEAExitFreshMinPointSweep == 1).AND.&
+        (dMinPhasePotential >= dToleranceLevel)
+    if ((iPEAExitReason == PEA_EXIT_REASON_ERROR_DIRECT_HANDOFF).OR.&
+        (iPEAExitReason == PEA_EXIT_REASON_ERROR_LEVELING).OR.&
+        (iPEAExitReason == PEA_EXIT_REASON_REPEATED_HANDOFF).OR.&
+        (iPEAExitReason == PEA_EXIT_REASON_MAX_ITER)) then
+        lPEAExitCertified = .FALSE.
+    end if
+    if (lPEAExitCertified) then
+        iPEAExitStatus = PEA_EXIT_STATUS_CERTIFIED_SETTLED
+    else
+        iPEAExitStatus = PEA_EXIT_STATUS_UNSETTLED
+    end if
     call PostProcessPEA
     
 !
@@ -315,6 +362,32 @@ subroutine CheckPhaseAssemblage
     return
 !
 end subroutine CheckPhaseAssemblage
+!
+!
+
+!> \brief Mask exact active rows where duplicate multicomponent bases are singular.
+subroutine MaskActiveMulticomponentGridRows
+
+    USE ModuleThermo
+    USE ModuleGEMSolver
+
+    implicit none
+
+    integer :: iSlot, iLevelRow
+
+    if (.NOT.lGridFrontEndActive) return
+    if (nElements <= 2) return
+    if (.NOT.allocated(dPhasePotential)) return
+
+    do iSlot = 1, nElements
+        iLevelRow = iAssemblage(iSlot)
+        if ((iLevelRow < 1).OR.(iLevelRow > SIZE(dPhasePotential))) cycle
+        dPhasePotential(iLevelRow) = HUGE(1D0)
+    end do
+
+    return
+end subroutine MaskActiveMulticomponentGridRows
+
 !
 !
 
@@ -333,7 +406,7 @@ logical function MinPotentialPhaseIsActive()
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   07/01/2026      S.Y. Kwon            Original helper for direct inactive-witness PEA handoff logic.
+    !   07/20/2026      S.Y. Kwon           Added direct inactive-phase witness handoff to phase-equilibrium assembly.
     !
     !
     ! Purpose:
@@ -419,7 +492,7 @@ integer function PhaseIndexForLevelingRow(iRow)
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   07/01/2026      S.Y. Kwon            Original helper for comparing PEA pseudo-candidates by phase id.
+    !   07/20/2026      S.Y. Kwon           Compared phase-equilibrium pseudo-candidates by physical phase identity.
     !
     !
     ! Purpose:

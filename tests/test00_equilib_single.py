@@ -41,6 +41,9 @@ def test_equilib_single_al_cu_si(alcumgsi_fs73_database: dict) -> None:
     assert result.T == pytest.approx(700.0)
     assert result.context.component_names == ["Al", "Cu", "Si"]
     assert result.stable_phases.names
+    assert result.converged is True
+    assert result.point.gem_exit_status == 0
+    assert result.failure_reason is None
 
 
 def test_equilib_single_prunes_selected_phases_for_zero_components(

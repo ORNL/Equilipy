@@ -17,32 +17,30 @@
 !> \sa      SwapSolnForPureConPhase.f90
 !
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer      Description of change
-!   ----            ----------      ---------------------
-!   31/03/2011      M.H.A. Piro     Original code
-!   07/31/2011      M.H.A. Piro     Clean up code: remove unnecessary
-!                                    variables, update variable names
-!   10/25/2011      M.H.A. Piro     Clean up code: modules, simplify
-!                                    programming.
-!   02/06/2012      M.H.A. Piro     Provided the capability to handle
-!                                    constituents with more than one particle
-!                                    per mole.
-!   04/26/2012      M.H.A. Piro     Implementing Gibbs energy Minimization
-!                                    algorithm.
-!   09/22/2012      M.H.A. Piro     The CompMolFractionQKTO subroutine was
-!                                    replaced with Subminimization.  Solution
-!                                    phases are now added based on the driving
-!                                    force of that phase. See
-!                                    Subminimization.f90 for more details of the
-!                                    advantages of this approach.
-!   06/26/2026      S.Y. Kwon       Routed QKTOM phases through subminimization.
-!   06/27/2026      S.Y. Kwon       Solved IDMX ideal-gas/ideal-solution candidates
-!                                    directly with a normalized log-sum-exp softmax.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   31/03/2011      M.H.A. Piro         Original code
+    !   07/31/2011      M.H.A. Piro         Clean up code: remove unnecessary
+    !                                       variables, update variable names
+    !   10/25/2011      M.H.A. Piro         Clean up code: modules, simplify
+    !                                       programming.
+    !   02/06/2012      M.H.A. Piro         Provided the capability to handle
+    !                                       constituents with more than one particle
+    !                                       per mole.
+    !   04/26/2012      M.H.A. Piro         Implementing Gibbs energy Minimization
+    !                                       algorithm.
+    !   09/22/2012      M.H.A. Piro         The CompMolFractionQKTO subroutine was
+    !                                       replaced with Subminimization.  Solution
+    !                                       phases are now added based on the driving
+    !                                       force of that phase. See
+    !                                       Subminimization.f90 for more details of the
+    !                                       advantages of this approach.
+    !   07/20/2026      S.Y. Kwon           Routed magnetic QKTO and ideal-gas solution candidates through subminimization.
+    !
+    !
 ! Purpose:
 ! ========
 !

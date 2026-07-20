@@ -21,26 +21,7 @@ subroutine CompSublatticeExchangeNorm(dExchangeNorm)
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   06/25/2026      S.Y. Kwon           Replaced the pseudo-endmember residual for SUBOM phases with
-    !                                        analytical site-gradient exchange residuals.
-    !   06/25/2026      S.Y. Kwon           Extended the same residual to active SUBL/SUBLM CEF phases
-    !                                        for site-fraction Lagrangian GEM.
-!   06/25/2026      S.Y. Kwon           Added the CEF phase grand-potential residual so the GEM norm
-!                                        matches the mixed-coordinate KKT equations.
-!   06/25/2026      S.Y. Kwon           Computed CEF composition projections from numeric species
-!                                        stoichiometry to match GEM mass balance.
-!   06/25/2026      S.Y. Kwon           Return zero unless the current fixed assemblage is using the
-!                                        CEF site-fraction KKT path.
-!   07/01/2026      S.Y. Kwon           Applied site-fraction complementarity for trace constituents so
-!                                        lower-bound species with positive residuals do not block convergence.
-!   07/05/2026      S.Y. Kwon           Excluded zero-amount solution remnants from fixed-assemblage
-!                                        postprocess exchange diagnostics.
-!   07/05/2026      S.Y. Kwon           Scaled trace-element-edge site-exchange residuals by active
-!                                        phase fraction to avoid unit-dependent trace-phase norm failures.
-!   07/05/2026      S.Y. Kwon           Applied the same trace-edge phase-fraction scaling to the CEF
-!                                        scalar phase-plane residual in the exchange norm.
-!   07/05/2026      S.Y. Kwon           Attenuated lower-bound trace-site residuals only in trace-edge
-!                                        systems when the carrying active phase is itself trace-scale.
+    !   07/20/2026      S.Y. Kwon           Measured CEF and tied order/disorder exchange residuals with phase and trace-bound scaling.
     !
     !
     ! Purpose:
@@ -112,6 +93,7 @@ subroutine CompSublatticeExchangeNorm(dExchangeNorm)
     real(8), intent(out) :: dExchangeNorm
 
     integer :: k, l, s, c, cRef, iSlot, iThermoPhase
+    integer :: iPhaseVar, iSiteVar, iTie, nTie, iTiedSub
     integer :: iSublPhase, nSublattice, nConstituent, nSiteCapacity, nSiteOut, iInfo
     integer :: iSiteIndex(nMaxSublatticeSys,nMaxConstituentSys)
     integer :: iSiteCursor
@@ -123,9 +105,9 @@ subroutine CompSublatticeExchangeNorm(dExchangeNorm)
     real(8) :: dScalarGibbs, dScalarEnthalpy, dScalarEntropy, dScalarHeatCapacity
     real(8), allocatable :: dSiteGradient(:), dSiteGradientH(:)
     real(8), allocatable :: dSiteGradientS(:), dSiteGradientCp(:)
-    real(8), allocatable :: dPhaseComp(:), dSiteCompDeriv(:)
+    real(8), allocatable :: dPhaseComp(:), dSiteCompDeriv(:), dSiteCompDerivOne(:)
     real(8), allocatable :: dSiteLocal(:,:)
-    logical :: lIsCEFPhase, lScaleExchangeByPhaseFraction
+    logical :: lIsCEFPhase, lScaleExchangeByPhaseFraction, lDisorderedChart
     logical :: lActiveSetContainsOrderDisorderMapped, lTraceElementEdgeSystem
     real(8), parameter :: dTracePhaseExchangeFraction = 1D-3
 
@@ -152,7 +134,7 @@ subroutine CompSublatticeExchangeNorm(dExchangeNorm)
 
     allocate(dSiteGradient(nSiteCapacity), dSiteGradientH(nSiteCapacity), &
         dSiteGradientS(nSiteCapacity), dSiteGradientCp(nSiteCapacity))
-    allocate(dPhaseComp(nElements), dSiteCompDeriv(nElements))
+    allocate(dPhaseComp(nElements), dSiteCompDeriv(nElements), dSiteCompDerivOne(nElements))
     allocate(dSiteLocal(nMaxSublatticeSys,nMaxConstituentSys))
 
     do l = 1, nSolnPhases
@@ -205,6 +187,53 @@ subroutine CompSublatticeExchangeNorm(dExchangeNorm)
             iGEMMaxSublExchangeConstituent = 0
             dGEMMaxSublExchangeResidual = dPhaseResidual
             dGEMMaxSublExchangeWeightedResidual = dWeightedResidual
+        end if
+
+        lDisorderedChart = DisorderedCompositionSetChartForExchange(&
+            iSlot, iThermoPhase, dSiteLocal)
+        if (lDisorderedChart) then
+            iPhaseVar = ActivePhaseVariableForExchangeSlot(iSlot)
+            if (iPhaseVar <= 0) then
+                iGEMMaxSublExchangeSlot = iSlot
+                iGEMMaxSublExchangePhase = iThermoPhase
+                dExchangeNorm = HUGE(1D0)
+                goto 900
+            end if
+            do iSiteVar = 1, nGEMCEFSiteVariables
+                if (iGEMCEFVarPhaseVar(iSiteVar) /= iPhaseVar) cycle
+                if (iGEMCEFVarPhaseID(iSiteVar) /= iSublPhase) cycle
+                c = iGEMCEFVarCon(iSiteVar)
+                cRef = iGEMCEFVarRef(iSiteVar)
+                dSiteCompDeriv = 0D0
+                dResidual = 0D0
+                nTie = ExchangeVariableTieCount(iSiteVar)
+                do iTie = 1, nTie
+                    iTiedSub = ExchangeVariableTiedSublattice(iSiteVar,iTie)
+                    dGrad = dSiteGradient(iSiteIndex(iTiedSub,c))
+                    dGradRef = dSiteGradient(iSiteIndex(iTiedSub,cRef))
+                    dResidual = dResidual + dGrad - dGradRef
+                    call ComputeCEFCompositionDerivative(iThermoPhase, iSublPhase, &
+                        iTiedSub, c, cRef, dSiteLocal, dSiteCompDerivOne)
+                    dSiteCompDeriv = dSiteCompDeriv + dSiteCompDerivOne
+                end do
+                dResidual = dResidual - &
+                    SUM(dElementPotential(1:nElements) * dSiteCompDeriv(1:nElements))
+                s = ExchangeVariableTiedSublattice(iSiteVar,1)
+                if ((dSiteLocal(s,c) > dSiteTraceThreshold).OR.&
+                    (dResidual < -dTraceSpeciesResidualTolerance)) then
+                    dWeightedResidual = dResidual
+                    dExchangeNormSquared = dExchangeNormSquared + dWeightedResidual**2
+                    if (DABS(dWeightedResidual) > DABS(dGEMMaxSublExchangeWeightedResidual)) then
+                        iGEMMaxSublExchangeSlot = iSlot
+                        iGEMMaxSublExchangePhase = iThermoPhase
+                        iGEMMaxSublExchangeSite = s
+                        iGEMMaxSublExchangeConstituent = c
+                        dGEMMaxSublExchangeResidual = dResidual
+                        dGEMMaxSublExchangeWeightedResidual = dWeightedResidual
+                    end if
+                end if
+            end do
+            cycle
         end if
 
         do s = 1, nSublattice
@@ -263,17 +292,108 @@ subroutine CompSublatticeExchangeNorm(dExchangeNorm)
 
     dExchangeNorm = DSQRT(dExchangeNormSquared)
 
+900 continue
     if (allocated(dSiteGradient)) deallocate(dSiteGradient)
     if (allocated(dSiteGradientH)) deallocate(dSiteGradientH)
     if (allocated(dSiteGradientS)) deallocate(dSiteGradientS)
     if (allocated(dSiteGradientCp)) deallocate(dSiteGradientCp)
     if (allocated(dPhaseComp)) deallocate(dPhaseComp)
     if (allocated(dSiteCompDeriv)) deallocate(dSiteCompDeriv)
+    if (allocated(dSiteCompDerivOne)) deallocate(dSiteCompDerivOne)
     if (allocated(dSiteLocal)) deallocate(dSiteLocal)
 
     return
 
 contains
+
+    logical function DisorderedCompositionSetChartForExchange(iSlotIn, iParentPhaseIn, dSiteIn)
+
+        implicit none
+
+        integer, intent(in) :: iSlotIn, iParentPhaseIn
+        real(8), intent(in) :: dSiteIn(nMaxSublatticeSys,nMaxConstituentSys)
+
+        integer :: iClassLocal, iCompanionLocal
+
+        DisorderedCompositionSetChartForExchange = .FALSE.
+        if (.NOT.lODPartitionUnifiedActive) return
+        if (.NOT.allocated(iActiveSlotDisplayPhase)) return
+        if ((iSlotIn <= 0).OR.(iSlotIn > SIZE(iActiveSlotDisplayPhase))) return
+
+        call ClassifyOrderDisorderActiveSlot(iParentPhaseIn, dSiteIn, &
+            iClassLocal, iCompanionLocal)
+        if ((iClassLocal == OD_CANDIDATE_EVALUATION_FAILED).OR.&
+            (iClassLocal == OD_CANDIDATE_AMBIGUOUS_COMPANION)) return
+        if (iClassLocal /= OD_CANDIDATE_DISORDERED) return
+        if (iCompanionLocal <= 0) return
+        if (iActiveSlotDisplayPhase(iSlotIn) /= iCompanionLocal) return
+        if (allocated(iActiveSlotODClass)) then
+            if (iSlotIn <= SIZE(iActiveSlotODClass)) then
+                iActiveSlotODClass(iSlotIn) = OD_CANDIDATE_DISORDERED
+            end if
+        end if
+
+        DisorderedCompositionSetChartForExchange = .TRUE.
+
+        return
+
+    end function DisorderedCompositionSetChartForExchange
+
+
+    integer function ActivePhaseVariableForExchangeSlot(iSlotIn)
+
+        implicit none
+
+        integer, intent(in) :: iSlotIn
+        integer :: iPhaseVarLocal
+
+        ActivePhaseVariableForExchangeSlot = 0
+        if (.NOT.allocated(iGEMCEFPhaseSlot)) return
+        do iPhaseVarLocal = 1, nGEMCEFPhaseVariables
+            if (iGEMCEFPhaseSlot(iPhaseVarLocal) == iSlotIn) then
+                ActivePhaseVariableForExchangeSlot = iPhaseVarLocal
+                return
+            end if
+        end do
+
+        return
+
+    end function ActivePhaseVariableForExchangeSlot
+
+
+    integer function ExchangeVariableTieCount(iVarIn)
+
+        implicit none
+
+        integer, intent(in) :: iVarIn
+
+        ExchangeVariableTieCount = 1
+        if (.NOT.allocated(nGEMCEFVarTie)) return
+        if ((iVarIn <= 0).OR.(iVarIn > SIZE(nGEMCEFVarTie))) return
+        ExchangeVariableTieCount = MAX(1, nGEMCEFVarTie(iVarIn))
+
+        return
+
+    end function ExchangeVariableTieCount
+
+
+    integer function ExchangeVariableTiedSublattice(iVarIn, iTieIn)
+
+        implicit none
+
+        integer, intent(in) :: iVarIn, iTieIn
+
+        ExchangeVariableTiedSublattice = iGEMCEFVarSub(iVarIn)
+        if (.NOT.allocated(iGEMCEFVarTieSub)) return
+        if ((iVarIn <= 0).OR.(iVarIn > SIZE(iGEMCEFVarTieSub,1))) return
+        if ((iTieIn <= 0).OR.(iTieIn > SIZE(iGEMCEFVarTieSub,2))) return
+        if (iGEMCEFVarTieSub(iVarIn,iTieIn) > 0) then
+            ExchangeVariableTiedSublattice = iGEMCEFVarTieSub(iVarIn,iTieIn)
+        end if
+
+        return
+
+    end function ExchangeVariableTiedSublattice
 
     integer function ActiveSlotThermoPhaseForExchange(iSlotIn, iDisplayPhaseIn)
 

@@ -2,8 +2,6 @@ import os
 
 import polars as pl
 
-import _local_import  # noqa: F401
-
 import equilipy as eq
 
 

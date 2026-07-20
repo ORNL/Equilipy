@@ -19,10 +19,9 @@ subroutine CompChemicalPotential(lCompEverything)
     !   04/25/2012      M.H.A. Piro         Original code
     !   06/13/2012      M.H.A. Piro         Include excess parameters
     !   01/18/2013      M.H.A. Piro         The chemical potential terms for each phase component are now
-    !                                        computed in the CompExcessGibbsEnergy.f90 subroutine because
-    !                                        the equation is model dependent.
-    !   06/24/2026      S.Y. Kwon           Kept active solution species amounts synchronized with
-    !                                        model-projected endmember fractions after SUBL/SUBOM evaluation.
+    !                                       computed in the CompExcessGibbsEnergy.f90 subroutine because
+    !                                       the equation is model dependent.
+    !   07/20/2026      S.Y. Kwon           Kept active solution amounts synchronized and evaluated same-parent composition sets from canonical constitutions.
     !
     !
     ! Purpose:
@@ -56,7 +55,7 @@ subroutine CompChemicalPotential(lCompEverything)
     integer :: i, j, k, m, n, iSlot
     real(8) :: dTemp
     logical :: lCompEverything
-    logical :: lSyncProjectedMoles
+    logical :: lSyncProjectedMoles, lUseSlotFraction
 !
 !
     ! Initialize variables:
@@ -66,6 +65,11 @@ subroutine CompChemicalPotential(lCompEverything)
     dPartialEntropy       = dStdEntropy
     dPartialHeatCapacity  = dStdHeatCapacity
     lSolnPhases           = .False.
+    if (allocated(lActiveSlotPropValid)) lActiveSlotPropValid = .FALSE.
+    if (allocated(dActiveSlotChemPot)) dActiveSlotChemPot = 0D0
+    if (allocated(dActiveSlotPartialH)) dActiveSlotPartialH = 0D0
+    if (allocated(dActiveSlotPartialS)) dActiveSlotPartialS = 0D0
+    if (allocated(dActiveSlotPartialCp)) dActiveSlotPartialCp = 0D0
 !
     ! Compute the mole fractions of species in solution phases expected to be stable:
     do j = 1, nSolnPhases
@@ -77,14 +81,36 @@ subroutine CompChemicalPotential(lCompEverything)
         n      = nSpeciesPhase(k)
         lSolnPhases(k) = .True.
 !
+        ! A canonical order/disorder parent can own multiple composition-set
+        ! slots.  Its shared species vector cannot represent both constitutions,
+        ! so evaluate each repeated slot from the slot-local product fractions.
+        lUseSlotFraction = CanonicalRepeatedParentSlot(iSlot, k)
+        if (lUseSlotFraction) dMolFraction(m:n) = dActiveSlotMolFraction(iSlot,m:n)
+
         ! Compute the mole fractions of all solution phase constituents in the phase:
-        do i = nSpeciesPhase(k-1) + 1, nSpeciesPhase(k)
-            if (dTemp>1D-15) dMolFraction(i) = dMolesSpecies(i)/dTemp
+        do i = m, n
+            if ((.NOT.lUseSlotFraction).AND.(dTemp>1D-15)) then
+                dMolFraction(i) = dMolesSpecies(i)/dTemp
+            end if
             dPhasePotential(i) = 0d0
         end do
 !  
         ! Compute excess terms:
         call CompExcessGibbsEnergy(k)
+
+        ! Preserve the properties immediately after this slot's evaluation.
+        ! The phase-global arrays are retained for legacy callers and may be
+        ! overwritten when another composition set shares the same parent.
+        if (allocated(dActiveSlotMolFraction)) then
+            dActiveSlotMolFraction(iSlot,m:n) = dMolFraction(m:n)
+        end if
+        if (allocated(dActiveSlotChemPot)) then
+            dActiveSlotChemPot(iSlot,m:n) = dChemicalPotential(m:n)
+            dActiveSlotPartialH(iSlot,m:n) = dPartialEnthalpy(m:n)
+            dActiveSlotPartialS(iSlot,m:n) = dPartialEntropy(m:n)
+            dActiveSlotPartialCp(iSlot,m:n) = dPartialHeatCapacity(m:n)
+            lActiveSlotPropValid(iSlot) = .TRUE.
+        end if
 !
         ! SUBL/SUBOM Gibbs models project the caller's trial species fractions
         ! into a thermodynamically consistent endmember basis through site
@@ -117,6 +143,38 @@ subroutine CompChemicalPotential(lCompEverything)
 !
     return
 !
+contains
+
+    logical function CanonicalRepeatedParentSlot(iSlotIn, iPhaseIn)
+        integer, intent(in) :: iSlotIn, iPhaseIn
+
+        integer :: iSlotLocal, nMatchingSlots
+
+        CanonicalRepeatedParentSlot = .FALSE.
+        if (.NOT.lODPartitionUnifiedActive) return
+        if (.NOT.allocated(iODCompanionPhase)) return
+        if (.NOT.allocated(iODTopologyClass)) return
+        if (.NOT.allocated(iActiveSlotThermoPhase)) return
+        if (.NOT.allocated(iActiveSlotIdentityOrdinal)) return
+        if (.NOT.allocated(dActiveSlotMolFraction)) return
+        if ((iPhaseIn < 1).OR.(iPhaseIn > SIZE(iODCompanionPhase))) return
+        if ((iODTopologyClass(iPhaseIn) < OD_TOPOLOGY_HELPER_STANDALONE).OR.&
+            (iODTopologyClass(iPhaseIn) > OD_TOPOLOGY_HELPER_ONLY)) return
+        if (iODCompanionPhase(iPhaseIn) <= 0) return
+        if (iActiveSlotThermoPhase(iSlotIn) /= iPhaseIn) return
+        if (iActiveSlotIdentityOrdinal(iSlotIn) <= 0) return
+
+        nMatchingSlots = 0
+        do iSlotLocal = 1, nElements
+            if (iAssemblage(iSlotLocal) >= 0) cycle
+            if (iActiveSlotThermoPhase(iSlotLocal) /= iPhaseIn) cycle
+            nMatchingSlots = nMatchingSlots + 1
+        end do
+        CanonicalRepeatedParentSlot = nMatchingSlots > 1
+
+        return
+    end function CanonicalRepeatedParentSlot
+
 end subroutine CompChemicalPotential
 !
 !

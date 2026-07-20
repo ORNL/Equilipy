@@ -14,10 +14,10 @@ subroutine CompGibbsMagneticSoln(iSolnPhaseIndex)
     ! Revisions:
     ! ==========
     !
-!    Date          Programmer        Description of change
-!    ----          ----------        ---------------------
-!    03/07/2013    M.H.A. Piro       Original code
-!    06/26/2026    S.Y. Kwon         Applied direct species magnetic terms to QKTOM phases.
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   03/07/2013      M.H.A. Piro         Original code
+    !   07/20/2026      S.Y. Kwon           Applied species magnetic Gibbs terms directly to magnetic QKTO phases.
     !
     !
     ! Purpose:

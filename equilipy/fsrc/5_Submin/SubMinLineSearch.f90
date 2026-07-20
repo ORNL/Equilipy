@@ -8,28 +8,15 @@
 !> \sa      SubMinNewton.f90
 !> \sa      SubMinTraceSpeciesControl.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   08/21/2012      M.H.A. Piro         Original Subminimization line-search routine
-!   06/24/2026      S.Y. Kwon           Backtrack rejected Newton trials from the original base state
-!   06/24/2026      S.Y. Kwon           Documented the classic-only scope of this line search
-!   06/27/2026      S.Y. Kwon           Accepted classic Newton trials with a driving-force and
-!                                        mole-fraction-weighted residual merit function.
-!   06/28/2026      S.Y. Kwon           Required SUBG/SUBQ line-search trials to improve strict pair
-!                                        stationarity instead of only lowering driving force.
-!   06/28/2026      S.Y. Kwon           Removed the driving-force guard from SUBG/SUBQ trial acceptance so
-!                                        pair phases converge as stationarity root solves.
-!   06/28/2026      S.Y. Kwon           Rejected non-finite line-search trials before testing pair
-!                                        stationarity improvement.
-!   06/28/2026      S.Y. Kwon           Removed the generic multiplicative residual correction from
-!                                        SUBG/SUBQ pair phases.
-!   06/29/2026      S.Y. Kwon           Switched SUBG/SUBQ trial acceptance to Thermochimica-style
-!                                        driving-force decrease while retaining strict residual diagnostics.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   08/21/2012      M.H.A. Piro         Original Subminimization line-search routine
+    !   07/20/2026      S.Y. Kwon           Made subminimization line searches model-aware for CEF, SUBG, and SUBQ trial compositions.
+    !
+    !
 ! Purpose:
 ! ========
 !

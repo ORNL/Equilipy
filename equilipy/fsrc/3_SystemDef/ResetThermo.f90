@@ -18,43 +18,10 @@ subroutine ResetThermo
     ! Revisions:
     ! ==========
     !
-!    Date          Programmer         Description of change
-!    ----          ----------         ---------------------
-!    11/04/2011    M.H.A. Piro        Original code
-!    06/24/2026    S.Y. Kwon          Reset Subminimization max-iteration diagnostics
-!    06/24/2026    S.Y. Kwon          Reset submin initial/final max-out compositions
-!    06/24/2026    S.Y. Kwon          Reset Lagrangian GEM diagnostic histories
-!    06/25/2026    S.Y. Kwon          Removed legacy SUBOM residual state reset
-!    06/25/2026    S.Y. Kwon          Renamed trace-species enable flag for production use
-!    06/25/2026    S.Y. Kwon          Reset the active CEF KKT flag used by GEM residual selection
-!    06/26/2026    S.Y. Kwon          Reset Level2Lagrange handoff diagnostics
-!    06/26/2026    S.Y. Kwon          Reset PEA-internal Lagrangian polish diagnostics
-!    06/26/2026    S.Y. Kwon          Removed inactive sampled/grid repair state from reset logic
-!    06/26/2026    S.Y. Kwon          Reset per-iteration PEA diagnostics
-!    06/26/2026    S.Y. Kwon          Reset Subminimization candidate-status diagnostics
-!    06/26/2026    S.Y. Kwon          Reset dependent element input flags
-!    06/27/2026    S.Y. Kwon          Reset PEA Lagrangian-handoff oscillation diagnostics
-!    06/28/2026    S.Y. Kwon          Reset analytical non-CEF Lagrangian species directions
-!    07/02/2026    S.Y. Kwon          Reset passive KKT and scaffold-activation diagnostics
-!    07/02/2026    S.Y. Kwon          Reset passive active order/disorder pair diagnostics
-!    07/02/2026    S.Y. Kwon          Reset the order/disorder active-companion phase map.
-!    07/02/2026    S.Y. Kwon          Reset passive active-slot identity diagnostics.
-!    07/02/2026    S.Y. Kwon          Reset Phase 0 line-search energy and split scaffold diagnostics.
-!    07/02/2026    S.Y. Kwon          Reset passive active-slot constitution storage.
-!    07/02/2026    S.Y. Kwon          Reset passive active-slot parent-site-fraction storage.
-!    07/03/2026    S.Y. Kwon          Reset passive raw-negative CEF complementarity diagnostics.
-!    07/03/2026    S.Y. Kwon          Reset c2 SUBOM two-composition-set handoff switch and counters.
-!    07/03/2026    S.Y. Kwon          Reset accepted SUBOM two-set candidate-pool evidence.
-!    07/04/2026    S.Y. Kwon          Reset split tiny-boundary removal diagnostics for C1-a census.
-!    07/04/2026    S.Y. Kwon          Reset standalone SUBG/SUBQ CEF-routing switch for C1-b0.
-!    07/04/2026    S.Y. Kwon          Reset standalone SUBG/SUBQ routing to the production default.
-!    07/04/2026    S.Y. Kwon          Deallocate tiny-boundary history for C2-a bounds census coverage.
-!    07/04/2026    S.Y. Kwon          Reset bounds-surgery event identity and rank-guard diagnostics
-!                                      for C2-a census.
-!    07/04/2026    S.Y. Kwon          Reset and deallocate residual-LM event-buffer diagnostics
-!                                      for C3-a2 census.
-!    07/04/2026    S.Y. Kwon          Reset C3-c1 primal-inertia regularization counters.
-!    07/04/2026    S.Y. Kwon          Reset C3-c2 funnel line-search switch and counters.
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   11/04/2011      M.H.A. Piro         Original code
+    !   07/20/2026      S.Y. Kwon           Reset grid discovery, candidate certification, order/disorder identity, batch-pricing, and atomic PEA state while isolating later solves.
     !
     !
     ! Purpose:
@@ -85,8 +52,40 @@ subroutine ResetThermo
     ! Initialize variables:
     i = 0
     INFOThermo = 0
+    iPrintResultsMode = 0
     dElementMass=0.0d0
     iDependentElementInput = 0
+    dTemperature = 0D0
+    dPressure = 0D0
+    dTemperatureDiff = 0D0
+    dGibbsEnergySys = 0D0
+    dEnthalpySys = 0D0
+    dEntropySys = 0D0
+    dHeatCapacitySys = 0D0
+    cInputUnitTemperature = ' '
+    cInputUnitPressure = ' '
+    cInputUnitMass = ' '
+    nElements = 0
+    nSpecies = 0
+    nParam = 0
+    nMaxParam = 0
+    nDummySpecies = 0
+    nElemOrComp = 0
+    nMagParam = 0
+    nSpeciesLevel = 0
+    nConPhases = 0
+    nSolnPhases = 0
+    nSolnPhasesSys = 0
+    nChargedConstraints = 0
+    nElementsSys = 0
+    nMaxSublatticeSys = 0
+    nMaxConstituentSys = 0
+    nCountSublattice = 0
+    dIdealConstant = 0D0
+    dNormalizeSum = 0D0
+    dNormalizeInput = 0D0
+    dTolerance = 0D0
+    lSkipLagrange = .FALSE.
     lPostProcessAssemblageChanged = .FALSE.
     dPostProcessGEMNormAtT = 0D0
     dPostProcessGEMNormPerturbed = 0D0
@@ -111,6 +110,29 @@ subroutine ResetThermo
     iMinDrivingForceStoich = 0
     iMinDrivingForceSoln = 0
     iSpeciesRemove = 0
+    iPhaseChangeReason = PHASE_CHANGE_REASON_NONE
+    iGEMExitStatus = GEM_EXIT_STATUS_OK
+    iGEMMaxSublExchangeSlot = 0
+    iGEMMaxSublExchangePhase = 0
+    iGEMMaxSublExchangeSite = 0
+    iGEMMaxSublExchangeConstituent = 0
+    nLevelCandidateRowOffset = 0
+    nGEMCEFPhaseVariables = 0
+    nGEMCEFSiteVariables = 0
+    ! Candidate-certificate record arrays/counters are intentionally preserved
+    ! across public ResetThermo so Python can inspect the last solve.  The next
+    ! InitGEMSolver call resets and reallocates them for the new calculation.
+    nGEMCertificationSweep = 0
+    nVar = 0
+    iFirstSUB = 0
+    iLastSUB = 0
+    iSolnPhaseIndexOther = 0
+    iterSub = 0
+    iSubMinTraceSlowProgressCount = 0
+    iSubMinHenrianTraceEstimateCount = 0
+    iSubMinNewtonDSYSVInfo = 0
+    iterSubMinTraceLastRemoval = 0
+    iterSubMinTraceLastReinject = 0
     dGEMFunctionNorm = 0D0
     dGEMFunctionNormLast = 0D0
     dGEMMassBalanceNorm = 0D0
@@ -118,12 +140,35 @@ subroutine ResetThermo
     dGEMSolutionChemicalPotentialNorm = 0D0
     dGEMCondensedChemicalPotentialNorm = 0D0
     dSublatticeExchangeNorm = 0D0
+    dGEMMaxSublExchangeResidual = 0D0
+    dGEMMaxSublExchangeWeightedResidual = 0D0
+    dGEMNewtonSymmetryResidual = 0D0
     dMaxSpeciesChange = 0D0
     dMinGibbs = 0D0
     dMinDrivingForceStoich = 0D0
     dMinDrivingForceSoln = 0D0
+    dMinPhasePotential = 0D0
+    dToleranceLevel = 0D0
+    dMaxElementPotential = 0D0
+    dPEATol = 0D0
+    dMinMolesPhase = 0D0
     dSpeciesRemove = 0D0
     dPlateau = 0D0
+    dDrivingForce = 0D0
+    dDrivingForceLast = 0D0
+    dSubMinFunctionNorm = 0D0
+    dSubminGibbsEst = 0D0
+    dMaxPotentialVector = 0D0
+    dSubMinTraceReducedNormLast = 0D0
+    dSubMinNewtonSymmetryResidual = 0D0
+    dGEMTimingLeveling = 0D0
+    dGEMTimingHandoff = 0D0
+    dGEMTimingPEA = 0D0
+    dGEMTimingLagrangian = 0D0
+    dGEMTimingCertification = 0D0
+    dGEMTimingGridGeneration = 0D0
+    dGEMTimingGridRefinement = 0D0
+    nSUBLHessianEndmemberProjectionCall = 0
     xT = 0D0
     dGParam = 0D0
     dHParam = 0D0
@@ -142,15 +187,21 @@ subroutine ResetThermo
     lRevertSystem = .FALSE.
     lConverged = .FALSE.
     lSubConverged = .FALSE.
+    lSubMinConverged = .FALSE.
     lSubMinMaxHit = .FALSE.
     lSubMinCEFAttempted = .FALSE.
     lSubMinCEFHandled = .FALSE.
     lSubMinCEFLineSearchAccepted = .FALSE.
+    lSubMinNewtonAnalyticalHessianAttempted = .FALSE.
+    lSubMinNewtonAnalyticalHessianAccepted = .FALSE.
+    lGEMCEFSiteLagrangianEnabled = .FALSE.
     lGEMCEFSiteLagrangianActive = .FALSE.
     lGEMCEFSiteDirectionActive = .FALSE.
+    lGEMCEFResidualLMDirection = .FALSE.
     lGEMCEFInertiaRegularizationEnabled = .FALSE.
     lGEMCEFInertiaRegularizationActive = .FALSE.
     lGEMCEFBndPhaseActive = .FALSE.
+    lSUBLHessianSiteOnlyActive = .FALSE.
     lNegativeMolesPhase = .FALSE.
     lGibbsMinCheck = .FALSE.
     lPhaseChange = .FALSE.
@@ -354,10 +405,49 @@ subroutine ResetThermo
     dPEALagrangianPolishPotentialChange = 0D0
     dPostLevelingZeroEndmemberFloor = dDefaultPostLevelingZeroEndmemberFloor
     lSampledLevelingThermoExtended = .FALSE.
+    lGridFrontEndActive = .TRUE.
+    lGridBatchKernelActive = .TRUE.
+    lGridPreviousSolutionSeedActive = .FALSE.
+    lGridRefinementSweepActive = .FALSE.
+    lGridRecoveryPassActive = .FALSE.
+    nGEMInitialLevelingPass = 0
+    nGridPoint = 0
+    iGridPoolGeneration = 0
+    lGridPoolValid = .FALSE.
+    call ResetPEADFSweepStorage
+    iPEADFSweepInjectFailureAfter = 0
+    iPEADFSweepInjectUnknownAfter = 0
+    iPEADFSweepCapacityOverride = 0
+    lPEADFSweepReversePhaseOrder = .FALSE.
+    nGridFraction = 0
+    nGridLevelingPass = 0
+    nGridRefinementLevelingPass = 0
+    iGridRefinementStatus = GRID_REFINEMENT_STATUS_NONE
+    iGridLevelingRepeatedAssemblage = 0
+    nGridBudgetCoarsening = 0
+    nGridBudgetDroppedPoint = 0
+    nGridPreviousSeed = 0
+    nGridPreviousSeedAccepted = 0
+    nGridPreviousSeedDropped = 0
+    nGridFallback = 0
+    iGridFallbackReason = GRID_FALLBACK_NONE
+    nGridCertificateSweep = 0
+    nGridRecoveryAttempt = 0
+    nGridSwallowedInfo = 0
+    nGridSwallowedInfoDropped = 0
+    nGridProjectionFailure = 0
+    nGridBatchPhase = 0
+    nGridScalarFallbackPhase = 0
+    nGridProjectionFailureStatus = 0
+    iGridSwallowedInfo = 0
+    iGridSwallowedInfoStage = 0
     lPEALagrangianPolishEnabled = .TRUE.
     lPEALagrangianPolishActive = .FALSE.
     lPEALagrangianPolishAccepted = .FALSE.
     lSUBOMTwoSetCandidateEnabled = .FALSE.
+    lODPartitionUnifiedActive = .FALSE.
+    lODCandidateClassifyActive = .FALSE.
+    lODCommittedOwnershipApplied = .FALSE.
     lSUBQStandaloneEnabled = .TRUE.
     lOrderDisorderEvaluation = .FALSE.
     if (allocated(dMagEnthalpy)) deallocate(dMagEnthalpy)
@@ -447,6 +537,9 @@ subroutine ResetThermo
     if (allocated(iPhaseSublattice)) deallocate(iPhaseSublattice)
     if (allocated(iDisorderedPhase)) deallocate(iDisorderedPhase)
     if (allocated(iODCompanionPhase)) deallocate(iODCompanionPhase)
+    if (allocated(iODStandalonePhase)) deallocate(iODStandalonePhase)
+    if (allocated(iODTopologyClass)) deallocate(iODTopologyClass)
+    if (allocated(iODProjectionTopology)) deallocate(iODProjectionTopology)
     if (allocated(dStoichSublattice)) deallocate(dStoichSublattice)
     if (allocated(cConstituentNameSUB)) deallocate(cConstituentNameSUB)
     if (allocated(iConstituentSublattice)) deallocate(iConstituentSublattice)
@@ -471,6 +564,8 @@ subroutine ResetThermo
     if (allocated(dSubMinMaxElementPotential)) deallocate(dSubMinMaxElementPotential)
     if (allocated(dSubMinMaxInitialMolFraction)) deallocate(dSubMinMaxInitialMolFraction)
     if (allocated(dSubMinMaxFinalMolFraction)) deallocate(dSubMinMaxFinalMolFraction)
+    if (allocated(lSubMinTraceInactive)) deallocate(lSubMinTraceInactive)
+    if (allocated(lSubMinTraceReinjected)) deallocate(lSubMinTraceReinjected)
     if (allocated(iPairID)) deallocate(iPairID)
     if (allocated(dCoordinationNumber)) deallocate(dCoordinationNumber)
     if (allocated(dMolesPhaseLast)) deallocate(dMolesPhaseLast)
@@ -479,8 +574,40 @@ subroutine ResetThermo
     if (allocated(dMolFractionGEM)) deallocate(dMolFractionGEM)
     if (allocated(dActiveSlotMolFraction)) deallocate(dActiveSlotMolFraction)
     if (allocated(dActiveSlotSiteFraction)) deallocate(dActiveSlotSiteFraction)
+    if (allocated(dActiveSlotChemPot)) deallocate(dActiveSlotChemPot)
+    if (allocated(dActiveSlotPartialH)) deallocate(dActiveSlotPartialH)
+    if (allocated(dActiveSlotPartialS)) deallocate(dActiveSlotPartialS)
+    if (allocated(dActiveSlotPartialCp)) deallocate(dActiveSlotPartialCp)
+    if (allocated(lActiveSlotPropValid)) deallocate(lActiveSlotPropValid)
+    if (allocated(iGridPointPhase)) deallocate(iGridPointPhase)
+    if (allocated(iGridPointDisplayPhase)) deallocate(iGridPointDisplayPhase)
+    if (allocated(iGridPointStatus)) deallocate(iGridPointStatus)
+    if (allocated(iGridPointIdentityOrdinal)) deallocate(iGridPointIdentityOrdinal)
+    if (allocated(iGridPointLevelRow)) deallocate(iGridPointLevelRow)
+    if (allocated(iGridPointFractionOffset)) deallocate(iGridPointFractionOffset)
+    if (allocated(iGridPointFractionSize)) deallocate(iGridPointFractionSize)
+    if (allocated(iGridPointFromLevel)) deallocate(iGridPointFromLevel)
+    if (allocated(nGridPhasePoint)) deallocate(nGridPhasePoint)
+    if (allocated(nGridPhaseProjectionFailure)) deallocate(nGridPhaseProjectionFailure)
+    if (allocated(iGridPhaseClass)) deallocate(iGridPhaseClass)
+    if (allocated(iGridPhaseStatus)) deallocate(iGridPhaseStatus)
+    if (allocated(iGridPhaseEvaluationMode)) deallocate(iGridPhaseEvaluationMode)
+    if (allocated(iGridPhaseLayerRung)) deallocate(iGridPhaseLayerRung)
+    if (allocated(iGridPreviousSeedPhase)) deallocate(iGridPreviousSeedPhase)
+    if (allocated(iGridPreviousSeedFractionOffset)) deallocate(iGridPreviousSeedFractionOffset)
+    if (allocated(iGridPreviousSeedFractionSize)) deallocate(iGridPreviousSeedFractionSize)
+    if (allocated(dGridPointFraction)) deallocate(dGridPointFraction)
+    if (allocated(dGridPointGibbs)) deallocate(dGridPointGibbs)
+    if (allocated(dGridPointComposition)) deallocate(dGridPointComposition)
+    if (allocated(dGridPointStoich)) deallocate(dGridPointStoich)
+    if (allocated(dGridPreviousSeedFraction)) deallocate(dGridPreviousSeedFraction)
+    if (allocated(cGridPreviousSeedPhaseName)) deallocate(cGridPreviousSeedPhaseName)
+    if (allocated(lGridRecoveryPhase)) deallocate(lGridRecoveryPhase)
+    if (allocated(lLevelingRowExcluded)) deallocate(lLevelingRowExcluded)
     if (allocated(iLevelCandidatePhase)) deallocate(iLevelCandidatePhase)
     if (allocated(iLevelCandidateSource)) deallocate(iLevelCandidateSource)
+    if (allocated(iLevelCandidateSubMinStatus)) deallocate(iLevelCandidateSubMinStatus)
+    if (allocated(iLevelCandidateStaticRow)) deallocate(iLevelCandidateStaticRow)
     if (allocated(iLevelCandidateParentPhase)) deallocate(iLevelCandidateParentPhase)
     if (allocated(iLevelCandidateDisplayPhase)) deallocate(iLevelCandidateDisplayPhase)
     if (allocated(iLevelCandidateIdentityOrdinal)) deallocate(iLevelCandidateIdentityOrdinal)
@@ -497,11 +624,19 @@ subroutine ResetThermo
     if (allocated(iSUBOMOrderingGateIterPEA)) deallocate(iSUBOMOrderingGateIterPEA)
     if (allocated(iSUBOMOrderingGateModeCount)) deallocate(iSUBOMOrderingGateModeCount)
     if (allocated(iSUBOMOrderingGateInfo)) deallocate(iSUBOMOrderingGateInfo)
+    if (allocated(iODCandidateClass)) deallocate(iODCandidateClass)
+    if (allocated(iODCandidateCompanionPhase)) deallocate(iODCandidateCompanionPhase)
     if (allocated(dSUBOMTwoSetTraceAmount)) deallocate(dSUBOMTwoSetTraceAmount)
     if (allocated(dSUBOMTwoSetStoredMol)) deallocate(dSUBOMTwoSetStoredMol)
     if (allocated(dSUBOMTwoSetTraceMol)) deallocate(dSUBOMTwoSetTraceMol)
     if (allocated(dSUBOMTwoSetTraceSite)) deallocate(dSUBOMTwoSetTraceSite)
     if (allocated(dSUBOMOrderingGateEigenMin)) deallocate(dSUBOMOrderingGateEigenMin)
+    if (allocated(dODCandidateCurrentGibbs)) deallocate(dODCandidateCurrentGibbs)
+    if (allocated(dODCandidateDisorderedGibbs)) deallocate(dODCandidateDisorderedGibbs)
+    if (allocated(dODCandidateOrderingEigenMin)) deallocate(dODCandidateOrderingEigenMin)
+    if (allocated(dODCompanionEigenMin)) then
+        deallocate(dODCompanionEigenMin)
+    end if
     if (allocated(lSUBOMOrderingGateUnstable)) deallocate(lSUBOMOrderingGateUnstable)
     if (allocated(iAssemblageGEM)) deallocate(iAssemblageGEM)
     if (allocated(iLevel2LagrangeInputAssemblage)) deallocate(iLevel2LagrangeInputAssemblage)
@@ -512,6 +647,7 @@ subroutine ResetThermo
     if (allocated(iActiveSlotThermoPhase)) deallocate(iActiveSlotThermoPhase)
     if (allocated(iActiveSlotDisplayPhase)) deallocate(iActiveSlotDisplayPhase)
     if (allocated(iActiveSlotIdentityOrdinal)) deallocate(iActiveSlotIdentityOrdinal)
+    if (allocated(iActiveSlotODClass)) deallocate(iActiveSlotODClass)
     if (allocated(dLevel2LagrangeInputMoles)) deallocate(dLevel2LagrangeInputMoles)
     if (allocated(dLevel2LagrangeOutputMoles)) deallocate(dLevel2LagrangeOutputMoles)
     if (allocated(dLevel2LagrangeElementPotentialIn)) deallocate(dLevel2LagrangeElementPotentialIn)
@@ -519,6 +655,10 @@ subroutine ResetThermo
     if (allocated(dGEMAnalyticalSpeciesDirection)) deallocate(dGEMAnalyticalSpeciesDirection)
     if (allocated(lGEMAnalyticalSpeciesDirection)) deallocate(lGEMAnalyticalSpeciesDirection)
     if (allocated(iPEALevelIterHist)) deallocate(iPEALevelIterHist)
+    if (allocated(iPEAPlaneGenerationHist)) deallocate(iPEAPlaneGenerationHist)
+    if (allocated(iPEADFSweepGenerationHist)) deallocate(iPEADFSweepGenerationHist)
+    if (allocated(iPEADFSweepOutcomeHist)) deallocate(iPEADFSweepOutcomeHist)
+    if (allocated(iPEADFPendingWitnessHist)) deallocate(iPEADFPendingWitnessHist)
     if (allocated(iPEAPolishAttemptHist)) deallocate(iPEAPolishAttemptHist)
     if (allocated(iPEAPolishAcceptedHist)) deallocate(iPEAPolishAcceptedHist)
     if (allocated(iPEAPolishReasonHist)) deallocate(iPEAPolishReasonHist)
@@ -694,6 +834,22 @@ subroutine ResetThermo
     if (allocated(dGEMLSFinalPhaseMoles)) deallocate(dGEMLSFinalPhaseMoles)
     if (allocated(dGEMLSRawPhaseMolesHist)) deallocate(dGEMLSRawPhaseMolesHist)
     if (allocated(dGEMLSFinalPhaseMolesHist)) deallocate(dGEMLSFinalPhaseMolesHist)
+    if (allocated(iGEMCEFPhaseSlot)) deallocate(iGEMCEFPhaseSlot)
+    if (allocated(iGEMCEFPhaseSoln)) deallocate(iGEMCEFPhaseSoln)
+    if (allocated(iGEMCEFPhaseSpecies)) deallocate(iGEMCEFPhaseSpecies)
+    if (allocated(iGEMCEFVarPhaseVar)) deallocate(iGEMCEFVarPhaseVar)
+    if (allocated(iGEMCEFVarSolnPhase)) deallocate(iGEMCEFVarSolnPhase)
+    if (allocated(iGEMCEFVarPhaseID)) deallocate(iGEMCEFVarPhaseID)
+    if (allocated(iGEMCEFVarSub)) deallocate(iGEMCEFVarSub)
+    if (allocated(iGEMCEFVarCon)) deallocate(iGEMCEFVarCon)
+    if (allocated(iGEMCEFVarRef)) deallocate(iGEMCEFVarRef)
+    if (allocated(nGEMCEFVarTie)) deallocate(nGEMCEFVarTie)
+    if (allocated(iGEMCEFVarTieSub)) deallocate(iGEMCEFVarTieSub)
+    if (allocated(dGEMCEFPhaseDirection)) deallocate(dGEMCEFPhaseDirection)
+    if (allocated(dGEMCEFSiteDirection)) deallocate(dGEMCEFSiteDirection)
+    if (allocated(dGEMCEFElementDirection)) deallocate(dGEMCEFElementDirection)
+    if (allocated(dGEMCEFSiteLast)) deallocate(dGEMCEFSiteLast)
+    if (allocated(dGEMCEFPhaseSiteLast)) deallocate(dGEMCEFPhaseSiteLast)
     if (allocated(dGEMCEFPhaseResidual)) deallocate(dGEMCEFPhaseResidual)
     if (allocated(lTraceSpeciesInactive)) deallocate(lTraceSpeciesInactive)
     if (allocated(lTraceSpeciesReinjected)) deallocate(lTraceSpeciesReinjected)
@@ -707,6 +863,8 @@ subroutine ResetThermo
     if(allocated(dGramSpecies)) deallocate(dGramSpecies)
     if(allocated(dGramPhase)) deallocate(dGramPhase)
     if(allocated(dGramElement)) deallocate(dGramElement)
+    if(allocated(dPair)) deallocate(dPair)
+    if(allocated(cPair)) deallocate(cPair)
     if (i > 0) then
         INFOThermo = 15
     end if

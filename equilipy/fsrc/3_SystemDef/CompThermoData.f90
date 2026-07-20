@@ -19,24 +19,22 @@ subroutine CompThermoData
     !   ----            ----------          ---------------------
     !   10/11/2011      M.H.A. Piro         Original code
     !   05/01/2012      M.H.A. Piro         Corrected storage of mixing component indices when solution species
-    !                                        are no longer considered.  This affected the variables iSpeciesPass
-    !                                        and iRegularParam.
+    !                                       are no longer considered.  This affected the variables iSpeciesPass
+    !                                       and iRegularParam.
     !   01/31/2012      M.H.A. Piro         The standard molar Gibbs energy coefficient of gaseous species is
-    !                                        adjusted by an arbitrary quantity (see comments below).
+    !                                       adjusted by an arbitrary quantity (see comments below).
     !   01/17/2013      M.H.A. Piro         Additional dummy species are included to the system for each electron
-    !                                        representing a system component.
+    !                                       representing a system component.
     !   02/11/2013      M.H.A. Piro         Mixing parameters for SUBL phases have been incorporated.  These are
-    !                                        different than other phases because the constituent indices on each
-    !                                        sublattice are stored, rather than the species indices.
+    !                                       different than other phases because the constituent indices on each
+    !                                       sublattice are stored, rather than the species indices.
     !   07/16/2013      M.H.A. Piro         Fix bug in constructing the iRegularParam vector when dealing with SUBL
-    !                                        phases when the mixing constituents are not on the first sublattice.
-!   03/19/2018      M.H.A. Piro         Added capability to handle SUBG phases. This includes a special case
-!                                        to define the stoichiometry of pairs, rather than pure species. Otherwise
-!                                        they would be undefined.
-!   03/06/2024      S.Y. Kwon           Added calculations for partial molar properties gi hi si cp
-!   06/26/2026      S.Y. Kwon           Excluded dependent pseudo-component elements from active stoichiometry.
-!   06/26/2026      S.Y. Kwon           Passed QKTOM excess and magnetic parameters as magnetic QKTO.
-!   06/27/2026      S.Y. Kwon           Applied the ideal-gas B-coefficient correction consistently to entropy.
+    !                                       phases when the mixing constituents are not on the first sublattice.
+    !   03/19/2018      M.H.A. Piro         Added capability to handle SUBG phases. This includes a special case
+    !                                       to define the stoichiometry of pairs, rather than pure species. Otherwise
+    !                                       they would be undefined.
+    !   03/06/2024      S.Y. Kwon           Added calculations for partial molar properties gi hi si cp
+    !   07/20/2026      S.Y. Kwon           Applied ideal-gas pressure and B-coefficient corrections consistently to Gibbs energy and entropy.
     !
     ! Purpose:
     ! ========

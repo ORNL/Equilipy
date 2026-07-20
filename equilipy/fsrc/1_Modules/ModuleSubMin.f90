@@ -3,24 +3,15 @@
 !> \file    ModuleSubMin.f90
 !> \brief   Shared state for solution-phase Subminimization.
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   08/21/2012      M.H.A. Piro         Original subminimization state module
-!   06/23/2026      S.Y. Kwon           Cleaning up unused variables
-!   06/23/2026      S.Y. Kwon           Organized declarations by rank and role
-!   06/24/2026      S.Y. Kwon           Added max-iteration diagnostics for isolated submin tests
-!   06/24/2026      S.Y. Kwon           Captured initial/final max-out submin compositions
-!   06/24/2026      S.Y. Kwon           Documented split CEF site-fraction and classic Newton paths
-!   06/24/2026      S.Y. Kwon           Added CEF site-fraction path diagnostics for max-out debugging
-!   06/24/2026      S.Y. Kwon           Documented CEF negative-driving-force witness logic
-!   06/27/2026      S.Y. Kwon           Added Henrian trace-estimate diagnostics for classic subminimization.
-!   06/28/2026      S.Y. Kwon           Documented SUBG/SUBQ analytical-Hessian branch in SubMinNewton.
-!   06/28/2026      S.Y. Kwon           Added diagnostics for solution-model analytical Hessian use.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   08/21/2012      M.H.A. Piro         Original subminimization state module
+    !   07/20/2026      S.Y. Kwon           Added subminimization state and diagnostics for CEF site fractions, trace estimates, and analytical solution curvature.
+    !
+    !
 ! Purpose:
 ! ========
 !

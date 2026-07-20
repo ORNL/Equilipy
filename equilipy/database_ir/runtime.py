@@ -498,6 +498,16 @@ def to_chemsage_compounds(
         if ordered_index is not None and disordered_index is not None:
             i_disordered_phase[ordered_index - 1] = disordered_index
 
+    (
+        order_disorder_helper_names,
+        order_disorder_topology,
+        order_disorder_standalone,
+    ) = _order_disorder_runtime_metadata(
+        database,
+        solutions,
+        disordered_phase_by_ordered,
+    )
+
     return {
         "nElementsCS": n_elements,
         "nSpeciesCS": n_species,
@@ -572,10 +582,9 @@ def to_chemsage_compounds(
             *(solution.name for solution in solutions),
             *(compound.name for compound in compounds),
         ],
-        "cOrderDisorderHelperPhaseNames": _duplicate_order_disorder_helper_names(
-            solutions,
-            disordered_phase_by_ordered,
-        ),
+        "cOrderDisorderHelperPhaseNames": order_disorder_helper_names,
+        "iOrderDisorderTopologyCS": order_disorder_topology,
+        "iOrderDisorderStandalonePhaseCS": order_disorder_standalone,
         "cEndmemberNameCS": species_names.copy(),
         "nPureSpeciesCS": len(compounds),
         "nSolnPhaseCS": n_soln_phase,
@@ -587,29 +596,107 @@ def to_chemsage_compounds(
     }
 
 
-def _duplicate_order_disorder_helper_names(
+def _order_disorder_runtime_metadata(
+    database: DatabaseIR,
     solutions: list[_RuntimeSolution],
     disordered_phase_by_ordered: dict[str, str],
-) -> list[str]:
-    """Return DIS_PART helper aliases that duplicate a canonical phase.
+) -> tuple[list[str], np.ndarray, np.ndarray]:
+    """Return typed DIS_PART identity metadata from the database structure.
 
-    TDB order/disorder phases may use helper names such as ``A2_BCC`` for the
-    disordered reference of an ordered phase while also defining the physical
-    phase ``BCC_A2``.  The helper must remain in the runtime arrays so the
-    ordered-phase correction uses its own reference parameters, but it should
-    not be advertised as an independent user-facing phase.
+    A helper+standalone graph has a second declared phase with the same model,
+    sublattice topology, and parameter schema as the ``DIS_PART`` target.
+    Expressions are deliberately excluded because a helper may carry an
+    author-supplied anti-degeneracy offset.  A lone target is direct unless its
+    phase record carries explicit helper-role metadata.  Names are irrelevant.
     """
-    solution_names = {solution.name.upper(): solution.name for solution in solutions}
+    helper_standalone = 1
+    direct_target = 2
+    helper_only = 3
+    ambiguous = 4
+    solutions_by_name = {solution.name.upper(): solution for solution in solutions}
+    solution_index_by_name = {
+        solution.name.upper(): index
+        for index, solution in enumerate(solutions, start=1)
+    }
+    phase_by_name = {phase.name.upper(): phase for phase in database.phases}
+    topology = np.zeros(len(solutions), dtype=int)
+    standalone = np.zeros(len(solutions), dtype=int)
     helper_names: list[str] = []
-    for disordered_name in disordered_phase_by_ordered.values():
-        helper_key = disordered_name.upper()
-        canonical_name = DISORDERED_PHASE_CANONICAL_NAMES.get(helper_key)
-        if canonical_name is None:
+    for ordered_name, disordered_name in disordered_phase_by_ordered.items():
+        ordered_index = solution_index_by_name.get(ordered_name.upper())
+        disordered = solutions_by_name.get(disordered_name.upper())
+        disordered_index = solution_index_by_name.get(disordered_name.upper())
+        if ordered_index is None or disordered is None or disordered_index is None:
             continue
-        if helper_key not in solution_names or canonical_name not in solution_names:
-            continue
-        helper_names.append(solution_names[helper_key])
-    return sorted(set(helper_names))
+        signature = _runtime_solution_structure_signature(database, disordered)
+        duplicates = [
+            solution
+            for solution in solutions
+            if solution.name.upper()
+            not in {ordered_name.upper(), disordered.name.upper()}
+            and _runtime_solution_structure_signature(database, solution) == signature
+        ]
+        if len(duplicates) == 1:
+            topology[ordered_index - 1] = helper_standalone
+            standalone[ordered_index - 1] = solution_index_by_name[
+                duplicates[0].name.upper()
+            ]
+            helper_names.append(disordered.name)
+        elif len(duplicates) > 1:
+            topology[ordered_index - 1] = ambiguous
+            helper_names.append(disordered.name)
+        elif _phase_has_explicit_order_disorder_helper_role(
+            phase_by_name.get(disordered.name.upper())
+        ):
+            topology[ordered_index - 1] = helper_only
+            helper_names.append(disordered.name)
+        else:
+            topology[ordered_index - 1] = direct_target
+            standalone[ordered_index - 1] = disordered_index
+    return sorted(set(helper_names)), topology, standalone
+
+
+def _runtime_solution_structure_signature(
+    database: DatabaseIR,
+    solution: _RuntimeSolution,
+) -> tuple[object, ...]:
+    """Return the exact model, topology, and parameter schema of one phase."""
+    parameter_schema = sorted(
+        (
+            parameter.parameter_type.strip().upper(),
+            tuple(target.strip().upper() for target in parameter.target),
+            int(parameter.order),
+        )
+        for parameter in database.parameters
+        if parameter.phase_name.strip().upper() == solution.name.strip().upper()
+    )
+    return (
+        solution.phase_type.strip().upper(),
+        *_runtime_solution_topology_signature(solution),
+        tuple(parameter_schema),
+    )
+
+
+def _phase_has_explicit_order_disorder_helper_role(phase: Phase | None) -> bool:
+    """Return whether a phase carries explicit parser/writer helper metadata."""
+    if phase is None:
+        return False
+    role = phase.metadata.get("order_disorder_role", "").strip().lower()
+    alias_export = phase.metadata.get("order_disorder_alias_export", "").strip().lower()
+    return role == "helper" or alias_export == "true"
+
+
+def _runtime_solution_topology_signature(
+    solution: _RuntimeSolution,
+) -> tuple[tuple[float, ...], tuple[tuple[str, ...], ...]]:
+    """Return the exact declared sublattice topology of one runtime phase."""
+    return (
+        tuple(float(value) for value in solution.sublattice_site_ratios),
+        tuple(
+            tuple(str(name).strip().upper() for name in sublattice)
+            for sublattice in solution.sublattice_constituents
+        ),
+    )
 
 
 def _runtime_element_symbols(database: DatabaseIR) -> list[str]:

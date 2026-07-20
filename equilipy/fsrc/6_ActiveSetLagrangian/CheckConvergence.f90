@@ -31,34 +31,24 @@
     !   10/25/2011      M.H.A. Piro         Clean up code: modules, simplify programming
     !   10/27/2011      M.H.A. Piro         Modified check for Gibbs' Criteria: exclude dummy species
     !   04/05/2012      M.H.A. Piro         Clean up code: simplify relative error calculation of mass balance
-    !                                        equations by using the dFunction vector.
+    !                                       equations by using the dFunction vector.
     !   04/26/2012      M.H.A. Piro         Implementing Gibbs energy Minimization algorithm.
     !   08/22/2012      M.H.A. Piro         Add check for miscibility gap.
     !   01/31/2013      M.H.A. Piro         Apply appropriate check for residual/relative errors of the mass
-    !                                        balance equations when the system component is an electron (i.e.,
-    !                                        dMolesElement = 0D0).
+    !                                       balance equations when the system component is an electron (i.e.,
+    !                                       dMolesElement = 0D0).
     !   02/04/2013      M.H.A. Piro         Add a check to ensure that the Phase Rule is satisfied (this was
-    !                                        necessarily satisfied in the previous version because charged
-    !                                        phases were not considered.
+    !                                       necessarily satisfied in the previous version because charged
+    !                                       phases were not considered.
     !   05/12/2014      M.H.A. Piro         Change the 9th check for a global minimum so that all metastable
-    !                                        solution phases are checked for a global minimum, not just phases
-    !                                        with a known miscibility gap.
+    !                                       solution phases are checked for a global minimum, not just phases
+    !                                       with a known miscibility gap.
     !   08/21/2015      M.H.A. Piro         Change tolerance for residuals of chemical potentials of individual
-    !                                        species to only apply when x > 1.66D-24.  Practically, who cares
-    !                                        if the residual of the chemical potential is large for a species
-    !                                        whose mole fraction is 1D-50?!?  1.66D-24 is the fraction of a
-    !                                        single atom in one mole.
-    !   06/24/2026      S.Y. Kwon           Evaluate phase-potential active-set triggers only after the fixed
-    !                                        Lagrangian residual satisfies the convergence tolerance.
-    !   06/24/2026      S.Y. Kwon           Ignored internal disordered helpers of active ordered phases in
-    !                                        phase-potential active-set checks.
-    !   06/24/2026      S.Y. Kwon           Tested a tighter convergence residual for active SUBOM phases.
-!   06/25/2026      S.Y. Kwon           Removed the SUBOM-only pseudo-endmember tolerance; CEF order
-!                                        coordinates are handled by site-fraction minimization.
-!   06/25/2026      S.Y. Kwon           Tightened fixed-assemblage postprocess convergence for derivative
-!                                        properties.
-!   06/25/2026      S.Y. Kwon           Refreshed phase potentials from the current elemental-potential plane
-!                                        before testing active-set phase-potential triggers.
+    !                                       species to only apply when x > 1.66D-24.  Practically, who cares
+    !                                       if the residual of the chemical potential is large for a species
+    !                                       whose mole fraction is 1D-50?!?  1.66D-24 is the fraction of a
+    !                                       single atom in one mole.
+    !   07/20/2026      S.Y. Kwon           Aligned convergence tests with current phase potentials, CEF residuals, and trace-species state.
     !
     !
     ! Purpose:

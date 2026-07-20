@@ -19,6 +19,7 @@
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
     !   04/25/2012      M.H.A. Piro         Original code
+    !   07/20/2026      S.Y. Kwon           Finalized solver status and limited grid seeding to eligible full-pipeline solves.
     !
     !
     ! Purpose:
@@ -93,6 +94,8 @@ subroutine GEMSolver
     ! The production minimizer is organized inside MultiPhaseMinimizer:
     ! init GEM / leveling -> Lagrangian -> event-triggered PEA repair.
     call MultiPhaseMinimizer
+    lGridFrontEndActive = .FALSE.
+    call FinalizeGEMStatus
 
     return
 

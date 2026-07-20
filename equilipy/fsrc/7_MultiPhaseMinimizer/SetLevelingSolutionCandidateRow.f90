@@ -14,21 +14,14 @@
 !> \sa      CompInitMinSolnPoint.f90
 !> \sa      CompMinSolnPoint.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/26/2026      S.Y. Kwon           Original helper for synchronizing PEA solution candidate rows
-!   06/26/2026      S.Y. Kwon           Added explicit candidate validity control for unknown submin results
-!   06/28/2026      S.Y. Kwon           Preserved pseudo-compound mole fractions for Leveling-to-Lagrangian
-!                                       handoffs.
-!   07/03/2026      S.Y. Kwon           Added passive candidate identity metadata for future multiple
-!                                       composition-set PEA rows.
-!   07/03/2026      S.Y. Kwon           Made candidate rows self-contained by updating their phase id and
-!                                       stoichiometry in the Leveling arrays.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Registered normalized typed candidate rows with preserved grid identity, exclusion state, and atomic capacity failure.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -67,6 +60,7 @@
 ! iLevelCandidateParentPhase    Parent phase identity for the retained candidate row.
 ! iLevelCandidateDisplayPhase   Display/reporting phase identity for the retained candidate row.
 ! iLevelCandidateIdentityOrdinal Composition-set ordinal for the retained candidate row.
+! lLevelingRowExcluded           True when Leveling must not admit this row as physical evidence.
 !
 !
 ! Called subroutines/functions:
@@ -98,6 +92,7 @@
 subroutine SetLevelingSolutionCandidateRow(iLevelRow, iSolnPhaseIndex, dCandidate, lCandidateValid)
 
     USE ModuleThermo
+    USE ModuleThermoIO, ONLY: INFOThermo
     USE ModuleGEMSolver
 
     implicit none
@@ -108,6 +103,7 @@ subroutine SetLevelingSolutionCandidateRow(iLevelRow, iSolnPhaseIndex, dCandidat
     integer             :: i, j, m, n, iCand
     real(8)             :: dLevelingDenom, dLevelingFormulaAtomDenom, dCandidateAtomDenom, dCandidateGibbs
     real(8)             :: dCandidateStoich(nElements)
+    logical             :: lRowEligible
 
     if ((iLevelRow < 1).OR.(iLevelRow > nSpeciesLevel)) return
     if ((iSolnPhaseIndex < 1).OR.(iSolnPhaseIndex > nSolnPhasesSys)) return
@@ -115,12 +111,24 @@ subroutine SetLevelingSolutionCandidateRow(iLevelRow, iSolnPhaseIndex, dCandidat
     m = nSpeciesPhase(iSolnPhaseIndex-1) + 1
     n = nSpeciesPhase(iSolnPhaseIndex)
 
+    ! Refuse capacity exhaustion before changing either the row or pool.  The
+    ! caller may then abandon the complete candidate generation atomically.
+    if (allocated(iLevelCandidateFromLevel)) then
+        iCand = iLevelCandidateFromLevel(iLevelRow)
+        if (((iCand < 1).OR.(iCand > nLevelCandidate)).AND.&
+            (nLevelCandidate >= nLevelCandidateCapacity)) then
+            INFOThermo = 42
+            return
+        end if
+    end if
+
     dLevelingCompositionSpecies(iLevelRow,:) = 0D0
     dLevelingDenom = 0D0
     dLevelingFormulaAtomDenom = 0D0
     dCandidateAtomDenom = 0D0
     dCandidateGibbs = 0D0
     dCandidateStoich = 0D0
+    lRowEligible = .FALSE.
 
     do i = m, n
         dCandidateAtomDenom = dCandidateAtomDenom + &
@@ -141,6 +149,8 @@ subroutine SetLevelingSolutionCandidateRow(iLevelRow, iSolnPhaseIndex, dCandidat
     iPhaseLevel(iLevelRow) = iSolnPhaseIndex
     dStoichSpeciesLevel(iLevelRow,:) = dCandidateStoich
 
+    lRowEligible = lCandidateValid.AND.(dLevelingDenom > 1D-300).AND.&
+        (dCandidateAtomDenom > 1D-300).AND.(dLevelingFormulaAtomDenom > 1D-300)
     if (dLevelingDenom > 1D-300) then
         dLevelingCompositionSpecies(iLevelRow,:) = dLevelingCompositionSpecies(iLevelRow,:) / dLevelingDenom
         if (dCandidateAtomDenom > 1D-300) then
@@ -159,13 +169,18 @@ subroutine SetLevelingSolutionCandidateRow(iLevelRow, iSolnPhaseIndex, dCandidat
         dLevelingChemicalPotential(iLevelRow) = 5D9
     end if
 
-    if (.NOT.lCandidateValid) then
+    if (.NOT.lRowEligible) then
         dChemicalPotential(iLevelRow) = 5D9
         dLevelingChemicalPotential(iLevelRow) = 5D9
     end if
+    if (allocated(lLevelingRowExcluded)) then
+        if (iLevelRow <= SIZE(lLevelingRowExcluded)) &
+            lLevelingRowExcluded(iLevelRow) = .NOT.lRowEligible
+    end if
 
     if (allocated(iLevelCandidateFromLevel).AND.allocated(iLevelCandidatePhase).AND.&
-        allocated(iLevelCandidateSource).AND.allocated(iLevelCandidateParentPhase).AND.&
+        allocated(iLevelCandidateSource).AND.allocated(iLevelCandidateSubMinStatus).AND.&
+        allocated(iLevelCandidateParentPhase).AND.&
         allocated(iLevelCandidateDisplayPhase).AND.allocated(iLevelCandidateIdentityOrdinal).AND.&
         allocated(dLevelCandidateMolFraction)) then
         if ((iLevelRow >= 1).AND.(iLevelRow <= SIZE(iLevelCandidateFromLevel))) then
@@ -176,13 +191,19 @@ subroutine SetLevelingSolutionCandidateRow(iLevelRow, iSolnPhaseIndex, dCandidat
                     iCand = nLevelCandidate
                     iLevelCandidateFromLevel(iLevelRow) = iCand
                 else
+                    INFOThermo = 42
                     iCand = 0
                 end if
             end if
 
             if ((iCand >= 1).AND.(iCand <= SIZE(iLevelCandidatePhase))) then
                 iLevelCandidatePhase(iCand) = iSolnPhaseIndex
-                iLevelCandidateSource(iCand) = 1
+                iLevelCandidateSource(iCand) = LEVEL_CANDIDATE_SOURCE_SUBMIN
+                if (lRowEligible) then
+                    iLevelCandidateSubMinStatus(iCand) = SUBMIN_CANDIDATE_CONVERGED
+                else
+                    iLevelCandidateSubMinStatus(iCand) = SUBMIN_CANDIDATE_REJECTED
+                end if
                 iLevelCandidateParentPhase(iCand) = iSolnPhaseIndex
                 iLevelCandidateDisplayPhase(iCand) = iSolnPhaseIndex
                 iLevelCandidateIdentityOrdinal(iCand) = 1

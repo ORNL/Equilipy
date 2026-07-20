@@ -35,9 +35,7 @@ subroutine CompHessianSUBL(iSolnIndex, nSiteDim, nSpeciesDim, dSiteHessian, &
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   06/24/2026      S.Y. Kwon           Added diagnostic analytical CEF fixed-state Hessian.
-    !   06/24/2026      S.Y. Kwon           Added magnetic scalar Hessian contribution.
-    !   06/24/2026      S.Y. Kwon           Removed singular RK linear-factor Hessian evaluation.
+    !   07/20/2026      S.Y. Kwon           Added site-Hessian-only certification mode and projection-use accounting.
     !
     !
     ! Purpose:
@@ -92,6 +90,8 @@ subroutine CompHessianSUBL(iSolnIndex, nSiteDim, nSpeciesDim, dSiteHessian, &
     ! AddProductLinearTermHessian        Differentiates product/linear-factor CEF interaction terms.
     ! AddSUBOMFixedCorrection            Applies fixed ordered-state order/disorder Hessian mapping.
     ! ProjectSiteHessianToEndmembers     Projects site curvature to endmember amount/composition coordinates.
+    ! ModuleGEMSolver::lSUBLHessianSiteOnlyActive
+    !                                    Requests only dSiteHessian for eligible CEF Newton consumers.
     !
     !
     ! Primary callers:
@@ -111,10 +111,13 @@ subroutine CompHessianSUBL(iSolnIndex, nSiteDim, nSpeciesDim, dSiteHessian, &
     !   CompExcessGibbsEnergy for magnetic SUBL/SUBOM phases while avoiding site-coordinate finite differences.
     ! - The full site-space matrix is redundant; callers should project to independent site coordinates before
     !   inverting or using it in a Newton/trust-region step.
+    ! - The site-Hessian-only flag is scoped by consumers that use only dSiteHessian.  Public diagnostics and
+    !   callers that consume endmember-space outputs keep the full projection.
     !
     !-------------------------------------------------------------------------------------------------------------
     USE ModuleThermo
     USE ModuleThermoIO
+    USE ModuleGEMSolver, ONLY: lSUBLHessianSiteOnlyActive, nSUBLHessianEndmemberProjectionCall
 
     implicit none
 
@@ -164,7 +167,7 @@ subroutine CompHessianSUBL(iSolnIndex, nSiteDim, nSpeciesDim, dSiteHessian, &
         iInfo = 2
         return
     end if
-    if ((nSiteOut > nSiteDim).OR.(nSpeciesOut > nSpeciesDim)) then
+    if ((nSiteOut > nSiteDim).OR.((.NOT.lSUBLHessianSiteOnlyActive).AND.(nSpeciesOut > nSpeciesDim))) then
         iInfo = 3
         return
     end if
@@ -181,9 +184,12 @@ subroutine CompHessianSUBL(iSolnIndex, nSiteDim, nSpeciesDim, dSiteHessian, &
     end if
 
     dSiteHessian(1:nSiteOut,1:nSiteOut) = dWorkHessian(1:nSiteOut,1:nSiteOut)
-    call ProjectSiteHessianToEndmembers(iSolnIndex, iPhaseID, nSiteDim, nSpeciesDim, &
-        iSiteIndex, iSiteSub, iSiteCon, nSiteOut, nSpeciesOut, dWorkSite, dSiteHessian, &
-        dEndmemberAmountHessian, dEndmemberCompositionJacobian)
+    if (.NOT.lSUBLHessianSiteOnlyActive) then
+        nSUBLHessianEndmemberProjectionCall = nSUBLHessianEndmemberProjectionCall + 1
+        call ProjectSiteHessianToEndmembers(iSolnIndex, iPhaseID, nSiteDim, nSpeciesDim, &
+            iSiteIndex, iSiteSub, iSiteCon, nSiteOut, nSpeciesOut, dWorkSite, dSiteHessian, &
+            dEndmemberAmountHessian, dEndmemberCompositionJacobian)
+    end if
 
     return
 

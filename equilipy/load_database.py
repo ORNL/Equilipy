@@ -69,6 +69,12 @@ _REQUIRED_DATABASE_KEYS = (
 
 _FORTRAN_DATABASE_KEY = None
 
+_OD_TOPOLOGY_HELPER_STANDALONE = 1
+_OD_TOPOLOGY_DIRECT_TARGET = 2
+_OD_TOPOLOGY_HELPER_ONLY = 3
+_OD_TOPOLOGY_AMBIGUOUS = 4
+_OD_TOPOLOGY_LEGACY_NO_METADATA = 5
+
 
 def load_database(db):
     """Load a parsed database dictionary into shared module variables."""
@@ -88,8 +94,135 @@ def load_database(db):
         "cOrderDisorderHelperPhaseNames",
         [],
     )
+    (
+        var.iOrderDisorderTopologyCS,
+        var.iOrderDisorderStandalonePhaseCS,
+    ) = _order_disorder_structure_metadata(db)
 
     return None
+
+
+def _order_disorder_structure_metadata(
+    database: dict,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Classify DIS_PART identity from parser metadata and phase topology.
+
+    DAT databases do not expose the TDB helper-role metadata and therefore
+    receive the explicit legacy-fallback class.  For TDB databases, the
+    DIS_PART target role and exact declared sublattice signatures distinguish
+    helper+standalone, direct-target, helper-only, and ambiguous graphs.
+    """
+    phase_count = int(database.get("nSolnPhasesSysCS", 0))
+    if (
+        "iOrderDisorderTopologyCS" in database
+        and "iOrderDisorderStandalonePhaseCS" in database
+    ):
+        topology = np.asarray(database["iOrderDisorderTopologyCS"], dtype=int)
+        standalone = np.asarray(
+            database["iOrderDisorderStandalonePhaseCS"],
+            dtype=int,
+        )
+        if topology.shape != (phase_count,) or standalone.shape != (phase_count,):
+            raise DatabaseLoadError(
+                "Typed order/disorder identity metadata must have one entry "
+                "per solution phase."
+            )
+        return topology.copy(), standalone.copy()
+
+    topology = np.full(
+        phase_count,
+        _OD_TOPOLOGY_LEGACY_NO_METADATA,
+        dtype=int,
+    )
+    standalone = np.zeros(phase_count, dtype=int)
+    if "cOrderDisorderHelperPhaseNames" not in database:
+        return topology, standalone
+
+    topology.fill(0)
+    names = [
+        str(name).strip().upper()
+        for name in database.get("cSolnPhaseNameCS", [])
+    ]
+    models = [
+        str(model).strip().upper()
+        for model in database.get("cSolnPhaseTypeCS", [])
+    ]
+    disordered = np.asarray(
+        database.get("iDisorderedPhaseCS", np.zeros(phase_count)),
+        dtype=int,
+    )
+    helper_names = {
+        str(name).strip().upper()
+        for name in database.get("cOrderDisorderHelperPhaseNames", [])
+    }
+
+    for ordered_index in range(min(phase_count, len(disordered))):
+        target_id = int(disordered[ordered_index])
+        if target_id <= 0:
+            continue
+        target_index = target_id - 1
+        if target_index < 0 or target_index >= phase_count:
+            topology[ordered_index] = _OD_TOPOLOGY_AMBIGUOUS
+            continue
+        if target_index >= len(names):
+            topology[ordered_index] = _OD_TOPOLOGY_AMBIGUOUS
+            continue
+
+        if names[target_index] not in helper_names:
+            topology[ordered_index] = _OD_TOPOLOGY_DIRECT_TARGET
+            standalone[ordered_index] = target_id
+            continue
+
+        target_signature = _solution_topology_signature(database, target_index)
+        matches = []
+        for candidate_index in range(phase_count):
+            if candidate_index in {ordered_index, target_index}:
+                continue
+            if candidate_index >= len(models) or target_index >= len(models):
+                continue
+            if models[candidate_index] != models[target_index]:
+                continue
+            if _solution_topology_signature(database, candidate_index) == target_signature:
+                matches.append(candidate_index + 1)
+
+        if len(matches) == 1:
+            topology[ordered_index] = _OD_TOPOLOGY_HELPER_STANDALONE
+            standalone[ordered_index] = matches[0]
+        elif not matches:
+            topology[ordered_index] = _OD_TOPOLOGY_HELPER_ONLY
+        else:
+            topology[ordered_index] = _OD_TOPOLOGY_AMBIGUOUS
+
+    return topology, standalone
+
+
+def _solution_topology_signature(database: dict, phase_index: int) -> tuple:
+    """Return one phase's exact declared sublattice signature."""
+    n_sublattice = int(np.asarray(database["nSublatticePhaseCS"])[phase_index])
+    counts = np.asarray(database["nConstituentSublatticeCS"], dtype=int)
+    ratios = np.asarray(database["dStoichSublatticeCS"], dtype=float)
+    constituent_names = np.asarray(database["cConstituentNameSUBCS"])
+    sublattices = []
+    for sublattice in range(n_sublattice):
+        count = int(counts[phase_index, sublattice])
+        names = tuple(
+            _fixed_width_name(
+                constituent_names[phase_index, sublattice, constituent]
+            )
+            for constituent in range(count)
+        )
+        sublattices.append((float(ratios[phase_index, sublattice]), names))
+    return tuple(sublattices)
+
+
+def _fixed_width_name(value) -> str:
+    """Return an uppercase name from one fixed-width parser character row."""
+    array = np.asarray(value)
+    if array.dtype.kind in {"S", "a"}:
+        text = array.tobytes().decode(errors="ignore")
+    else:
+        text = "".join(str(item) for item in array.ravel())
+    return text.strip().upper()
 
 
 def mark_fortran_database_stale() -> None:

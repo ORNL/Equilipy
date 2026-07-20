@@ -1,4 +1,21 @@
-!> Initialize optional Leveling candidate handoff storage.
+!> \brief Initialize Leveling candidate handoff storage.
+!!
+!! \details Allocates identity and constitution records for both immutable grid
+!! rows and dynamic subminimized rows.  Dynamic rows start after the grid-row
+!! offset so the two candidate classes cannot overwrite one another.
+!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Added typed candidate identity, immutable-grid ownership, and Leveling-row exclusion state.
+    !
+! Numerical assumptions:
+! ======================
+!
+! - nSpeciesLevel already includes every row that may be registered.
+! - The row offset is reset here and assigned after grid rows are restored.
 subroutine InitLevelCandidatePool(nCapacity)
 
     USE ModuleThermo
@@ -9,43 +26,55 @@ subroutine InitLevelCandidatePool(nCapacity)
     integer, intent(in) :: nCapacity
     integer :: nPoolRows, nLevelRows
 
+    ! Step 1. Release the previous solve's candidate transport arrays.
     if (allocated(iLevelCandidatePhase)) deallocate(iLevelCandidatePhase)
     if (allocated(iLevelCandidateSource)) deallocate(iLevelCandidateSource)
+    if (allocated(iLevelCandidateSubMinStatus)) deallocate(iLevelCandidateSubMinStatus)
+    if (allocated(iLevelCandidateStaticRow)) deallocate(iLevelCandidateStaticRow)
     if (allocated(iLevelCandidateParentPhase)) deallocate(iLevelCandidateParentPhase)
     if (allocated(iLevelCandidateDisplayPhase)) deallocate(iLevelCandidateDisplayPhase)
     if (allocated(iLevelCandidateIdentityOrdinal)) deallocate(iLevelCandidateIdentityOrdinal)
     if (allocated(iLevelCandidateFromLevel)) deallocate(iLevelCandidateFromLevel)
     if (allocated(dLevelCandidateMolFraction)) deallocate(dLevelCandidateMolFraction)
+    if (allocated(lLevelingRowExcluded)) deallocate(lLevelingRowExcluded)
 
+    ! Step 2. Size candidate identity storage to the complete Leveling row table.
     nLevelRows = MAX(1, nSpeciesLevel)
     nLevelCandidate = 0
     nLevelCandidateCapacity = MAX(MAX(0, nCapacity), nLevelRows)
     nLevelCandidateRowOffset = 0
     nPoolRows = MAX(1, nLevelCandidateCapacity)
 
+    ! Step 3. Allocate and initialize typed row identity and constitution state.
     allocate(&
         iLevelCandidatePhase(nPoolRows),&
         iLevelCandidateSource(nPoolRows),&
+        iLevelCandidateSubMinStatus(nPoolRows),&
+        iLevelCandidateStaticRow(nPoolRows),&
         iLevelCandidateParentPhase(nPoolRows),&
         iLevelCandidateDisplayPhase(nPoolRows),&
         iLevelCandidateIdentityOrdinal(nPoolRows),&
         iLevelCandidateFromLevel(nLevelRows),&
-        dLevelCandidateMolFraction(nPoolRows,nSpecies))
+        dLevelCandidateMolFraction(nPoolRows,nSpecies),&
+        lLevelingRowExcluded(nLevelRows))
 
     iLevelCandidatePhase = 0
     iLevelCandidateSource = 0
+    iLevelCandidateSubMinStatus = SUBMIN_CANDIDATE_UNKNOWN
+    iLevelCandidateStaticRow = 0
     iLevelCandidateParentPhase = 0
     iLevelCandidateDisplayPhase = 0
     iLevelCandidateIdentityOrdinal = 0
     iLevelCandidateFromLevel = 0
     dLevelCandidateMolFraction = 0D0
+    lLevelingRowExcluded = .FALSE.
 
     return
 
 end subroutine InitLevelCandidatePool
 
 
-!> Temporarily extend Leveling thermodynamic arrays when external candidates exist.
+!> \brief Temporarily extend Leveling thermodynamic arrays for sampled candidates.
 subroutine ExtendSampledLevelingThermoArrays
 
     USE ModuleThermo
@@ -102,7 +131,7 @@ subroutine ExtendSampledLevelingThermoArrays
 end subroutine ExtendSampledLevelingThermoArrays
 
 
-!> Restore Leveling thermodynamic arrays after temporary candidate rows are no longer needed.
+!> \brief Restore physical-species Leveling arrays after candidate transport.
 subroutine RestoreSampledLevelingThermoArrays
 
     USE ModuleThermo

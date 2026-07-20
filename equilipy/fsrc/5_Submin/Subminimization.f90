@@ -10,34 +10,18 @@
 !> \sa      SubMinLineSearch.f90
 !> \sa      SubMinTraceSpeciesControl.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   08/21/2012      M.H.A. Piro         Original code
-!   08/30/2012      M.H.A. Piro         Enforced line-search Wolfe conditions and miscibility duplicate checks
-!   02/28/2013      M.H.A. Piro         Added ionic phase charge-neutrality constraints
-!   11/26/2021      S.Y. Kwon           Changed driving-force basis to Joule per mole of atoms
-!   06/24/2026      S.Y. Kwon           Added CEF site-fraction subminimization before endmember Newton
-!   06/24/2026      S.Y. Kwon           Captured max-iteration state for direct submin regression tests
-!   06/24/2026      S.Y. Kwon           Stored initial and final max-out submin compositions
-!   06/24/2026      S.Y. Kwon           Separated the CEF site-fraction and classic Newton paths
-!   06/24/2026      S.Y. Kwon           Printed thermodynamic condition in Subminimization max-iteration warnings
-!   06/24/2026      S.Y. Kwon           Printed CEF path diagnostics in Subminimization max-iteration warnings
-!   06/24/2026      S.Y. Kwon           Used negative CEF driving force as a phase-entry witness
-!   06/26/2026      S.Y. Kwon           Classified subminimized pseudo-compound candidates before PEA Leveling.
-!   06/27/2026      S.Y. Kwon           Generalized negative driving-force witnesses to all solution models
-!                                        for PEA phase-entry evidence.
-!   06/27/2026      S.Y. Kwon           Added Henrian-region trace estimates before classic trace removal.
-!   06/27/2026      S.Y. Kwon           Disabled generic trace controls for SUBG/SUBQ pair variables.
-!   06/27/2026      S.Y. Kwon           Limited max-iteration warning prints to favorable phase-entry candidates.
-!   06/28/2026      S.Y. Kwon           Routed SUBG/SUBQ phases through the analytical Hessian branch in SubMinNewton.
-!   06/28/2026      S.Y. Kwon           Routed RKMP/QKTO phases through the analytical Hessian branch in SubMinNewton.
-!   06/28/2026      S.Y. Kwon           Added a strict residual-stagnation exit for repeated classic submin starts.
-!   06/30/2026      S.Y. Kwon           Gated Subminimization max-iteration warnings behind debug mode.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   08/21/2012      M.H.A. Piro         Original code
+    !   08/30/2012      M.H.A. Piro         Enforced line-search Wolfe conditions and miscibility duplicate checks
+    !   02/28/2013      M.H.A. Piro         Added ionic phase charge-neutrality constraints
+    !   11/26/2021      S.Y. Kwon           Changed driving-force basis to Joule per mole of atoms
+    !   07/20/2026      S.Y. Kwon           Integrated CEF, analytical-curvature, trace, and miscibility-gap paths into robust solution-phase subminimization.
+    !
+    !
 ! Purpose:
 ! ========
 !

@@ -9,23 +9,14 @@
 !> \sa      CompHessianSUBL.f90
 !> \sa      SubMinDrivingForce.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/24/2026      S.Y. Kwon           Added CEF site-fraction Subminimization path
-!   06/24/2026      S.Y. Kwon           Added charge-neutrality and reduced active-set solves
-!   06/24/2026      S.Y. Kwon           Matched the site gradient to the line-search objective
-!   06/24/2026      S.Y. Kwon           Switched CEF Subminimization to direct scalar site-gradient
-!   06/24/2026      S.Y. Kwon           Moved the routine prologue above the subroutine declaration
-!   06/24/2026      S.Y. Kwon           Recorded CEF path diagnostics for classic fallback max-out cases
-!   06/24/2026      S.Y. Kwon           Clarified CEF handled-state diagnostics for Subminimization
-!   06/28/2026      S.Y. Kwon           Added a residual-stagnation exit for the CEF site-fraction solve.
-!   07/01/2026      S.Y. Kwon           Retried a projected site-gradient direction when a descent Newton
-!                                       direction fails the CEF Subminimization line search.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Added a charge-constrained CEF site-fraction solve with guarded curvature and projected-gradient recovery.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -79,6 +70,9 @@
 ! EvaluateCEFSubMinObjective   Evaluates the phase grand potential and reporting driving force.
 ! CompGradientSUBL             Provides the direct fixed-state CEF scalar and site-gradient.
 ! CompHessianSUBL              Provides analytical CEF site Hessian for Newton proposals.
+! ModuleGEMSolver::lSUBLHessianSiteOnlyActive
+!                             Skips unused endmember Hessian/Jacobian projection while this routine
+!                             extracts only the site-space Hessian.
 ! DSYSV                        Solves the small symmetric site-fraction Newton system.
 !
 !
@@ -741,16 +735,24 @@ contains
         real(8), intent(out) :: dIndependentHessianOut(:,:)
         integer, intent(out) :: iInfoOut
 
-        integer :: i, j, nSiteOut, nSpeciesOut
+        integer :: i, j, nSiteOut, nSpeciesOut, nSpeciesScratchDim
         real(8), allocatable :: dSiteHessian(:,:), dAmountHessian(:,:), dJacobian(:,:)
+        logical :: lSiteOnlySave
 
         dIndependentHessianOut = 0D0
+        ! In site-only mode the endmember/species outputs from CompHessianSUBL
+        ! are scratch only and invalid beyond zero-initialization; this routine
+        ! consumes only dSiteHessian.
+        nSpeciesScratchDim = 1
         allocate(dSiteHessian(nSiteCapacityIn,nSiteCapacityIn))
-        allocate(dAmountHessian(nSpeciesCapacityIn,nSpeciesCapacityIn))
-        allocate(dJacobian(nSpeciesCapacityIn,nSpeciesCapacityIn))
+        allocate(dAmountHessian(nSpeciesScratchDim,nSpeciesScratchDim))
+        allocate(dJacobian(nSpeciesScratchDim,nSpeciesScratchDim))
 
-        call CompHessianSUBL(iSolnPhaseIndexIn, nSiteCapacityIn, nSpeciesCapacityIn, &
+        lSiteOnlySave = lSUBLHessianSiteOnlyActive
+        lSUBLHessianSiteOnlyActive = .TRUE.
+        call CompHessianSUBL(iSolnPhaseIndexIn, nSiteCapacityIn, nSpeciesScratchDim, &
             dSiteHessian, dAmountHessian, dJacobian, nSiteOut, nSpeciesOut, iInfoOut)
+        lSUBLHessianSiteOnlyActive = lSiteOnlySave
 
         if (iInfoOut == 0) then
             do i = 1, nIndependentIn

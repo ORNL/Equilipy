@@ -14,9 +14,15 @@ from .exceptions import (
     EquilibError,
     InputConditionError,
     PostProcessError,
+    SolverFailureReason,
+    SolidificationWarningCode,
     TransitionError,
 )
-from .find_transition import find_first_transition, find_transitions
+from .find_transition import (
+    find_first_transition,
+    find_liquidus_transition,
+    find_transitions,
+)
 from .input_condition import input_condition
 from .list_phases import list_phases
 from .load_database import load_database
@@ -97,6 +103,8 @@ __all__ = [
     "InputConditionError",
     "NeumanKoppHSCp",
     "PostProcessError",
+    "SolverFailureReason",
+    "SolidificationWarningCode",
     "PhaseCollection",
     "PhaseResult",
     "TransitionError",
@@ -121,6 +129,7 @@ __all__ = [
     "equilib_cooling",
     "equilib_single",
     "find_first_transition",
+    "find_liquidus_transition",
     "find_transitions",
     "input_condition",
     "list_phases",

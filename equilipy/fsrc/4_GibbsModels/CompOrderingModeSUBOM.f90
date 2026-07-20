@@ -1,10 +1,10 @@
 !> \brief Compute the passive projected ordering-mode curvature for a SUBOM phase.
 !!
-!! \details Evaluates an ordered SUBOM parent on its disordered manifold and
-!! projects the site-fraction gradient/Hessian onto ordering modes that change
-!! equivalent ordered sublattices at fixed averaged composition.  This is a
-!! diagnostic only; all thermodynamic state touched during evaluation is
-!! restored before return.
+!! \details Evaluates an ordered SUBOM parent both at its current minimum and
+!! on its exact disordered projection, then projects the site-fraction
+!! gradient/Hessian onto ordering modes that change equivalent sublattices at
+!! fixed averaged composition.  All thermodynamic state touched during
+!! evaluation is restored before return.
 !!
 subroutine CompOrderingModeSUBOM(iSolnIndex, nModeDim, dOrderingHessian, &
     dOrderingGradient, dOrderingEigenMin, nModeOut, iInfo)
@@ -23,7 +23,7 @@ subroutine CompOrderingModeSUBOM(iSolnIndex, nModeDim, dOrderingHessian, &
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   07/03/2026      S.Y. Kwon           Original passive ordering-mode diagnostic.
+    !   07/20/2026      S.Y. Kwon           Classified order/disorder candidates from current, projected, and site-Hessian thermodynamics without site-split tolerances.
     !
     !
     ! Purpose:
@@ -40,6 +40,8 @@ subroutine CompOrderingModeSUBOM(iSolnIndex, nModeDim, dOrderingHessian, &
     !-------------------------------------------------------------------------------------------------------------
     USE ModuleThermo
     USE ModuleThermoIO
+    USE ModuleGEMSolver
+    USE, INTRINSIC :: ieee_arithmetic, ONLY: ieee_is_finite
 
     implicit none
 
@@ -56,6 +58,7 @@ subroutine CompOrderingModeSUBOM(iSolnIndex, nModeDim, dOrderingHessian, &
     integer :: iGroupSub(nMaxSublatticeSys), iActiveCon(nMaxConstituentSys)
     integer, allocatable :: iSiteSub(:), iSiteCon(:)
     real(8) :: dScalarGibbs, dScalarEnthalpy, dScalarEntropy, dScalarHeatCapacity
+    real(8) :: dCurrentScalarGibbs, dDisorderedScalarGibbs
     real(8) :: dCurrentSite(nMaxSublatticeSys,nMaxConstituentSys)
     real(8) :: dDisorderedSite(nMaxSublatticeSys,nMaxConstituentSys)
     real(8), allocatable :: dSiteGradient(:), dSiteGradientH(:), dSiteGradientS(:)
@@ -64,7 +67,7 @@ subroutine CompOrderingModeSUBOM(iSolnIndex, nModeDim, dOrderingHessian, &
     real(8), allocatable :: dBasis(:,:)
     real(8), allocatable :: dMolFractionSave(:), dMolesSpeciesSave(:)
     real(8), allocatable :: dGibbsSolnPhaseSave(:), dSiteFractionSave(:,:,:)
-    logical :: lStateSaved
+    logical :: lStateSaved, lSiteOnlySave
 
     external DSYEV
 
@@ -74,6 +77,18 @@ subroutine CompOrderingModeSUBOM(iSolnIndex, nModeDim, dOrderingHessian, &
     nModeOut = 0
     iInfo = 0
     lStateSaved = .FALSE.
+    dCurrentScalarGibbs = 0D0
+    dDisorderedScalarGibbs = 0D0
+
+    if (lODCandidateClassifyActive.AND.allocated(iODCandidateClass)) then
+        if ((iSolnIndex >= 1).AND.(iSolnIndex <= SIZE(iODCandidateClass))) then
+            iODCandidateClass(iSolnIndex) = OD_CANDIDATE_EVALUATION_FAILED
+            dODCandidateCurrentGibbs(iSolnIndex) = 0D0
+            dODCandidateDisorderedGibbs(iSolnIndex) = 0D0
+            dODCandidateOrderingEigenMin(iSolnIndex) = 0D0
+            dODCompanionEigenMin(iSolnIndex) = 0D0
+        end if
+    end if
 
     if (nModeDim <= 0) then
         iInfo = 3
@@ -128,6 +143,16 @@ subroutine CompOrderingModeSUBOM(iSolnIndex, nModeDim, dOrderingHessian, &
 
     call SaveThermoState(dMolFractionSave, dMolesSpeciesSave, dGibbsSolnPhaseSave, &
         dSiteFractionSave, lStateSaved)
+    call CompGradientSUBL(iSolnIndex, nSiteCapacity, dSiteGradient, dCurrentScalarGibbs, &
+        dSiteGradientH, dSiteGradientS, dSiteGradientCp, dScalarEnthalpy, dScalarEntropy, &
+        dScalarHeatCapacity, nGradientSiteOut, iGradientInfo)
+    if ((iGradientInfo /= 0).OR.(nGradientSiteOut /= nSiteOut)) then
+        iInfo = 5
+        call RestoreThermoState(dMolFractionSave, dMolesSpeciesSave, dGibbsSolnPhaseSave, &
+            dSiteFractionSave, lStateSaved)
+        return
+    end if
+
     call SetPhaseFractionsFromSite(iSolnIndex, iPhaseID, dDisorderedSite, iInfo)
     if (iInfo /= 0) then
         call RestoreThermoState(dMolFractionSave, dMolesSpeciesSave, dGibbsSolnPhaseSave, &
@@ -144,9 +169,13 @@ subroutine CompOrderingModeSUBOM(iSolnIndex, nModeDim, dOrderingHessian, &
             dSiteFractionSave, lStateSaved)
         return
     end if
+    dDisorderedScalarGibbs = dScalarGibbs
 
+    lSiteOnlySave = lSUBLHessianSiteOnlyActive
+    lSUBLHessianSiteOnlyActive = .TRUE.
     call CompHessianSUBL(iSolnIndex, nSiteCapacity, nSpeciesCapacity, dSiteHessian, &
         dAmountHessian, dCompositionJacobian, nSiteOut, nSpeciesOut, iHessianInfo)
+    lSUBLHessianSiteOnlyActive = lSiteOnlySave
     call RestoreThermoState(dMolFractionSave, dMolesSpeciesSave, dGibbsSolnPhaseSave, &
         dSiteFractionSave, lStateSaved)
     if (iHessianInfo /= 0) then
@@ -158,7 +187,10 @@ subroutine CompOrderingModeSUBOM(iSolnIndex, nModeDim, dOrderingHessian, &
         dSiteGradient, dSiteHessian, dOrderingGradient, dOrderingHessian)
     call ComputeMinimumEigenvalue(nModeDim, nModeLocal, dOrderingHessian, &
         dOrderingEigenMin, iInfo)
-    if (iInfo == 0) nModeOut = nModeLocal
+    if (iInfo == 0) then
+        nModeOut = nModeLocal
+        if (lODCandidateClassifyActive) call RecordCandidateIdentity
+    end if
 
     return
 
@@ -253,7 +285,7 @@ contains
             end do
             if (nTrialGroup < 2) cycle
 
-            call ActiveAveragedConstituents(iPhaseIDIn, dSiteIn, iTrialGroup, &
+            call StructuralOrderingConstituents(iPhaseIDIn, iTrialGroup, &
                 nTrialGroup, iTrialActive, nTrialActive)
             if (nTrialActive < 2) cycle
 
@@ -288,32 +320,23 @@ contains
     end function SameConstituentList
 
 
-    subroutine ActiveAveragedConstituents(iPhaseIDIn, dSiteIn, iGroupSubIn, nGroupIn, &
+    subroutine StructuralOrderingConstituents(iPhaseIDIn, iGroupSubIn, nGroupIn, &
         iActiveConOut, nActiveConOut)
         integer, intent(in) :: iPhaseIDIn, nGroupIn
         integer, intent(in) :: iGroupSubIn(nMaxSublatticeSys)
-        real(8), intent(in) :: dSiteIn(nMaxSublatticeSys,nMaxConstituentSys)
         integer, intent(out) :: iActiveConOut(nMaxConstituentSys), nActiveConOut
 
-        integer :: iCon, iGroup
-        real(8) :: dAverage
+        integer :: iCon
 
         iActiveConOut = 0
         nActiveConOut = 0
         do iCon = 1, nConstituentSublattice(iPhaseIDIn,iGroupSubIn(1))
-            dAverage = 0D0
-            do iGroup = 1, nGroupIn
-                dAverage = dAverage + dSiteIn(iGroupSubIn(iGroup),iCon)
-            end do
-            dAverage = dAverage / DFLOAT(nGroupIn)
-            if (dAverage > 1D-12) then
-                nActiveConOut = nActiveConOut + 1
-                iActiveConOut(nActiveConOut) = iCon
-            end if
+            nActiveConOut = nActiveConOut + 1
+            iActiveConOut(nActiveConOut) = iCon
         end do
 
         return
-    end subroutine ActiveAveragedConstituents
+    end subroutine StructuralOrderingConstituents
 
 
     subroutine BuildDisorderedSite(iPhaseIDIn, dSiteIn, iGroupSubIn, nGroupIn, &
@@ -411,7 +434,7 @@ contains
         end do
 
         dNorm = DSQRT(SUM(dTrialInOut*dTrialInOut))
-        if (dNorm <= 1D-12) return
+        if (dNorm == 0D0) return
         if (nModeLocal >= nModeCapacityIn) then
             iInfoOut = 3
             return
@@ -558,6 +581,79 @@ contains
 
         return
     end subroutine ComputeMinimumEigenvalue
+
+
+    subroutine RecordCandidateIdentity
+
+        if (.NOT.allocated(iODCandidateClass)) return
+        if (iSolnIndex > SIZE(iODCandidateClass)) return
+
+        dODCandidateCurrentGibbs(iSolnIndex) = dCurrentScalarGibbs
+        dODCandidateDisorderedGibbs(iSolnIndex) = dDisorderedScalarGibbs
+        dODCandidateOrderingEigenMin(iSolnIndex) = dOrderingEigenMin
+
+        if ((.NOT.ieee_is_finite(dCurrentScalarGibbs)).OR.&
+            (.NOT.ieee_is_finite(dDisorderedScalarGibbs)).OR.&
+            (.NOT.ieee_is_finite(dOrderingEigenMin))) then
+            iODCandidateClass(iSolnIndex) = OD_CANDIDATE_EVALUATION_FAILED
+        else if (dOrderingEigenMin == 0D0) then
+            ! Exact rank loss is a physical node fact.  It is neither an ordered
+            ! nor a regular disordered minimum and must remain typed.
+            iODCandidateClass(iSolnIndex) = OD_CANDIDATE_AMBIGUOUS_NODE
+        else if (ALL(dCurrentSite == dDisorderedSite)) then
+            if (dOrderingEigenMin < 0D0) then
+                ! Exact symmetry with negative ordering curvature means the
+                ! selected subminimum is a saddle, not a disordered minimum.
+                iODCandidateClass(iSolnIndex) = OD_CANDIDATE_AMBIGUOUS_UNSTABLE
+            else
+                iODCandidateClass(iSolnIndex) = OD_CANDIDATE_DISORDERED
+            end if
+        else if (dCurrentScalarGibbs == dDisorderedScalarGibbs) then
+            if (dOrderingEigenMin < 0D0) then
+                iODCandidateClass(iSolnIndex) = OD_CANDIDATE_AMBIGUOUS_UNSTABLE
+            else
+                ! An asymmetric floating representation with exactly the same
+                ! parent-model energy as its structural projection is the
+                ! disordered branch.  This is an exact projection identity,
+                ! not an ordering-degree cutoff.
+                iODCandidateClass(iSolnIndex) = OD_CANDIDATE_DISORDERED
+            end if
+        else if (dCurrentScalarGibbs < dDisorderedScalarGibbs) then
+            if ((dOrderingEigenMin > 0D0).AND.&
+                WithinOneRepresentationStepBelow(dCurrentScalarGibbs, &
+                    dDisorderedScalarGibbs)) then
+                ! The two values overlap at floating-point representation
+                ! precision.  NEAREST defines that arithmetic fact exactly;
+                ! no thermodynamic or composition-distance cutoff is used.
+                iODCandidateClass(iSolnIndex) = OD_CANDIDATE_AMBIGUOUS_ROUNDOFF
+            else
+                iODCandidateClass(iSolnIndex) = OD_CANDIDATE_ORDERED
+            end if
+        else
+            if (dOrderingEigenMin > 0D0) then
+                ! The exact symmetric projection is both lower and locally
+                ! stable, so the asymmetric submin result cannot be the phase
+                ! minimum.  Preserve that rejected-branch fact while selecting
+                ! the structural disordered projection.
+                iODCandidateClass(iSolnIndex) = OD_CANDIDATE_DISORDERED_PROJECTED
+            else
+                iODCandidateClass(iSolnIndex) = OD_CANDIDATE_AMBIGUOUS_UNSTABLE
+            end if
+        end if
+
+        return
+    end subroutine RecordCandidateIdentity
+
+
+    logical function WithinOneRepresentationStepBelow(dValue, dReference)
+        real(8), intent(in) :: dValue, dReference
+
+        WithinOneRepresentationStepBelow = .FALSE.
+        if (dValue >= dReference) return
+        WithinOneRepresentationStepBelow = NEAREST(dValue, 1D0) >= dReference
+
+        return
+    end function WithinOneRepresentationStepBelow
 
 
     character(8) function UpperName(cName)

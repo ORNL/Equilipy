@@ -21,7 +21,7 @@ subroutine TryBinarySUBGQPairExchange(lAccepted)
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   06/29/2026      S.Y. Kwon           Original binary pair-exchange correction for SUBG/SUBQ.
+    !   07/20/2026      S.Y. Kwon           Added a binary pair-exchange correction for SUBG and SUBQ solution phases.
     !
     !
     ! Purpose:

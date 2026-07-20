@@ -1,2 +1,3 @@
 recursive-include equilipy/gui/icons *.icns *.ico *.png *.svg
 recursive-include equilipy/gui/fonts *.otf *.ttf
+graft equilipy/fsrc

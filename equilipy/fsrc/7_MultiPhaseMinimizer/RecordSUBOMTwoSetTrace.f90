@@ -11,14 +11,14 @@
 !> \author  S.Y. Kwon
 !> \date    Jul. 03, 2026
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   07/03/2026      S.Y. Kwon           Original passive trace for same-parent SUBOM candidate debugging.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Recorded canonical ordered and disordered partition constitutions independently of display phase identity.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -74,7 +74,7 @@ subroutine RecordSUBOMTwoSetTrace(iStage, iSolnPhaseIn, iOrdinal, iSlot, nFracti
     real(8) :: dSumLocal
     real(8), dimension(nMaxSublatticeSys,nMaxConstituentSys) :: dSiteLocal
 
-    if (.NOT.lSUBOMTwoSetCandidateEnabled) return
+    if ((.NOT.lSUBOMTwoSetCandidateEnabled).AND.(.NOT.lODPartitionUnifiedActive)) return
     if ((iSolnPhaseIn < 1).OR.(iSolnPhaseIn > nSolnPhasesSys)) return
     if (TRIM(cSolnPhaseType(iSolnPhaseIn)) /= 'SUBOM') return
     if (.NOT.allocated(iSUBOMTwoSetTraceStage)) return

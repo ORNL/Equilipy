@@ -30,8 +30,7 @@ subroutine LevelingSolver
     !                                       changed in dimension.
     !   03/24/2021      S.Y. Kwon           Introducing dPhasePotential for checking global minimum.
     !   12/07/2021      S.Y. Kwon           Considering minimum point of each solution in Leveling
-    !   06/25/2026      S.Y. Kwon           Stopped converting Leveling output to Lagrangian variables inside
-    !                                       LevelingSolver so initial PEA receives raw Leveling candidates.
+    !   07/20/2026      S.Y. Kwon           Counted and documented finite-grid Leveling exchanges while excluding typed ineligible rows.
     !
     !
     ! Purpose:
@@ -114,16 +113,27 @@ subroutine LevelingSolver
 !
 !    
 !
-    ! START LEVELING:
+    ! Step 1. Exchange the most favorable row until every row lies on or above
+    ! the current elemental-potential plane.
     LOOP_Leveling: do iter = 1, 500
 !
-        !SY: Check global minimum: if all elements in phase potential are positive, the system is in global minimum
+        ! Price every row against the current plane.
         dPhasePotential = dLevelingChemicalPotential - MATMUL(dLevelingCompositionSpecies,dElementPotential)
+        if (allocated(lLevelingRowExcluded)) then
+            if (SIZE(lLevelingRowExcluded) /= SIZE(dPhasePotential)) then
+                INFOThermo = 42
+                if (lGridFrontEndActive) then
+                    nGridFallback = 1
+                    iGridFallbackReason = GRID_FALLBACK_WORKFLOW_ERROR
+                end if
+                exit LOOP_Leveling
+            end if
+            where (lLevelingRowExcluded) dPhasePotential = HUGE(1D0)
+        end if
 !
-        ! print*,'dPhasePotential', MINVAL(dPhasePotential)
         if (MINVAL(dPhasePotential) > -1D-10) exit LOOP_Leveling
 !
-        ! Determine the next phase assemblage to be tested:
+        ! Exchange the most favorable row into a mass-balanced assemblage.
         call GetNewAssemblage(iter)
 !
 !
@@ -131,8 +141,19 @@ subroutine LevelingSolver
         if (INFOThermo /= 0) exit LOOP_Leveling
 !
     end do LOOP_Leveling
+    ! Step 2. Record the exchange count for the active Leveling role.
+    if (.NOT.lGridRefinementSweepActive) nGEMInitialLevelingPass = MIN(iter,500)
+    if (lGridFrontEndActive.AND.lGridRefinementSweepActive) then
+        if (lGridRefinementSweepActive) then
+            nGridRefinementLevelingPass = MIN(iter,500)
+        end if
+    else if (lGridFrontEndActive) then
+        nGridLevelingPass = MIN(iter,500)
+    end if
 !
 !
+    ! Step 3. If no exchange was required, compute the diagonal phase amounts
+    ! supplied directly by GetFirstAssemblage.
     ! If the GetFirstAssemblage subroutine determined the correct phase assemblage, then the
     ! GetNewAssemblage subroutine was not called and the number of moles of each phase was not computed and
     ! the number of moles of each constituent was not computed.

@@ -48,7 +48,7 @@ if __name__ == "__main__":
             segment.y,
             "-",
             lw=2,
-            color=colors[i],
+            color=colors[i % len(colors)],
             label=segment.label,
         )
     ax.plot([0.018298033, 0.03], [927.194274902343, 950], "k-", lw=0.5)

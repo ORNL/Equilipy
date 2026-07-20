@@ -21,9 +21,7 @@ subroutine SetLevelingSpeciesTotalAtoms(iSystemSpecies, iCSPhase, iCSSpecies)
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   06/23/2026      S.Y. Kwon           Original Leveling atom-normalization helper
-    !   06/23/2026      S.Y. Kwon           Compute Leveling atoms from non-vacancy occupied sublattice sites
-    !   06/23/2026      S.Y. Kwon           Harden sublattice bounds and store occupied-site count as FormulaAtoms
+    !   07/20/2026      S.Y. Kwon           Computed solution formula-atom scales from bounded sublattice occupancies for Leveling mass balance.
     !
     !
     ! Purpose:

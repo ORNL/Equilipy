@@ -13,17 +13,15 @@ module ModuleThermo
 !> \sa      CompThermoData.f90
 !> \sa      PostProcess.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   04/25/2012      M.H.A. Piro         Original shared thermodynamic state module
-!   06/23/2026      S.Y. Kwon           Consolidated thermodynamic derivative work arrays
-!   07/02/2026      S.Y. Kwon           Added a separate order/disorder active-companion phase map for
-!                                       minimizer diagnostics.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   04/25/2012      M.H.A. Piro         Original shared thermodynamic state module
+    !   07/20/2026      S.Y. Kwon           Separated thermodynamic derivative storage and structural order/disorder phase identities.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -45,7 +43,10 @@ module ModuleThermo
 ! dExcessGibbsParam                Excess Gibbs parameters for solution models.
 ! nSublatticePhase                 Sublattice counts for CEF/order-disorder phases.
 ! iDisorderedPhase                 Thermodynamic order/disorder DIS_PART helper mapping.
-! iODCompanionPhase                Solver-identity companion map for active disordered aliases.
+! iODCompanionPhase                Solver-identity map to the parser-declared DIS_PART helper.
+! iODStandalonePhase               Independent standalone disordered phase, when separately declared.
+! iODTopologyClass                 Typed structural DIS_PART graph classification by ordered phase.
+! iODProjectionTopology            Supported ordering-projector topology by ordered phase.
 !
 !
 ! Output/updated variables:
@@ -103,7 +104,8 @@ module ModuleThermo
     integer,       dimension(:),   allocatable::  iPhase, nSpeciesPhase, iParticlesPerMole, iPhaseLevel, iCandidate,iSolnPS
     integer,       dimension(:),   allocatable::  iAssemblage, nParamPhase, iElementSystem, iSpeciesPass, nMagParamPhase
     integer,       dimension(:),   allocatable::  nSublatticePhase, iPhaseSublattice, iDisorderedPhase
-    integer,       dimension(:),   allocatable::  iODCompanionPhase
+    integer,       dimension(:),   allocatable::  iODCompanionPhase, iODStandalonePhase
+    integer,       dimension(:),   allocatable::  iODTopologyClass, iODProjectionTopology
     integer,       dimension(:),   allocatable::  iPhaseElectronID
     integer,       dimension(:),   allocatable::  iShuffled
     ! integer,       dimension(:),   allocatable::  iSub2SysSoln, iSub2SysComp, iSub2SysSpecies! the whole line is added

@@ -15,10 +15,10 @@ subroutine ResetThermoAll
     ! Revisions:
     ! ==========
     !
-    !    Date          Programmer         Description of change
-    !    ----          ----------         ---------------------
-    !    02/17/2012    M.H.A. Piro        Original code
-    !    06/23/2026    S.Y. Kwon          Removed dormant reinit reset call.
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   02/17/2012      M.H.A. Piro         Original code
+    !   07/20/2026      S.Y. Kwon           Removed the dormant reinitialization reset from full thermodynamic cleanup.
     !
     !
     ! Purpose:

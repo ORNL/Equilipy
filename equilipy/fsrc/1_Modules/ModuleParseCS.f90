@@ -5,18 +5,16 @@
 !> \brief   Parser-side ChemSage/TDB database state before transfer to runtime thermodynamic modules.
 !
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   04/24/2012      M.H.A Piro          Original parser-state module
-!   03/25/2019      P. Bajpai           Added SUBQ to supported models
-!   06/23/2026      S.Y. Kwon           Added SUBOM to supported models
-!   06/23/2026      S.Y. Kwon           Documented parser-to-runtime state contract
-!   06/23/2026      S.Y. Kwon           Organized declarations by rank and role
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   04/24/2012      M.H.A Piro          Original parser-state module
+    !   03/25/2019      P. Bajpai           Added SUBQ to supported models
+    !   07/20/2026      S.Y. Kwon           Stored parser metadata for magnetic QKTO phases and structural order/disorder partitions.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -62,6 +60,8 @@
 ! dStoichSublatticeCS        Sublattice stoichiometric coefficients.
 ! iConstituentSublatticeCS   Constituent indexes for each phase/sublattice.
 ! iDisorderedPhaseCS         Order/disorder phase-pair mapping for ordered CEF phases.
+! iOrderDisorderTopologyCS   Parser-side typed DIS_PART graph classification.
+! iOrderDisorderStandalonePhaseCS  Separately declared standalone disordered phase, if any.
 ! dSublatticeChargeCS        Sublattice charges for ionic phases.
 ! nPairsSROCS, iPairIDCS     SUBG/SUBQ pair-count and pair-index data.
 ! dCoordinationNumberCS      SUBG/SUBQ coordination-number data.
@@ -122,6 +122,8 @@ module ModuleParseCS
     integer,        dimension(:),   allocatable :: nParamPhaseCS, iParamPassCS
     integer,        dimension(:),   allocatable :: nSublatticePhaseCS, iPhaseSublatticeCS
     integer,        dimension(:),   allocatable :: iDisorderedPhaseCS
+    integer,        dimension(:),   allocatable :: iOrderDisorderTopologyCS
+    integer,        dimension(:),   allocatable :: iOrderDisorderStandalonePhaseCS
     integer,        dimension(:),   allocatable :: iMagParamPassCS, nMagParamPhaseCS, iSUBIMixTypeCS
     integer,        dimension(:),   allocatable :: nInterpolationOverrideCS
 

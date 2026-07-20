@@ -10,8 +10,12 @@ from tqdm import tqdm
 import equilipy.equilifort as fort
 
 from .equilib_single import _equilib_single
-from .exceptions import EquilibError, TransitionError
-from .find_transition import find_first_transition, find_transitions
+from .exceptions import (
+    EquilibError,
+    TransitionError,
+    liquidus_search_failure_warning,
+)
+from .find_transition import find_liquidus_transition, find_transitions
 from .results import capture_result_context
 from .results.equilib import EquilibPoint, EquilibResult
 from .results.scheil import ScheilPoint, ScheilResult
@@ -121,6 +125,7 @@ def _cooling_result_from_equilibrium_path(
     result.equilib_result = equilib_result
     result.liquid_phase_name = liquid_phase_name
     result.input_unit = list(unit)
+    result.warnings = list(equilib_result.warnings)
     first_point = equilib_result.points[0]
     result.n_i = first_point.n_i
     result.w_i = first_point.w_i
@@ -165,21 +170,23 @@ def equilib_cooling(
         context=capture_result_context(database, condition, unit, phases)
     )
 
+    liquidus_warning = None
     if start_from_liquidus:
         t_max = float(current_condition["T"])
         t_min = max(t_max * 0.1, _transition_search_floor(unit_local))
         try:
-            liquidus = find_first_transition(
+            liquidus = find_liquidus_transition(
                 database,
                 current_condition,
+                liquid_phase_name,
                 t_max,
                 t_min,
                 unit=unit_local,
                 phases=phases,
             )
-        except TransitionError:
-            liquidus = None
-        if liquidus is not None:
+        except TransitionError as exc:
+            liquidus_warning = liquidus_search_failure_warning(exc)
+        else:
             current_condition["T"] = liquidus + 0.1
 
     assemblage_old = _run_equilibrium_step(
@@ -189,6 +196,8 @@ def equilib_cooling(
         phases,
     )
     _append_current_equilibrium(equilib_path)
+    if liquidus_warning is not None:
+        equilib_path.points[0].warnings.append(liquidus_warning)
 
     current_temperature = float(equilib_path.T)
     current_condition["T"] = current_temperature

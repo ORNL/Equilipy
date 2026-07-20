@@ -13,15 +13,10 @@ subroutine CompExcessGibbsEnergy(iSolnIndex)
     ! Revisions:
     ! ==========
     !
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   01/14/2013      M.H.A. Piro         Original code.
-!   06/26/2026      S.Y. Kwon           Routed QKTOM through QKTO excess plus solution magnetic terms.
-!   06/27/2026      S.Y. Kwon           Preserved SUBG/SUBQ model pair potentials at trace fractions
-!                                        instead of replacing them with standard endmember values.
-!   06/28/2026      S.Y. Kwon           Populated phase Gibbs and partial properties for unary solution
-!                                        phases after active-component screening.
-!   07/01/2026      S.Y. Kwon           Kept unary CEF/MQM phases on their model-specific evaluation path.
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   01/14/2013      M.H.A. Piro         Original code.
+    !   07/20/2026      S.Y. Kwon           Routed each solution phase through its physical excess-energy model, including unary CEF and MQM phases.
     !
     ! Purpose:
     ! ========

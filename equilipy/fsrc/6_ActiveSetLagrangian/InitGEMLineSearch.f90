@@ -24,9 +24,7 @@
     !   07/04/2012      M.H.A. Piro         Dampened large solution phase decreases
     !   09/29/2012      M.H.A. Piro         Added stale-assemblage revert logic
     !   12/22/2021      S.Y. Kwon           Split gradient descent from phase assemblage checks
-    !   06/24/2026      S.Y. Kwon           Recorded raw negative/floor species factors
-    !   06/24/2026      S.Y. Kwon           Stored raw full-step phase amounts before lambda damping
-    !   06/28/2026      S.Y. Kwon           Used analytical non-CEF species directions from GEMNewton when available.
+    !   07/20/2026      S.Y. Kwon           Initialized line-search species directions from analytical solution curvature when available.
     !
     ! Purpose:
     ! ========

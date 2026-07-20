@@ -36,8 +36,8 @@ subroutine CompMolSolnPhase
     !                                       is added to the system.
     !   04/26/2012      M.H.A. Piro         Implementing Gibbs energy Minimization algorithm and dOxygen.
     !   03/04/2013      M.H.A. Piro         Fix bug when performing LLS when involving ionic phases.  The
-    !                                        number of moles of an electron as a system component is zero,
-    !                                        and the bug prevented divide by zero.
+    !                                       number of moles of an electron as a system component is zero,
+    !                                       and the bug prevented divide by zero.
     !
     !
     ! Purpose:

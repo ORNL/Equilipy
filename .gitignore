@@ -225,3 +225,8 @@ CHANGELOG.md
 # Built artifacts
 dist/
 /AlFeSi_Du.tdb
+
+# development-only material, never in releases (Sunyong 07/18)
+_ongoing_development/
+tests/test_devop/
+equilipy_gui_log.txt

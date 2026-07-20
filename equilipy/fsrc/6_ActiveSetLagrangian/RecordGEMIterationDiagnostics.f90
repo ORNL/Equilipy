@@ -20,29 +20,7 @@
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-!   06/24/2026      S.Y. Kwon           Original diagnostic recorder
-!   07/02/2026      S.Y. Kwon           Added passive KKT pivot and scaffold activation histories
-!   07/02/2026      S.Y. Kwon           Added passive active order/disorder pair diagnostics
-!   07/02/2026      S.Y. Kwon           Resolved common DIS_PART helper aliases in passive active-pair
-!                                       diagnostics without changing solver identity.
-!   07/02/2026      S.Y. Kwon           Read the central active-companion order/disorder map when available.
-!   07/02/2026      S.Y. Kwon           Recorded line-search Gibbs/merit slopes and split scaffold counters.
-!   07/03/2026      S.Y. Kwon           Recorded raw CEF phase-boundary audit histories before fallback
-!                                       directions overwrite line-search raw-mole diagnostics.
-!   07/03/2026      S.Y. Kwon           Split residual-LM fallback histories by raw-negative and
-!                                       post-line-search no-descent triggers.
-!   07/03/2026      S.Y. Kwon           Recorded raw-negative CEF phase residuals and lower-bound
-!                                       complementarity signs for Phase 3 diagnostics.
-!   07/03/2026      S.Y. Kwon           Recorded pre-residual-LM CEF no-descent line-search diagnostics.
-!   07/03/2026      S.Y. Kwon           Added passive projected SUBOM ordering-mode eigenvalue diagnostics.
-!   07/03/2026      S.Y. Kwon           Used the shared order/disorder helper-alias classifier in passive
-!                                       companion-slot diagnostics.
-!   07/04/2026      S.Y. Kwon           Recorded split tiny-boundary removal diagnostics for C1-a census.
-!   07/04/2026      S.Y. Kwon           Recorded bounds-surgery event identities and rank guards for C2-a census.
-!   07/04/2026      S.Y. Kwon           Added a call-site-stable residual-LM event buffer for C3-a2 census.
-!   07/04/2026      S.Y. Kwon           Added passive C3-c0 KKT dimension snapshots to residual-LM events.
-!   07/04/2026      S.Y. Kwon           Reset C3-c1 inertia-regularization per-iteration counters.
-!   07/04/2026      S.Y. Kwon           Recorded C3-c2 funnel line-search counters.
+    !   07/20/2026      S.Y. Kwon           Recorded phase, residual, line-search, complementarity, and active-set evidence for each GEM iteration.
     !
     ! Purpose:
     ! ========
@@ -1145,7 +1123,7 @@ contains
     logical function OrderDisorderHelperAliasMatch(iHelperPhaseIn, iCandidatePhaseIn)
         integer, intent(in) :: iHelperPhaseIn, iCandidatePhaseIn
 
-        integer       :: iHelperKind, iCandidateKind
+        integer       :: iHelperKind, iCandidateKind, iOrderedPhase
         integer       :: OrderDisorderHelperAliasKind
         character(30) :: cHelperName, cCandidateName
 
@@ -1159,6 +1137,26 @@ contains
         if (TRIM(cHelperName) == TRIM(cCandidateName)) then
             OrderDisorderHelperAliasMatch = .TRUE.
             return
+        end if
+
+        if (allocated(iODTopologyClass).AND.allocated(iDisorderedPhase).AND.&
+            allocated(iODStandalonePhase)) then
+            do iOrderedPhase = 1, MIN(nSolnPhasesSys, SIZE(iODTopologyClass), &
+                SIZE(iDisorderedPhase), SIZE(iODStandalonePhase))
+                if (iODTopologyClass(iOrderedPhase) /= OD_TOPOLOGY_HELPER_STANDALONE) cycle
+                if (((iDisorderedPhase(iOrderedPhase) == iHelperPhaseIn).AND.&
+                    (iODStandalonePhase(iOrderedPhase) == iCandidatePhaseIn)).OR.&
+                    ((iDisorderedPhase(iOrderedPhase) == iCandidatePhaseIn).AND.&
+                    (iODStandalonePhase(iOrderedPhase) == iHelperPhaseIn))) then
+                    OrderDisorderHelperAliasMatch = .TRUE.
+                    return
+                end if
+            end do
+
+            ! Typed TDB identity is authoritative.  The spelling fallback
+            ! below exists only for metadata-free legacy databases.
+            if (ANY((iODTopologyClass > 0).AND.&
+                (iODTopologyClass /= OD_TOPOLOGY_LEGACY_NO_METADATA))) return
         end if
 
         iHelperKind = OrderDisorderHelperAliasKind(iHelperPhaseIn)

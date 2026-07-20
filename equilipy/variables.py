@@ -31,6 +31,8 @@ global \
     iParticlesPerMoleCS, \
     iPhaseSublatticeCS, \
     iDisorderedPhaseCS, \
+    iOrderDisorderTopologyCS, \
+    iOrderDisorderStandalonePhaseCS, \
     nGibbsEqSpecies, \
     nSublatticePhaseCS, \
     nParamPhaseCS, \

@@ -15,17 +15,15 @@
 !> \sa      CheckSolnPhaseAdd.f90
 !> \sa      CheckConvergence.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   08/30/2012      M.H.A. Piro         Original code
-!   06/25/2026      S.Y. Kwon           Ranked miscibility starts with corrected Leveling potentials.
-!   06/27/2026      S.Y. Kwon           Documented the targeted ranked-start rule and bounded starts by
-!                                       the number of available constituents.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   08/30/2012      M.H.A. Piro         Original code
+    !   07/20/2026      S.Y. Kwon           Ranked and bounded miscibility-gap starting compositions for targeted phase searches.
+    !
+    !
 ! Purpose:
 ! ========
 !

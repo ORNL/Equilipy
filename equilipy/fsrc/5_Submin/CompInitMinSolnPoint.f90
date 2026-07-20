@@ -10,27 +10,12 @@ subroutine CompInitMinSolnPoint
     ! Revisions:
     ! ==========
     !
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!
-!   11/01/2021      S.Y. Kwon           Original code
-!   06/25/2026      S.Y. Kwon           Used corrected Leveling potentials for endmember starts and
-!                                       recomputed phase potentials after restoring stored local minima
-!   06/25/2026      S.Y. Kwon           Limited SUBOM initial PEA starts to the nElements lowest endmember
-!                                       driving forces after subtracting the elemental-potential plane
-!   06/26/2026      S.Y. Kwon           Rejected unknown submin starts from valid initial PEA pseudo-compound rows.
-!   06/27/2026      S.Y. Kwon           Accepted general negative driving-force witnesses as valid
-!                                       initial PEA pseudo-compound rows.
-!   06/28/2026      S.Y. Kwon           Included all Leveling-degenerate endpoint starts within 1D-12.
-!   06/28/2026      S.Y. Kwon           Preferred converged starts over early-exit witnesses when ranking
-!                                       initial PEA pseudo-compound candidates.
-!   07/01/2026      S.Y. Kwon           Skipped mapped ordered phases without active ordering degrees of
-!                                       freedom during initial PEA solution-candidate generation.
-!   07/01/2026      S.Y. Kwon           Ranked converged and negative-witness SUBOM starts together by
-!                                       driving force so ordered below-plane witnesses survive PEA.
-!   07/03/2026      S.Y. Kwon           Registered switch-gated second SUBOM composition-set rows in the
-!                                       PEA candidate pool after initial solution minimization.
-!
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !
+    !   11/01/2021      S.Y. Kwon           Original code
+    !   07/20/2026      S.Y. Kwon           Reconciled initial order/disorder candidates and placed dynamic rows through the central grid row layout.
+    !
     !
     !
     ! Purpose:
@@ -43,10 +28,11 @@ subroutine CompInitMinSolnPoint
     USE ModuleThermo
     USE ModuleThermoIO
     USE ModuleGEMSolver
+    USE GridDiscovery, ONLY: GridTangentRowIndex
 !
     implicit none
 !
-    integer :: i, j, k, l, n, m, nConstituents, nElementOrConstituent
+    integer :: i, j, k, l, n, m, iLevelRow, nConstituents, nElementOrConstituent
     integer :: nStartCount, nEndpointStartCount
     real(8), parameter :: dEndpointTieTolerance = 1D-12
     real(8) :: dMinMoleFraction, dMaxMoleFraction, dNormComponent
@@ -101,14 +87,15 @@ subroutine CompInitMinSolnPoint
         !initialize variables
         m                = nSpeciesPhase(i-1) + 1      ! First constituent in phase.
         n                = nSpeciesPhase(i)            ! Last  constituent in phase.
+        iLevelRow        = GridTangentRowIndex(i)
         nConstituents    = n - m + 1
         nElementOrConstituent = MIN(nElements,nConstituents)
         lUseSortedEndmemberStartsOnly = .FALSE.
         if (.NOT.OrderDisorderPhaseIsEligible(i)) then
-            iPhaseLevel(nSpecies+i) = i
-            dChemicalPotential(nSpecies+i) = 5D9
-            dPhasePotential(nSpecies+i) = 5D9
-            call SetLevelingSolutionCandidateRow(nSpecies+i, i, dMolFraction(m:n), .FALSE.)
+            iPhaseLevel(iLevelRow) = i
+            dChemicalPotential(iLevelRow) = 5D9
+            dPhasePotential(iLevelRow) = 5D9
+            call SetLevelingSolutionCandidateRow(iLevelRow, i, dMolFraction(m:n), .FALSE.)
             cycle LOOP_Soln
         end if
         if (TRIM(cSolnPhaseType(i)) == 'SUBOM') then
@@ -202,23 +189,22 @@ subroutine CompInitMinSolnPoint
             ! Sort the results according to the driving force (ascending order)
             ! note that output dDrivingForceTemp is the sorted version
             call Qsort(dDrivingForceTemp,iIndex,nStartCount)
-            ! print*, cSolnPhaseName(i),iIndex, dMolFractionTemp(iIndex(1),:)
 !
             ! Update variables for the current phase 
 !
-            dAtomFractionSpecies(nSpecies+i,:) = dAtomFractionTemp(iIndex(1),:)
-            dStoichSpeciesLevel(nSpecies+i,:)  = dStoichSpeciesTemp(iIndex(1),:)
+            dAtomFractionSpecies(iLevelRow,:) = dAtomFractionTemp(iIndex(1),:)
+            dStoichSpeciesLevel(iLevelRow,:)  = dStoichSpeciesTemp(iIndex(1),:)
             dMolFraction(m:n) = dMolFractionTemp(iIndex(1),:)
             dGibbsSolnPhase(i) = 0D0
             call CompExcessGibbsEnergy(i)
-            dChemicalPotential(nSpecies+i)     = dDrivingForceTemp(1) + &
-            dot_product(dAtomFractionSpecies(nSpecies+i,:),dElementPotential(:))
+            dChemicalPotential(iLevelRow) = dDrivingForceTemp(1) + &
+                dot_product(dAtomFractionSpecies(iLevelRow,:),dElementPotential(:))
             dDrivingForceSoln(i)               = dDrivingForceTemp(1)
             iSubMinCandidateStatusSoln(i)      = iCandidateStatusTemp(iIndex(1))
-            iPhaseLevel(nSpecies+i)            = i
+            iPhaseLevel(iLevelRow) = i
             lSelectedCandidateValid = (iSubMinCandidateStatusSoln(i) == SUBMIN_CANDIDATE_CONVERGED).OR.&
                 (iSubMinCandidateStatusSoln(i) == SUBMIN_CANDIDATE_NEGATIVE_WITNESS)
-            call SetLevelingSolutionCandidateRow(nSpecies+i, i, dMolFraction(m:n), lSelectedCandidateValid)
+            call SetLevelingSolutionCandidateRow(iLevelRow, i, dMolFraction(m:n), lSelectedCandidateValid)
 ! !
             ! Update variables for immiscible phases
             LOOP_immiscibleSoln: do j = 2, nStartCount
@@ -230,27 +216,28 @@ subroutine CompInitMinSolnPoint
 
                 m  = nSpeciesPhase(k-1) + 1      ! First constituent in phase.
                 n  = nSpeciesPhase(k)            ! Last  constituent in phase.
+                iLevelRow = GridTangentRowIndex(k)
 !
-                dAtomFractionSpecies(nSpecies+k,:) = dAtomFractionTemp(iIndex(j),:)
-                dStoichSpeciesLevel(nSpecies+k,:)  = dStoichSpeciesTemp(iIndex(j),:)
+                dAtomFractionSpecies(iLevelRow,:) = dAtomFractionTemp(iIndex(j),:)
+                dStoichSpeciesLevel(iLevelRow,:) = dStoichSpeciesTemp(iIndex(j),:)
                 dMolFraction(m:n) = dMolFractionTemp(iIndex(j),:)
                 dGibbsSolnPhase(k) = 0D0
                 call CompExcessGibbsEnergy(k)
-                iPhaseLevel(nSpecies+k)            = k
+                iPhaseLevel(iLevelRow) = k
                 iSubMinCandidateStatusSoln(k)      = iCandidateStatusTemp(iIndex(j))
                 lSelectedCandidateDistinct          = .TRUE.
                 ! Store the local minima if it is not equal to global minimum
                 if (sum(abs(dAtomFractionTemp(iIndex(1),:)-dAtomFractionTemp(iIndex(j),:)))/DFLOAT(nElements)>1D-4) then
-                    dChemicalPotential(nSpecies+k) = dDrivingForceTemp(j) + &
-                    dot_product(dAtomFractionSpecies(nSpecies+k,:),dElementPotential(:))
+                    dChemicalPotential(iLevelRow) = dDrivingForceTemp(j) + &
+                        dot_product(dAtomFractionSpecies(iLevelRow,:),dElementPotential(:))
                 else
-                    dChemicalPotential(nSpecies+k) = 5D9
+                    dChemicalPotential(iLevelRow) = 5D9
                     lSelectedCandidateDistinct = .FALSE.
                 end if
                 lSelectedCandidateValid = (iSubMinCandidateStatusSoln(k) == SUBMIN_CANDIDATE_CONVERGED).OR.&
                     (iSubMinCandidateStatusSoln(k) == SUBMIN_CANDIDATE_NEGATIVE_WITNESS)
                 lSelectedCandidateValid = lSelectedCandidateValid.AND.lSelectedCandidateDistinct
-                call SetLevelingSolutionCandidateRow(nSpecies+k, k, dMolFraction(m:n), lSelectedCandidateValid)
+                call SetLevelingSolutionCandidateRow(iLevelRow, k, dMolFraction(m:n), lSelectedCandidateValid)
             end do LOOP_immiscibleSoln
         end if
 !
@@ -258,6 +245,7 @@ subroutine CompInitMinSolnPoint
 !
     end do LOOP_Soln
 
+    call ReconcileOrderDisorderCandidateRows
     call RegisterSUBOMTwoSetCandidateRows
 !
         ! Calculate functional norm: Mass balance 
@@ -289,9 +277,6 @@ subroutine CompInitMinSolnPoint
     
     dChemicalPotential(:nSpecies)     = (dStdGibbsEnergy) &
     *DFLOAT(iParticlesPerMole)/ dSpeciesTotalAtoms
-!
-    ! deallocate(dEffStoichSolnPhase,dSumMolFractionSoln,&
-    ! dDrivingForceSoln,dPartialExcessGibbs)
 !
 end subroutine CompInitMinSolnPoint
 !

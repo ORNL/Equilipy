@@ -19,16 +19,8 @@
     !   ----            ----------          ---------------------
     !   04/01/2018      M.H.A. Piro         Original code.
     !   12/10/2018      M.H.A. Piro         Fixed a bug in the partial molar excess Gibbs energy
-    !                                        expression for BB and AB.
-    !   06/26/2026      S.Y. Kwon           Corrected SUBG/SUBQ ideal entropy to use standard entropy
-    !                                        instead of standard enthalpy.
-    !   06/26/2026      S.Y. Kwon           Reset SUBG/SUBQ excess H/S/Cp derivative accumulators together
-    !                                        with Gibbs derivatives and fixed copied Gibbs terms in Q-branch
-    !                                        H/S/Cp derivatives.
-    !   06/27/2026      S.Y. Kwon           Restored Thermochimica-style SUBQ mixed-quad chi weighting and
-    !                                        reciprocal-term derivatives for phase minimization.
-    !   06/27/2026      S.Y. Kwon           Kept SUBG/SUBQ pair entropy finite at trace fractions so active
-    !                                        Lagrangian minimization sees the pair-exchange residual.
+    !                                       expression for BB and AB.
+    !   07/20/2026      S.Y. Kwon           Corrected SUBG and SUBQ ideal and pair entropy terms while keeping trace-pair energies finite.
     !
     !
     ! Purpose:

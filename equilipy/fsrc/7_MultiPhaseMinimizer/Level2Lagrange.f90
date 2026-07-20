@@ -14,72 +14,14 @@
 !> \sa      PostProcessPEA.f90
 !> \sa      RunLagrangianGEM.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/25/2026      S.Y. Kwon           Added endmember-row compatibility checks before merging miscibility
-!                                       copies into a base solution phase.
-!   06/25/2026      S.Y. Kwon           Used the phase-mole numerical tolerance when pruning zero candidates
-!                                       before Lagrangian GEM.
-!   06/25/2026      S.Y. Kwon           Synchronized GEM active-set rows after Lagrangian translation so later
-!                                       PEA repair starts from a consistent assemblage.
-!   06/25/2026      S.Y. Kwon           Stored synchronized solution rows in PEA candidate-index form for
-!                                       repair-stage CheckPhaseAssemblage.
-!   06/26/2026      S.Y. Kwon           Recorded Leveling-to-Lagrangian handoff diagnostics without changing
-!                                       candidate-selection logic.
-!   06/26/2026      S.Y. Kwon           Preserved valid PEA phase-local solution minima when Leveling selects
-!                                       an endmember row from that solution phase.
-!   06/27/2026      S.Y. Kwon           Preserved PEA pseudo-solution candidates for disordered phases instead
-!                                       of projecting true BCC_A2/FCC_A1 candidates into ordered partners.
-!   06/27/2026      S.Y. Kwon           Projected only duplicate-composition DIS_PART pseudo-candidates while
-!                                       preserving distinct disordered/ordered coexistence.
-!   06/27/2026      S.Y. Kwon           Added explicit pseudo-compound merge policy and restricted immiscible
-!                                       copies to database-provided miscibility phases.
-!   06/28/2026      S.Y. Kwon           Preserved concrete Leveling endmember rows during solution-phase
-!                                       merges so Level2Lagrange keeps the PEA mass-balanced row set.
-!   07/01/2026      S.Y. Kwon           Rescaled solution-candidate amounts onto the actual Lagrangian
-!                                       endmember-composition basis before storing species moles.
-!   07/01/2026      S.Y. Kwon           Disabled disordered-to-ordered helper projection when the ordered
-!                                       phase has no active ordering degree of freedom.
-!   07/01/2026      S.Y. Kwon           Clarified that solution endmember vectors are handoff data, not
-!                                       CEF Newton direction variables.
-!   07/01/2026      S.Y. Kwon           Computed the initial handoff norm in the same CEF site-fraction
-!                                       coordinate system used by RunLagrangianGEM.
-!   07/02/2026      S.Y. Kwon           Filled passive active-slot model/display/composition-set diagnostics
-!                                       during Lagrangian handoff synchronization.
-!   07/02/2026      S.Y. Kwon           Stored passive per-active-slot constitutions and assigned identity
-!                                       ordinals by display phase.
-!   07/02/2026      S.Y. Kwon           Split passive active-slot thermodynamic parent identity from
-!                                       display phase identity during Lagrangian handoff synchronization.
-!   07/02/2026      S.Y. Kwon           Stored passive parent-model site fractions for active CEF
-!                                       composition-set handoffs.
-!   07/02/2026      S.Y. Kwon           Preserved distinct PEA solution rows as separate
-!                                       Lagrangian composition-set slots during embedded polish.
-!   07/02/2026      S.Y. Kwon           Limited active-slot parent remapping to actual DIS_PART helper
-!                                       phases so real disordered phases remain independent.
-!   07/03/2026      S.Y. Kwon           Added default-off c2 handoff logic that converts an unstable
-!                                       DIS_PART helper candidate into a second composition-set slot
-!                                       of the ordered SUBOM parent.
-!   07/03/2026      S.Y. Kwon           Extended the switch-gated two-set handoff to the helper-first
-!                                       ordering case where the DIS_PART candidate is selected before
-!                                       the ordered SUBOM parent.
-!   07/03/2026      S.Y. Kwon           Allowed unstable DIS_PART endpoint rows to seed a second
-!                                       ordered-parent composition-set slot under the c2/c3 switch.
-!   07/03/2026      S.Y. Kwon           Used the active order/disorder companion alias map for the
-!                                       switch-gated two-set SUBOM handoff without changing switch-off
-!                                       disordered-phase preservation.
-!   07/03/2026      S.Y. Kwon           Prevented companion-to-ordered projection from assigning artificial
-!                                       vacancy weight on non-fixed ordered substitutional sublattices.
-!   07/03/2026      S.Y. Kwon           Routed switch-gated SUBOM two-set handoff through candidate-pool
-!                                       identity rows instead of post-handoff slot injection.
-!   07/03/2026      S.Y. Kwon           Counted direct same-parent SUBOM handoffs from synchronized active slots
-!                                       instead of the retired post-handoff injection path.
-!   07/03/2026      S.Y. Kwon           Removed retired post-handoff two-set helper routines after candidate-pool
-!                                       handoff became the only active two-set path.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Transported positive phase amounts and certified grid and order/disorder composition-set identities into CEF Newton.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -136,7 +78,9 @@
 ! Numerical assumptions:
 ! ======================
 !
-! - Zero or near-zero phase amounts are pruned before the Lagrangian layout is built.
+! - Non-positive phase amounts are pruned before the Lagrangian layout is built.
+!   Finite-positive phase amounts stay active while the plane condition remains
+!   valid; tiny-phase active-set decisions belong to phase-assemblage logic.
 ! - Zero-endmember estimates are applied after the Leveling/PEA selection has been
 !   translated into active solution phases.
 ! - Direct helper endmember rows are projected into their ordered partner only
@@ -167,11 +111,11 @@ subroutine Level2Lagrange
 !
     implicit none
 !
-    integer                         :: i, j, k, m, n
+    integer                         :: i, j, k, m, n, iSelectedCandidate
     integer, dimension(nElements)    :: iSelectedAssemblage
     real(8), dimension(nElements)    :: dSelectedMolesPhase
     real(8), dimension(nSpecies)     :: dTempPhasePotential
-    real(8)                         :: dPhasePruneTolerance, dTemp
+    real(8)                         :: dTemp
     logical                         :: lCompEveryPhases, lPostLevelingInitialized
     logical                         :: lThermoArraysExtended
     logical                         :: lUseCEFSiteGEM
@@ -180,6 +124,20 @@ subroutine Level2Lagrange
     lCompEveryPhases = .TRUE.
     lSolnPhases      = .FALSE.
     call ResetLevel2LagrangeCounters
+
+    ! Status 6 is immutable start metadata, never PEALG evidence.  Assert the
+    ! complete selected set before mutating any Lagrangian handoff arrays.
+    if (allocated(iLevelCandidateSubMinStatus)) then
+        do i = 1, nElements
+            iSelectedCandidate = LevelCandidateIndexForEntry(iAssemblage(i))
+            if (iSelectedCandidate <= 0) cycle
+            if (iLevelCandidateSubMinStatus(iSelectedCandidate) == &
+                PEA_CANDIDATE_PROVISIONAL_GRID_SEED) then
+                INFOThermo = 42
+                return
+            end if
+        end do
+    end if
 !
     if (allocated(iAssemblageGEM)) deallocate(iAssemblageGEM)
     allocate(iAssemblageGEM(nElements))
@@ -191,9 +149,8 @@ subroutine Level2Lagrange
         dMolesPhase(MINLOC(dMolesPhase, dim=1)) = 0D0
     end if
 !
-    dPhasePruneTolerance = DMAX1(1D-15, 10D0 * dTolerance(7))
     do i = 1, nElements
-        if ((iAssemblage(i) /= 0).AND.(dMolesPhase(i) < dPhasePruneTolerance)) then
+        if ((iAssemblage(i) /= 0).AND.(dMolesPhase(i) <= 0D0)) then
             nLevel2LagrangePruned = nLevel2LagrangePruned + 1
             iAssemblage(i) = 0
         end if
@@ -232,6 +189,7 @@ subroutine Level2Lagrange
         if (allocated(dLevelingChemicalPotential)) deallocate(dLevelingChemicalPotential)
         allocate(dAtomFractionSpecies(nSpecies,nElements), dLevelingCompositionSpecies(nSpecies,nElements),&
             dPhasePotential(nSpecies), dChemicalPotential(nSpecies), dLevelingChemicalPotential(nSpecies))
+        if (lGridFrontEndActive) dChemicalPotential = dChemicalPotentialOld
         dAtomFractionSpecies = dAtomFractionSpeciesOld
         dLevelingCompositionSpecies = dLevelingCompositionSpeciesOld
         dLevelingChemicalPotential = dLevelingChemicalPotentialOld
@@ -428,6 +386,36 @@ contains
 !
         return
     end function LevelCandidateIndexForEntry
+
+    integer function CandidateDisplayPhaseForEntry(iEntry, iParentPhase)
+        integer, intent(in) :: iEntry, iParentPhase
+        integer             :: iCandidate
+
+        CandidateDisplayPhaseForEntry = iParentPhase
+        iCandidate = LevelCandidateIndexForEntry(iEntry)
+        if (iCandidate == 0) return
+        if (.NOT.allocated(iLevelCandidateDisplayPhase)) return
+        if (iLevelCandidateDisplayPhase(iCandidate) > 0) then
+            CandidateDisplayPhaseForEntry = iLevelCandidateDisplayPhase(iCandidate)
+        end if
+
+        return
+    end function CandidateDisplayPhaseForEntry
+
+    integer function CandidateIdentityOrdinalForEntry(iEntry)
+        integer, intent(in) :: iEntry
+        integer             :: iCandidate
+
+        CandidateIdentityOrdinalForEntry = 1
+        iCandidate = LevelCandidateIndexForEntry(iEntry)
+        if (iCandidate == 0) return
+        if (.NOT.allocated(iLevelCandidateIdentityOrdinal)) return
+        if (iLevelCandidateIdentityOrdinal(iCandidate) > 0) then
+            CandidateIdentityOrdinalForEntry = iLevelCandidateIdentityOrdinal(iCandidate)
+        end if
+
+        return
+    end function CandidateIdentityOrdinalForEntry
 !
     logical function CandidateLevelRowHasExplicitCompositionSet(iEntry)
         integer, intent(in) :: iEntry
@@ -463,7 +451,8 @@ contains
         integer             :: iCandidateFirst, iCandidateLast
         integer             :: iExistingPhase, iExistingSlot, iExistingFirst, iExistingLast
         integer             :: iSoln, iTargetPhase, iBasePhase, iImmisciblePhase
-        logical             :: lDuplicate, lMergePseudoCompounds, lPreservePEASolutionCandidate
+        logical             :: lCanonicalSetDistinct, lDuplicate, lTransportableGridStart
+        logical             :: lMergePseudoCompounds, lPreservePEASolutionCandidate
 !
         if (nConPhases + nSolnPhases >= nElements) return
         nLevel2LagrangeSolnSelected = nLevel2LagrangeSolnSelected + 1
@@ -472,9 +461,11 @@ contains
         iCandidateLast  = nSpeciesPhase(iSolnPhase)
         iBasePhase      = MiscibleBasePhase(iSolnPhase)
         iTargetPhase    = 0
+        lCanonicalSetDistinct = .FALSE.
         lMergePseudoCompounds = .NOT.HasExplicitImmiscibilityCopies(iSolnPhase)
+        lTransportableGridStart = GridCandidateIsTransportablePEAStart(iEntry)
         lPreservePEASolutionCandidate = ShouldPreservePEASolutionCandidate().OR.&
-            CandidateLevelRowHasExplicitCompositionSet(iEntry)
+            CandidateLevelRowHasExplicitCompositionSet(iEntry).OR.lTransportableGridStart
 !
         iTargetPhase = OrderedPhaseForDisorderedHelper(iSolnPhase)
         if (iTargetPhase > 0) then
@@ -501,6 +492,17 @@ contains
             iExistingLast  = nSpeciesPhase(iExistingPhase)
             if ((iExistingLast - iExistingFirst) /= (iCandidateLast - iCandidateFirst)) cycle
             if (.NOT.PhaseConstituentRowsCompatible(iSolnPhase, iExistingPhase)) cycle
+!
+!           A stable disordered minimum is one representation of the canonical
+!           ordered parent, not permission to activate a generic demixing copy.
+!           Ordered-instability and ambiguous classes continue below so genuine
+!           coexistence remains explicit and ambiguity is never resolved here.
+            if (CanonicalParentIsStableDisordered(iSolnPhase)) then
+                call MergeIntoSolutionCandidate(&
+                    iSlot, iExistingSlot, iEntry, dAmount, &
+                    iCandidateFirst, iCandidateLast, iExistingFirst, iExistingLast)
+                return
+            end if
             lDuplicate     = .FALSE.
 !
             call AscertainMiscibilityGap(&
@@ -509,16 +511,19 @@ contains
                 dMolFraction(iExistingFirst:iExistingLast), &
                 lDuplicate)
             if (lDuplicate) then
-                if (SameParentCandidateConstitutionIsDistinct(&
-                    iSlot, iEntry, iSolnPhase, iExistingPhase, &
-                    iCandidateFirst, iCandidateLast, iExistingFirst, iExistingLast)) lDuplicate = .FALSE.
+                if (.NOT.lTransportableGridStart) then
+                    lCanonicalSetDistinct = SameParentCandidateConstitutionIsDistinct(&
+                        iSlot, iExistingSlot, iEntry, iSolnPhase, iExistingPhase, &
+                        iCandidateFirst, iCandidateLast, iExistingFirst, iExistingLast)
+                end if
+                if (lCanonicalSetDistinct) lDuplicate = .FALSE.
             end if
 !
             if (lDuplicate) then
                 call MergeIntoSolutionCandidate(&
                     iSlot, iExistingSlot, iEntry, dAmount, &
                     iCandidateFirst, iCandidateLast, iExistingFirst, iExistingLast)
-            else if (lPreservePEASolutionCandidate) then
+            else if (lPreservePEASolutionCandidate.OR.lCanonicalSetDistinct) then
                 call AddNewSolutionCandidate(&
                     iSlot, iEntry, iSolnPhase, dAmount, iCandidateFirst, iCandidateLast)
             else if (lMergePseudoCompounds) then
@@ -608,7 +613,7 @@ contains
         integer, intent(in) :: iSlot, iEntry, iTargetPhase, iCandidateFirst, iCandidateLast
         real(8), intent(in) :: dAmount
         integer             :: iResolvedTargetPhase, iTargetSlot, iTargetFirst, iTargetLast, iTargetSpecies
-        integer             :: nCandidateLocal
+        integer             :: nCandidateLocal, iDisplayPhase, iIdentityOrdinal
         logical             :: lUseCandidateFraction
         real(8)             :: dAdjustedAmount
         real(8), dimension(:), allocatable :: dCandidateFraction
@@ -629,6 +634,11 @@ contains
         iTargetSlot = nElements - nSolnPhases + 1
         iTargetFirst = nSpeciesPhase(iResolvedTargetPhase-1) + 1
         iTargetLast  = nSpeciesPhase(iResolvedTargetPhase)
+        iDisplayPhase = CandidateDisplayPhaseForEntry(iEntry, iResolvedTargetPhase)
+        iIdentityOrdinal = CandidateIdentityOrdinalForEntry(iEntry)
+        if (GridCandidateIsTransportablePEAStart(iEntry)) then
+            iIdentityOrdinal = NextActiveIdentityOrdinal(iResolvedTargetPhase)
+        end if
         nCandidateLocal = iCandidateLast - iCandidateFirst + 1
         allocate(dCandidateFraction(nCandidateLocal))
         call GetSolutionCandidateFraction(&
@@ -636,6 +646,25 @@ contains
             dCandidateFraction, lUseCandidateFraction)
 !
         iAssemblage(iTargetSlot) = -iResolvedTargetPhase
+        if (allocated(iActiveSlotThermoPhase)) then
+            iActiveSlotThermoPhase(iTargetSlot) = iResolvedTargetPhase
+        end if
+        if (allocated(iActiveSlotDisplayPhase)) then
+            iActiveSlotDisplayPhase(iTargetSlot) = iDisplayPhase
+        end if
+        if (allocated(iActiveSlotIdentityOrdinal)) then
+            iActiveSlotIdentityOrdinal(iTargetSlot) = iIdentityOrdinal
+        end if
+        if (allocated(iActiveSlotODClass)) then
+            iActiveSlotODClass(iTargetSlot) = OD_CANDIDATE_NOT_EVALUATED
+            if (allocated(iODCandidateClass)) then
+                if ((iResolvedTargetPhase >= 1).AND.&
+                    (iResolvedTargetPhase <= SIZE(iODCandidateClass))) then
+                    iActiveSlotODClass(iTargetSlot) = &
+                        iODCandidateClass(iResolvedTargetPhase)
+                end if
+            end if
+        end if
         nLevel2LagrangeSolnAdded = nLevel2LagrangeSolnAdded + 1
         dAdjustedAmount = RescaledSolutionCandidateAmount(&
             iSlot, iEntry, iCandidateFirst, iCandidateLast, &
@@ -659,6 +688,43 @@ contains
 !
         return
     end subroutine AddNewSolutionCandidate
+
+    !> \brief Report whether a grid row may seed the current PEALG handoff.
+    logical function GridCandidateIsTransportablePEAStart(iEntry)
+        integer, intent(in) :: iEntry
+        integer :: iCandidate
+
+        GridCandidateIsTransportablePEAStart = .FALSE.
+        iCandidate = LevelCandidateIndexForEntry(iEntry)
+        if (iCandidate == 0) return
+        if (.NOT.allocated(iLevelCandidateSource)) return
+        if (.NOT.allocated(iLevelCandidateSubMinStatus)) return
+        if (iLevelCandidateSource(iCandidate) /= LEVEL_CANDIDATE_SOURCE_GRID) return
+        if (iLevelCandidateSubMinStatus(iCandidate) == PEA_CANDIDATE_PROVISIONAL_GRID_SEED) then
+            INFOThermo = 42
+            return
+        end if
+        GridCandidateIsTransportablePEAStart = &
+            (iLevelCandidateSubMinStatus(iCandidate) == SUBMIN_CANDIDATE_CONVERGED).OR.&
+            (iLevelCandidateSubMinStatus(iCandidate) == SUBMIN_CANDIDATE_NEGATIVE_WITNESS)
+
+        return
+    end function GridCandidateIsTransportablePEAStart
+
+    !> \brief Return the next free composition-set ordinal for one parent phase.
+    integer function NextActiveIdentityOrdinal(iParentPhase)
+        integer, intent(in) :: iParentPhase
+        integer :: iSoln, iSlot
+
+        NextActiveIdentityOrdinal = 1
+        do iSoln = 1, nSolnPhases
+            iSlot = nElements - iSoln + 1
+            if (-iAssemblage(iSlot) /= iParentPhase) cycle
+            NextActiveIdentityOrdinal = NextActiveIdentityOrdinal + 1
+        end do
+
+        return
+    end function NextActiveIdentityOrdinal
 !
     subroutine GetSolutionCandidateFraction(&
         iSlot, iEntry, iSolnPhase, iCandidateFirst, iCandidateLast, dFraction, lUseFraction)
@@ -704,6 +770,18 @@ contains
         DisorderedHelperDuplicatesOrderedCandidate = .FALSE.
         if (iEntry <= nSpecies) return
         if (iHelperPhase < 1 .OR. iOrderedPhase < 1) return
+        if (CanonicalCompanionForParent(iOrderedPhase) == iHelperPhase) then
+            if (allocated(iODCandidateClass)) then
+                if (iOrderedPhase <= SIZE(iODCandidateClass)) then
+                    DisorderedHelperDuplicatesOrderedCandidate = &
+                        (iODCandidateClass(iOrderedPhase) == OD_CANDIDATE_DISORDERED).OR.&
+                        (iODCandidateClass(iOrderedPhase) == OD_CANDIDATE_DISORDERED_PROJECTED).OR.&
+                        (iODCandidateClass(iOrderedPhase) == OD_CANDIDATE_AMBIGUOUS_ROUNDOFF).OR.&
+                        (iODCandidateClass(iOrderedPhase) == OD_CANDIDATE_AMBIGUOUS_NODE)
+                end if
+            end if
+            return
+        end if
 !
         iTargetSlot = 0
         do iSoln = 1, nSolnPhases
@@ -747,18 +825,30 @@ contains
     end function DisorderedHelperDuplicatesOrderedCandidate
 !
     logical function SameParentCandidateConstitutionIsDistinct(&
-        iSlot, iEntry, iSolnPhase, iExistingPhase, iCandidateFirst, iCandidateLast, &
+        iSlot, iExistingSlot, iEntry, iSolnPhase, iExistingPhase, iCandidateFirst, iCandidateLast, &
         iExistingFirst, iExistingLast)
-        integer, intent(in) :: iSlot, iEntry, iSolnPhase, iExistingPhase
+        integer, intent(in) :: iSlot, iExistingSlot, iEntry, iSolnPhase, iExistingPhase
         integer, intent(in) :: iCandidateFirst, iCandidateLast, iExistingFirst, iExistingLast
         integer             :: nCandidateLocal, nExistingLocal
+        integer             :: iCandidateOrdinal, iExistingOrdinal
         real(8)             :: dCandidateSum, dExistingSum, dConstitutionDiff
         real(8), dimension(:), allocatable :: dCandidateFraction, dExistingFraction
 !
         SameParentCandidateConstitutionIsDistinct = .FALSE.
-        if (.NOT.CandidateLevelRowHasExplicitCompositionSet(iEntry)) return
         if (iSolnPhase /= iExistingPhase) return
         if (iEntry <= nSpecies) return
+        if (CanonicalCompanionForParent(iSolnPhase) > 0) then
+            iCandidateOrdinal = CandidateIdentityOrdinalForEntry(iEntry)
+            iExistingOrdinal = 1
+            if (allocated(iActiveSlotIdentityOrdinal)) then
+                if ((iExistingSlot >= 1).AND.(iExistingSlot <= SIZE(iActiveSlotIdentityOrdinal))) then
+                    iExistingOrdinal = MAX(1, iActiveSlotIdentityOrdinal(iExistingSlot))
+                end if
+            end if
+            if (iCandidateOrdinal == iExistingOrdinal) return
+        else
+            if (.NOT.CandidateLevelRowHasExplicitCompositionSet(iEntry)) return
+        end if
 !
         nCandidateLocal = iCandidateLast - iCandidateFirst + 1
         nExistingLocal  = iExistingLast - iExistingFirst + 1
@@ -776,6 +866,13 @@ contains
         dCandidateFraction = dCandidateFraction / dCandidateSum
         dExistingFraction = dExistingFraction / dExistingSum
 !
+        if (CanonicalCompanionForParent(iSolnPhase) > 0) then
+            SameParentCandidateConstitutionIsDistinct = &
+                ANY(dCandidateFraction /= dExistingFraction)
+            deallocate(dCandidateFraction, dExistingFraction)
+            return
+        end if
+
         dConstitutionDiff = SUM(DABS(dCandidateFraction - dExistingFraction)) / &
             DBLE(MAX(1,nCandidateLocal))
         if (dConstitutionDiff > 1D-8) SameParentCandidateConstitutionIsDistinct = .TRUE.
@@ -1031,7 +1128,9 @@ contains
 !
         do iPhaseIndex = 1, nSolnPhasesSys
             if (iPhaseIndex > SIZE(iDisorderedPhase)) exit
-            if (iDisorderedPhase(iPhaseIndex) == iSolnPhase) then
+            if ((CanonicalHelperForParent(iPhaseIndex) == iSolnPhase).OR.&
+                (lSUBOMTwoSetCandidateEnabled.AND.&
+                (iDisorderedPhase(iPhaseIndex) == iSolnPhase))) then
                 if (TRIM(cSolnPhaseType(iPhaseIndex)) == 'SUBOM') then
                     OrderedPhaseForDisorderedHelper = iPhaseIndex
                     return
@@ -1041,6 +1140,53 @@ contains
 !
         return
     end function OrderedPhaseForDisorderedHelper
+
+    integer function CanonicalHelperForParent(iParentPhase)
+        integer, intent(in) :: iParentPhase
+
+        CanonicalHelperForParent = 0
+        if (.NOT.lODPartitionUnifiedActive) return
+        if (.NOT.allocated(iODCompanionPhase)) return
+        if (.NOT.allocated(iODTopologyClass)) return
+        if ((iParentPhase < 1).OR.(iParentPhase > SIZE(iODCompanionPhase))) return
+        if ((iODTopologyClass(iParentPhase) /= OD_TOPOLOGY_HELPER_STANDALONE).AND.&
+            (iODTopologyClass(iParentPhase) /= OD_TOPOLOGY_HELPER_ONLY)) return
+        if (iODCompanionPhase(iParentPhase) == iParentPhase) return
+        CanonicalHelperForParent = iODCompanionPhase(iParentPhase)
+
+        return
+    end function CanonicalHelperForParent
+
+    integer function CanonicalCompanionForParent(iParentPhase)
+        integer, intent(in) :: iParentPhase
+
+        CanonicalCompanionForParent = 0
+        if (.NOT.lODPartitionUnifiedActive) return
+        if (.NOT.allocated(iODCompanionPhase)) return
+        if (.NOT.allocated(iODTopologyClass)) return
+        if ((iParentPhase < 1).OR.(iParentPhase > SIZE(iODCompanionPhase))) return
+        if ((iODTopologyClass(iParentPhase) < OD_TOPOLOGY_HELPER_STANDALONE).OR.&
+            (iODTopologyClass(iParentPhase) > OD_TOPOLOGY_HELPER_ONLY)) return
+        if (iODCompanionPhase(iParentPhase) == iParentPhase) return
+        CanonicalCompanionForParent = iODCompanionPhase(iParentPhase)
+
+        return
+    end function CanonicalCompanionForParent
+!
+    logical function CanonicalParentIsStableDisordered(iParentPhase)
+        integer, intent(in) :: iParentPhase
+!
+        CanonicalParentIsStableDisordered = .FALSE.
+        if (CanonicalCompanionForParent(iParentPhase) <= 0) return
+        if (.NOT.allocated(iODCandidateClass)) return
+        if ((iParentPhase < 1).OR.(iParentPhase > SIZE(iODCandidateClass))) return
+!
+        CanonicalParentIsStableDisordered = &
+            (iODCandidateClass(iParentPhase) == OD_CANDIDATE_DISORDERED).OR.&
+            (iODCandidateClass(iParentPhase) == OD_CANDIDATE_DISORDERED_PROJECTED)
+!
+        return
+    end function CanonicalParentIsStableDisordered
 !
     integer function ConstituentElementIndex(cName)
         character(*), intent(in) :: cName
@@ -1173,15 +1319,21 @@ contains
 !
     subroutine SyncGEMRowsFromLagrangian
         integer :: iSlot, iEntry, iSolnPhase, iFirst, iLast, iSpecies, iElement
-        integer :: iPrevSlot, iThermoPhase
+        integer :: iPrevSlot, iThermoPhase, iDisplayPhase, iIdentityOrdinal
         real(8) :: dStoichDenom, dFormulaDenom
         real(8) :: dSlotFractionSum
         logical :: lHadSlotMolFraction
         real(8), dimension(:,:), allocatable :: dSlotMolFractionSave
         real(8), dimension(:), allocatable :: dSlotFraction
+        integer, dimension(:), allocatable :: iSlotThermoSave, iSlotDisplaySave
+        integer, dimension(:), allocatable :: iSlotOrdinalSave, iSlotClassSave
 !
         lHadSlotMolFraction = allocated(dActiveSlotMolFraction)
         if (lHadSlotMolFraction) dSlotMolFractionSave = dActiveSlotMolFraction
+        if (allocated(iActiveSlotThermoPhase)) iSlotThermoSave = iActiveSlotThermoPhase
+        if (allocated(iActiveSlotDisplayPhase)) iSlotDisplaySave = iActiveSlotDisplayPhase
+        if (allocated(iActiveSlotIdentityOrdinal)) iSlotOrdinalSave = iActiveSlotIdentityOrdinal
+        if (allocated(iActiveSlotODClass)) iSlotClassSave = iActiveSlotODClass
 !
         if (allocated(iAssemblageGEM)) iAssemblageGEM = 0
 !
@@ -1195,6 +1347,7 @@ contains
         if (allocated(iActiveSlotThermoPhase)) iActiveSlotThermoPhase = 0
         if (allocated(iActiveSlotDisplayPhase)) iActiveSlotDisplayPhase = 0
         if (allocated(iActiveSlotIdentityOrdinal)) iActiveSlotIdentityOrdinal = 0
+        if (allocated(iActiveSlotODClass)) iActiveSlotODClass = OD_CANDIDATE_NOT_EVALUATED
 !
         do iSlot = 1, nElements
             iEntry = iAssemblage(iSlot)
@@ -1209,26 +1362,48 @@ contains
             end if
 !
             iSolnPhase = -iEntry
-            iThermoPhase = ActiveSlotThermoPhaseForDisplay(iSolnPhase)
-            if (allocated(iAssemblageGEM)) iAssemblageGEM(iSlot) = nSpecies + iSolnPhase
-            iPhaseGEM(iSlot) = iSolnPhase
+            iThermoPhase = iSolnPhase
+            if (allocated(iSlotThermoSave)) then
+                if (iSlotThermoSave(iSlot) > 0) iThermoPhase = iSlotThermoSave(iSlot)
+            end if
+            iDisplayPhase = iSolnPhase
+            if (allocated(iSlotDisplaySave)) then
+                if (iSlotDisplaySave(iSlot) > 0) iDisplayPhase = iSlotDisplaySave(iSlot)
+            end if
+            iIdentityOrdinal = 1
+            if (allocated(iSlotOrdinalSave)) then
+                if (iSlotOrdinalSave(iSlot) > 0) iIdentityOrdinal = iSlotOrdinalSave(iSlot)
+            end if
+            if (allocated(iAssemblageGEM)) then
+                iAssemblageGEM(iSlot) = nSpecies + iThermoPhase
+                if ((iIdentityOrdinal > 1).AND.&
+                    (nSpecies+nSolnPhasesSys+iThermoPhase <= nSpeciesLevel)) then
+                    iAssemblageGEM(iSlot) = nSpecies + nSolnPhasesSys + iThermoPhase
+                end if
+            end if
+            iPhaseGEM(iSlot) = iThermoPhase
             if (allocated(iActiveSlotThermoPhase)) iActiveSlotThermoPhase(iSlot) = iThermoPhase
-            if (allocated(iActiveSlotDisplayPhase)) iActiveSlotDisplayPhase(iSlot) = iSolnPhase
+            if (allocated(iActiveSlotDisplayPhase)) iActiveSlotDisplayPhase(iSlot) = iDisplayPhase
             if (allocated(iActiveSlotIdentityOrdinal)) then
-                iActiveSlotIdentityOrdinal(iSlot) = 1
-                do iPrevSlot = 1, iSlot - 1
-                    if (iActiveSlotThermoPhase(iPrevSlot) == iThermoPhase) then
-                        iActiveSlotIdentityOrdinal(iSlot) = iActiveSlotIdentityOrdinal(iSlot) + 1
-                    end if
-                end do
-                if (lSUBOMTwoSetCandidateEnabled.AND.&
+                iActiveSlotIdentityOrdinal(iSlot) = iIdentityOrdinal
+                if (.NOT.allocated(iSlotOrdinalSave)) then
+                    do iPrevSlot = 1, iSlot - 1
+                        if (iActiveSlotThermoPhase(iPrevSlot) == iThermoPhase) then
+                            iActiveSlotIdentityOrdinal(iSlot) = iActiveSlotIdentityOrdinal(iSlot) + 1
+                        end if
+                    end do
+                end if
+                if ((lSUBOMTwoSetCandidateEnabled.OR.lODPartitionUnifiedActive).AND.&
                     (TRIM(cSolnPhaseType(iThermoPhase)) == 'SUBOM').AND.&
                     (iActiveSlotIdentityOrdinal(iSlot) > 1)) then
                     nLevel2LagrangeTwoSetCreated = nLevel2LagrangeTwoSetCreated + 1
                 end if
             end if
-            iFirst = nSpeciesPhase(iSolnPhase-1) + 1
-            iLast  = nSpeciesPhase(iSolnPhase)
+            if (allocated(iActiveSlotODClass).AND.allocated(iSlotClassSave)) then
+                iActiveSlotODClass(iSlot) = iSlotClassSave(iSlot)
+            end if
+            iFirst = nSpeciesPhase(iThermoPhase-1) + 1
+            iLast  = nSpeciesPhase(iThermoPhase)
             allocate(dSlotFraction(iLast-iFirst+1))
             dSlotFraction = DMAX1(dMolFraction(iFirst:iLast), 0D0)
             if (lHadSlotMolFraction) then
@@ -1249,8 +1424,9 @@ contains
             if (allocated(dActiveSlotMolFraction)) then
                 dActiveSlotMolFraction(iSlot,iFirst:iLast) = dSlotFraction
             end if
-            call StoreActiveSlotSiteFraction(iSlot, iSolnPhase, iThermoPhase)
-            if (lSUBOMTwoSetCandidateEnabled.AND.(TRIM(cSolnPhaseType(iThermoPhase)) == 'SUBOM')) then
+            call StoreActiveSlotSiteFraction(iSlot, iThermoPhase, iThermoPhase)
+            if ((lSUBOMTwoSetCandidateEnabled.OR.lODPartitionUnifiedActive).AND.&
+                (TRIM(cSolnPhaseType(iThermoPhase)) == 'SUBOM')) then
                 call RecordSUBOMTwoSetTrace(SUBOM_TRACE_HANDOFF, iThermoPhase, &
                     iActiveSlotIdentityOrdinal(iSlot), iSlot, SIZE(dSlotFraction), dSlotFraction)
             end if
@@ -1280,6 +1456,10 @@ contains
         end do
 !
         if (allocated(dSlotMolFractionSave)) deallocate(dSlotMolFractionSave)
+        if (allocated(iSlotThermoSave)) deallocate(iSlotThermoSave)
+        if (allocated(iSlotDisplaySave)) deallocate(iSlotDisplaySave)
+        if (allocated(iSlotOrdinalSave)) deallocate(iSlotOrdinalSave)
+        if (allocated(iSlotClassSave)) deallocate(iSlotClassSave)
 !
         return
     end subroutine SyncGEMRowsFromLagrangian
@@ -1293,7 +1473,8 @@ contains
 !
         do iOrderedPhase = 1, MIN(nSolnPhasesSys, SIZE(iDisorderedPhase))
             if (TRIM(cSolnPhaseType(iOrderedPhase)) /= 'SUBOM') cycle
-            if (iDisorderedPhase(iOrderedPhase) == iDisplayPhase) then
+            if ((iDisorderedPhase(iOrderedPhase) == iDisplayPhase).OR.&
+                (CanonicalCompanionForParent(iOrderedPhase) == iDisplayPhase)) then
                 ActiveSlotThermoPhaseForDisplay = iOrderedPhase
                 return
             end if
@@ -1326,6 +1507,14 @@ contains
             call MapDisplaySiteToParent(iDisplayPhaseID, iThermoPhaseID, dDisplaySite, dParentSite)
         end if
         call NormalizeSiteFractionForPhase(iThermoPhaseID, dParentSite)
+        if (allocated(iActiveSlotDisplayPhase)) then
+            if ((iSlotIn >= 1).AND.(iSlotIn <= SIZE(iActiveSlotDisplayPhase))) then
+                if (iActiveSlotDisplayPhase(iSlotIn) == &
+                    CanonicalCompanionForParent(iThermoPhaseIn)) then
+                    call ProjectEquivalentOrderingSublattices(iThermoPhaseID, dParentSite)
+                end if
+            end if
+        end if
         dActiveSlotSiteFraction(iSlotIn,:,:) = dParentSite
 !
         return
@@ -1421,6 +1610,65 @@ contains
 !
         return
     end subroutine NormalizeSiteFractionForPhase
+
+
+    subroutine ProjectEquivalentOrderingSublattices(iPhaseIDIn, dSiteInOut)
+        integer, intent(in)    :: iPhaseIDIn
+        real(8), intent(inout) :: dSiteInOut(nMaxSublatticeSys,nMaxConstituentSys)
+
+        integer :: iSubA, iSubB, iGroup, iCon, nGroup, nConstituent
+        integer :: iGroupSub(nMaxSublatticeSys)
+        real(8) :: dGroupSite(nMaxConstituentSys), dGroupSum
+
+        do iSubA = 1, nSublatticePhase(iPhaseIDIn) - 1
+            if (nConstituentSublattice(iPhaseIDIn,iSubA) <= 1) cycle
+            nGroup = 1
+            iGroupSub(1) = iSubA
+            do iSubB = iSubA + 1, nSublatticePhase(iPhaseIDIn)
+                if (EquivalentOrderingSublattices(iPhaseIDIn, iSubA, iSubB)) then
+                    nGroup = nGroup + 1
+                    iGroupSub(nGroup) = iSubB
+                end if
+            end do
+            if (nGroup < 2) cycle
+
+            nConstituent = nConstituentSublattice(iPhaseIDIn,iSubA)
+            dGroupSite = 0D0
+            do iGroup = 1, nGroup
+                dGroupSite(1:nConstituent) = dGroupSite(1:nConstituent) + &
+                    dSiteInOut(iGroupSub(iGroup),1:nConstituent)
+            end do
+            dGroupSite(1:nConstituent) = dGroupSite(1:nConstituent) / DBLE(nGroup)
+            dGroupSum = SUM(dGroupSite(1:nConstituent))
+            if (dGroupSum <= 0D0) return
+            dGroupSite(1:nConstituent) = dGroupSite(1:nConstituent) / dGroupSum
+            do iGroup = 1, nGroup
+                do iCon = 1, nConstituent
+                    dSiteInOut(iGroupSub(iGroup),iCon) = dGroupSite(iCon)
+                end do
+            end do
+        end do
+
+        return
+    end subroutine ProjectEquivalentOrderingSublattices
+
+
+    logical function EquivalentOrderingSublattices(iPhaseIDIn, iSubA, iSubB)
+        integer, intent(in) :: iPhaseIDIn, iSubA, iSubB
+
+        integer :: iCon
+
+        EquivalentOrderingSublattices = .FALSE.
+        if (nConstituentSublattice(iPhaseIDIn,iSubA) /= &
+            nConstituentSublattice(iPhaseIDIn,iSubB)) return
+        do iCon = 1, nConstituentSublattice(iPhaseIDIn,iSubA)
+            if (TRIM(UpperName(cConstituentNameSUB(iPhaseIDIn,iSubA,iCon))) /= &
+                TRIM(UpperName(cConstituentNameSUB(iPhaseIDIn,iSubB,iCon)))) return
+        end do
+        EquivalentOrderingSublattices = .TRUE.
+
+        return
+    end function EquivalentOrderingSublattices
 
     integer function MiscibleBasePhase(iSolnPhase)
         integer, intent(in) :: iSolnPhase

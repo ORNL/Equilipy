@@ -20,8 +20,8 @@ subroutine CompExcessGibbsEnergyRKMP(iSolnIndex)
     !   ----            ----------          ---------------------
     !   01/14/2013      M.H.A. Piro         Original code.
     !   05/14/2014      M.H.A. Piro         Fixed bug in computing binary term: cycle if dx = 0, which could
-    !                                        cause problems when computing dxvmo = dx**(iExponent-1) when
-    !                                        iExponent = 1.
+    !                                       cause problems when computing dxvmo = dx**(iExponent-1) when
+    !                                       iExponent = 1.
     !
     !
     ! Purpose:

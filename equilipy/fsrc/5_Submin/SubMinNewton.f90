@@ -11,23 +11,15 @@
 !> \sa      CompHessianRKMP.f90
 !> \sa      CompHessianQKTO.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   08/21/2012      M.H.A. Piro         Original classic Subminimization Newton routine
-!   06/24/2026      S.Y. Kwon           Switched to the symmetric DSYSV KKT solve with diagnostics
-!   06/24/2026      S.Y. Kwon           Documented the classic-only endmember Newton path
-!   06/28/2026      S.Y. Kwon           Added analytical solution-Hessian assembly for SUBG/SUBQ phases.
-!   06/28/2026      S.Y. Kwon           Added a descent guard for indefinite analytical Hessian directions.
-!   06/28/2026      S.Y. Kwon           Wired RKMP/QKTO analytical Hessians into the shared Newton projection.
-!   06/28/2026      S.Y. Kwon           Removed late-iteration RHS damping so the Newton solve uses the
-!                                        current stationarity residual exactly.
-!   06/29/2026      S.Y. Kwon           Kept SUBG/SUBQ on the classic ideal-log Newton path after comparing
-!                                        Thermochimica's MQM subminimization implementation.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   08/21/2012      M.H.A. Piro         Original classic Subminimization Newton routine
+    !   07/20/2026      S.Y. Kwon           Added guarded analytical Newton curvature while retaining the stable ideal-log path for SUBG and SUBQ phases.
+    !
+    !
 ! Purpose:
 ! ========
 !

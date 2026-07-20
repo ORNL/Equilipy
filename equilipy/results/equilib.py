@@ -12,7 +12,8 @@ from typing_extensions import TypedDict
 import equilipy.equilifort as fort
 import equilipy.variables as var
 from equilipy.database_ir.tdb_canonical import DISORDERED_PHASE_CANONICAL_NAMES
-from equilipy.exceptions import PostProcessError
+from equilipy.exceptions import EquilibError, PostProcessError, SolverFailureReason
+from equilipy.minimize import SolverStatus, capture_solver_status
 
 from .capture import FortranCaptureState
 from .common import (
@@ -105,6 +106,51 @@ class PhaseResult(BaseModel):
             x_i=dict(self.elements_x),
             w_i=dict(self.elements_w),
         )
+
+
+_PHASE_CONSTITUTION_ATTRIBUTES = (
+    "endmembers_x",
+    "endmembers_w",
+    "elements_x",
+    "elements_w",
+)
+
+
+def _phase_constitution(phase: PhaseResult) -> dict[str, dict[str, float]]:
+    """Return a detached copy of one phase's reported constitution."""
+    return {
+        attribute: dict(getattr(phase, attribute))
+        for attribute in _PHASE_CONSTITUTION_ATTRIBUTES
+    }
+
+
+def _phase_with_constitution(
+    phase: PhaseResult,
+    constitution: dict[str, dict[str, float]],
+) -> PhaseResult:
+    """Return ``phase`` with only its reported constitution replaced."""
+    return phase.model_copy(
+        update={
+            attribute: dict(constitution.get(attribute, {}))
+            for attribute in _PHASE_CONSTITUTION_ATTRIBUTES
+        }
+    )
+
+
+def _mass_weighted_phase_constitution(
+    weighted_sums: dict[str, dict[str, float]],
+    total_mass: float,
+) -> dict[str, dict[str, float]]:
+    """Return constitution mappings averaged over deposited phase mass."""
+    if total_mass <= 0.0:
+        return {attribute: {} for attribute in _PHASE_CONSTITUTION_ATTRIBUTES}
+    return {
+        attribute: {
+            component: weighted_value / total_mass
+            for component, weighted_value in weighted_sums.get(attribute, {}).items()
+        }
+        for attribute in _PHASE_CONSTITUTION_ATTRIBUTES
+    }
 
 
 class BatchPhaseResult:
@@ -276,6 +322,25 @@ def get_assemblage_name(assemblage_ids):
     return AssemblageNames
 
 
+def _stable_assemblage_names(capture: FortranCaptureState) -> list[str]:
+    """Return stable names from explicit slot display identities."""
+    names = get_assemblage_name(capture.assemblage_ids)
+    if not capture.order_disorder_partition_active:
+        return names
+    for slot_index, phase_id in enumerate(capture.assemblage_ids):
+        if int(phase_id) >= 0:
+            continue
+        display_phase_id = _active_slot_value(
+            capture.active_slot_display_phase,
+            slot_index,
+            -int(phase_id),
+        )
+        display_name = _phase_name_by_system_id(capture, display_phase_id)
+        if display_name:
+            names[slot_index] = display_name
+    return names
+
+
 def _public_phase_name(phase_name: str) -> str:
     """Return the public name for a runtime phase alias."""
     name = str(phase_name).strip()
@@ -303,7 +368,7 @@ def _stable_phase_id_by_name(
     """Return the Fortran assemblage ID for a stable phase name."""
     for phase_id, stable_name in zip(
         capture.assemblage_ids,
-        get_assemblage_name(capture.assemblage_ids),
+        _stable_assemblage_names(capture),
         strict=False,
     ):
         if stable_name.strip() == phase_name.strip():
@@ -441,6 +506,40 @@ def _active_slot_site_fraction(
     return slot_site
 
 
+def _active_slot_property_slice(
+    capture: FortranCaptureState,
+    slot_index: int | None,
+    system_phase_id: int,
+    values: np.ndarray,
+    species_slice: slice,
+) -> np.ndarray | None:
+    """Return one current slot-local property row when it was evaluated."""
+    if not capture.order_disorder_partition_active or slot_index is None:
+        return None
+    valid = capture.active_slot_property_valid
+    if slot_index < 0 or slot_index >= len(valid) or not bool(valid[slot_index]):
+        return None
+    if (
+        slot_index >= len(capture.active_slot_thermo_phase)
+        or int(capture.active_slot_thermo_phase[slot_index]) != system_phase_id
+    ):
+        return None
+    parent_slot_count = sum(
+        int(phase_id) < 0 and int(slot_parent) == system_phase_id
+        for phase_id, slot_parent in zip(
+            capture.assemblage_ids,
+            capture.active_slot_thermo_phase,
+            strict=False,
+        )
+    )
+    if parent_slot_count <= 1:
+        return None
+    if values.ndim != 2 or slot_index >= values.shape[0]:
+        return None
+    row = np.asarray(values[slot_index, species_slice], dtype=float)
+    return row.copy()
+
+
 def _solution_species_slice(
     capture: FortranCaptureState,
     system_phase_id: int,
@@ -458,24 +557,34 @@ def _solution_species_slice(
 
 
 def _site_product_fractions(
+    capture: FortranCaptureState,
     system_phase_id: int,
     site_fraction: np.ndarray,
     species_count: int,
 ) -> np.ndarray | None:
-    """Return endmember product fractions from CEF site fractions."""
-    sublattice_index = _solution_sublattice_index(system_phase_id)
-    if sublattice_index < 0:
-        return None
-
-    try:
-        n_sublattices = int(var.nSublatticePhaseCS[sublattice_index])
-        constituent = np.asarray(var.iConstituentSublatticeCS, dtype=int)
-    except (AttributeError, IndexError, TypeError, ValueError):
-        return None
+    """Return product fractions using the selected system's compact CEF map."""
+    if capture.order_disorder_partition_active:
+        try:
+            sublattice_index = int(
+                capture.solution_phase_sublattice[system_phase_id - 1]
+            ) - 1
+            n_sublattices = int(capture.sublattice_phase_counts[sublattice_index])
+            constituent = capture.constituent_sublattice
+        except (AttributeError, IndexError, TypeError, ValueError):
+            return None
+    else:
+        sublattice_index = _solution_sublattice_index(system_phase_id)
+        if sublattice_index < 0:
+            return None
+        try:
+            n_sublattices = int(var.nSublatticePhaseCS[sublattice_index])
+            constituent = np.asarray(var.iConstituentSublatticeCS, dtype=int)
+        except (AttributeError, IndexError, TypeError, ValueError):
+            return None
 
     if species_count <= 0 or site_fraction.ndim != 2:
         return None
-    if sublattice_index >= constituent.shape[0]:
+    if sublattice_index < 0 or sublattice_index >= constituent.shape[0]:
         return None
 
     fractions = np.zeros(species_count, dtype=float)
@@ -583,7 +692,18 @@ def _active_slot_solution_report_fractions(
         1,
     )
     if parent_phase_id == system_phase_id and composition_set_id <= 1:
-        return None, None
+        if not capture.order_disorder_partition_active:
+            return None, None
+        parent_slot_count = sum(
+            int(phase_id) < 0 and int(slot_parent) == parent_phase_id
+            for phase_id, slot_parent in zip(
+                capture.assemblage_ids,
+                capture.active_slot_thermo_phase,
+                strict=False,
+            )
+        )
+        if parent_slot_count <= 1:
+            return None, None
 
     if _solution_model_type(parent_phase_id) not in {"SUBL", "SUBLM", "SUBOM", "SUBM"}:
         return None, None
@@ -593,6 +713,7 @@ def _active_slot_solution_report_fractions(
         return None, None
     _, parent_species_indices = parent_slice_info
     parent_fractions = _site_product_fractions(
+        capture,
         parent_phase_id,
         site_fraction,
         len(parent_species_indices),
@@ -615,7 +736,9 @@ def _active_slot_solution_report_fractions(
 
 
 def _ordering_degree_from_site(
-    system_phase_id: int, site_fraction: np.ndarray | None
+    capture: FortranCaptureState,
+    system_phase_id: int,
+    site_fraction: np.ndarray | None,
 ) -> float:
     """Return a SUBOM ordering degree from equivalent sublattice differences."""
     if site_fraction is None or _solution_model_type(system_phase_id) != "SUBOM":
@@ -628,8 +751,11 @@ def _ordering_degree_from_site(
     try:
         n_sublattices = int(var.nSublatticePhaseCS[sublattice_index])
         n_constituent = np.asarray(var.nConstituentSublatticeCS, dtype=int)
-        constituent = np.asarray(var.iConstituentSublatticeCS, dtype=int)
-        stoich = np.asarray(var.dStoichSublatticeCS, dtype=float)
+        if capture.order_disorder_partition_active:
+            constituent_names = np.asarray(var.cConstituentNameSUBCS)
+        else:
+            constituent = np.asarray(var.iConstituentSublatticeCS, dtype=int)
+            stoich = np.asarray(var.dStoichSublatticeCS, dtype=float)
     except (AttributeError, IndexError, TypeError, ValueError):
         return 0.0
 
@@ -638,12 +764,37 @@ def _ordering_degree_from_site(
         count = int(n_constituent[sublattice_index, sublattice])
         if count <= 1:
             continue
-        species_signature = tuple(
-            int(value)
-            for value in constituent[sublattice_index, sublattice, :count]
-        )
-        stoich_signature = round(float(stoich[sublattice_index, sublattice]), 12)
-        groups[(stoich_signature, species_signature)].append(sublattice)
+        if capture.order_disorder_partition_active:
+            species_signature = tuple(
+                np.asarray(
+                    constituent_names[
+                        sublattice_index,
+                        sublattice,
+                        constituent_index,
+                    ]
+                )
+                .tobytes()
+                .decode(errors="ignore")
+                .strip()
+                .upper()
+                for constituent_index in range(count)
+            )
+            key: tuple[Any, ...] = species_signature
+        else:
+            species_signature = tuple(
+                int(value)
+                for value in constituent[
+                    sublattice_index,
+                    sublattice,
+                    :count,
+                ]
+            )
+            stoich_signature = round(
+                float(stoich[sublattice_index, sublattice]),
+                12,
+            )
+            key = (stoich_signature, species_signature)
+        groups[key].append(sublattice)
 
     degree = 0.0
     for sublattice_group in groups.values():
@@ -678,14 +829,16 @@ def _solution_display_label(
     display_phase_id: int,
     ordering_degree: float,
 ) -> str:
-    """Return the nonbreaking reporting label for one solution phase slot."""
+    """Return the label selected by the slot's typed structural identity."""
     base_name = _phase_name_by_system_id(capture, display_phase_id)
-    parent_name = _phase_name_by_system_id(capture, parent_phase_id) or base_name
     if _solution_model_type(parent_phase_id) != "SUBOM":
         return base_name
-    if ordering_degree <= 1e-6:
-        return f"{_disordered_helper_name(capture, parent_phase_id)}-like"
-    return f"{parent_name}-like"
+    if not capture.order_disorder_partition_active:
+        parent_name = _phase_name_by_system_id(capture, parent_phase_id) or base_name
+        if ordering_degree <= 1e-6:
+            return f"{_disordered_helper_name(capture, parent_phase_id)}-like"
+        return f"{parent_name}-like"
+    return f"{base_name}-like"
 
 
 def _solution_phase_metadata(
@@ -697,7 +850,7 @@ def _solution_phase_metadata(
     parent_phase_id = system_phase_id
     display_phase_id = system_phase_id
     composition_set_id = 1
-    if slot_index is not None:
+    if slot_index is not None and capture.order_disorder_partition_active:
         parent_phase_id = _active_slot_value(
             capture.active_slot_thermo_phase,
             slot_index,
@@ -715,7 +868,11 @@ def _solution_phase_metadata(
         )
 
     site_fraction = _active_slot_site_fraction(capture, slot_index)
-    ordering_degree = _ordering_degree_from_site(parent_phase_id, site_fraction)
+    ordering_degree = _ordering_degree_from_site(
+        capture,
+        parent_phase_id,
+        site_fraction,
+    )
     return {
         "parent_model_id": int(parent_phase_id),
         "parent_model_name": _phase_name_by_system_id(capture, parent_phase_id),
@@ -1216,15 +1373,15 @@ def create_phase_from_sys(
     if i_system < capture.solution_count:
         # Solution PhaseResult
         phase_id = -(i_system + 1)
-        assemblage_slot = capture.assemblage_index.get(phase_id)
+        assemblage_slot = capture.solution_display_slot(i_system + 1)
         phase_metadata = _solution_phase_metadata(
             capture,
             system_phase_id=i_system + 1,
             slot_index=assemblage_slot,
         )
-        if capture.phase_is_stable(phase_id):
-            amount_n = capture.phase_amount_n(phase_id)
-            amount_w = capture.phase_amount_w(phase_id)
+        if assemblage_slot is not None:
+            amount_n = float(capture.phase_amounts_n[assemblage_slot])
+            amount_w = float(capture.phase_amounts_w[assemblage_slot])
             stability = 1.0
         else:
             amount_n = 0.0
@@ -1269,20 +1426,75 @@ def create_phase_from_sys(
             iLastSys,
             xi_values,
         )
+        slot_partial_gibbs = _active_slot_property_slice(
+            capture,
+            assemblage_slot,
+            i_system + 1,
+            capture.active_slot_partial_gibbs,
+            species_slice,
+        )
+        slot_partial_enthalpy = _active_slot_property_slice(
+            capture,
+            assemblage_slot,
+            i_system + 1,
+            capture.active_slot_partial_enthalpies,
+            species_slice,
+        )
+        slot_partial_entropy = _active_slot_property_slice(
+            capture,
+            assemblage_slot,
+            i_system + 1,
+            capture.active_slot_partial_entropies,
+            species_slice,
+        )
+        slot_partial_heat_capacity = _active_slot_property_slice(
+            capture,
+            assemblage_slot,
+            i_system + 1,
+            capture.active_slot_partial_heat_capacities,
+            species_slice,
+        )
+        slot_activities = _active_slot_property_slice(
+            capture,
+            assemblage_slot,
+            i_system + 1,
+            capture.active_slot_activities,
+            species_slice,
+        )
         reported_partial_gibbs = (
-            capture.partial_gibbs[species_slice] / phase_atom_denominator
+            (
+                slot_partial_gibbs
+                if slot_partial_gibbs is not None
+                else capture.partial_gibbs[species_slice]
+            )
+            / phase_atom_denominator
         )
         reported_standard_gibbs = (
             capture.standard_gibbs_energies[species_slice] / phase_atom_denominator
         )
         reported_partial_enthalpy = (
-            capture.partial_enthalpies[species_slice] / phase_atom_denominator
+            (
+                slot_partial_enthalpy
+                if slot_partial_enthalpy is not None
+                else capture.partial_enthalpies[species_slice]
+            )
+            / phase_atom_denominator
         )
         reported_partial_entropy = (
-            capture.partial_entropies[species_slice] / phase_atom_denominator
+            (
+                slot_partial_entropy
+                if slot_partial_entropy is not None
+                else capture.partial_entropies[species_slice]
+            )
+            / phase_atom_denominator
         )
         reported_partial_heat_capacity = (
-            capture.partial_heat_capacities[species_slice] / phase_atom_denominator
+            (
+                slot_partial_heat_capacity
+                if slot_partial_heat_capacity is not None
+                else capture.partial_heat_capacities[species_slice]
+            )
+            / phase_atom_denominator
         )
         endmembers_x = dict(zip(endmember_names, xi_values, strict=False))
         endmembers_w = dict(zip(endmember_names, wi_values, strict=False))
@@ -1322,7 +1534,11 @@ def create_phase_from_sys(
         )
         activity = _phase_property_dict(
             endmember_names,
-            capture.activities[species_slice],
+            (
+                slot_activities
+                if slot_activities is not None
+                else capture.activities[species_slice]
+            ),
         )
         partial_enthalpy = _phase_property_dict(
             endmember_names,
@@ -1352,6 +1568,89 @@ def create_phase_from_sys(
             xi_values,
             reported_partial_heat_capacity,
         )
+
+        # A disordered public row can be a composition set of an ordered
+        # thermodynamic parent.  Its scalar properties therefore come from the
+        # parent slot even though its public endmember table uses the helper
+        # phase's representation.
+        parent_phase_id = int(phase_metadata["parent_model_id"])
+        if assemblage_slot is not None and parent_phase_id != i_system + 1:
+            parent_slice_info = _solution_species_slice(capture, parent_phase_id)
+            parent_site = _active_slot_site_fraction(capture, assemblage_slot)
+            if parent_slice_info is not None and parent_site is not None:
+                parent_slice, parent_species_indices = parent_slice_info
+                parent_fractions = _site_product_fractions(
+                    capture,
+                    parent_phase_id,
+                    parent_site,
+                    len(parent_species_indices),
+                )
+                parent_gibbs = _active_slot_property_slice(
+                    capture,
+                    assemblage_slot,
+                    parent_phase_id,
+                    capture.active_slot_partial_gibbs,
+                    parent_slice,
+                )
+                parent_enthalpy = _active_slot_property_slice(
+                    capture,
+                    assemblage_slot,
+                    parent_phase_id,
+                    capture.active_slot_partial_enthalpies,
+                    parent_slice,
+                )
+                parent_entropy = _active_slot_property_slice(
+                    capture,
+                    assemblage_slot,
+                    parent_phase_id,
+                    capture.active_slot_partial_entropies,
+                    parent_slice,
+                )
+                parent_heat_capacity = _active_slot_property_slice(
+                    capture,
+                    assemblage_slot,
+                    parent_phase_id,
+                    capture.active_slot_partial_heat_capacities,
+                    parent_slice,
+                )
+                if parent_gibbs is None:
+                    parent_gibbs = capture.partial_gibbs[parent_slice].copy()
+                if parent_enthalpy is None:
+                    parent_enthalpy = capture.partial_enthalpies[parent_slice].copy()
+                if parent_entropy is None:
+                    parent_entropy = capture.partial_entropies[parent_slice].copy()
+                if parent_heat_capacity is None:
+                    parent_heat_capacity = capture.partial_heat_capacities[
+                        parent_slice
+                    ].copy()
+                if (
+                    parent_fractions is not None
+                    and parent_gibbs is not None
+                    and parent_enthalpy is not None
+                    and parent_entropy is not None
+                    and parent_heat_capacity is not None
+                ):
+                    parent_denominator = _phase_occupied_atom_count(
+                        parent_slice.start,
+                        parent_slice.stop,
+                        list(parent_fractions),
+                    )
+                    phase_G = _phase_weighted_property(
+                        list(parent_fractions),
+                        parent_gibbs / parent_denominator,
+                    )
+                    phase_H = _phase_weighted_property(
+                        list(parent_fractions),
+                        parent_enthalpy / parent_denominator,
+                    )
+                    phase_S = _phase_weighted_property(
+                        list(parent_fractions),
+                        parent_entropy / parent_denominator,
+                    )
+                    phase_Cp = _phase_weighted_property(
+                        list(parent_fractions),
+                        parent_heat_capacity / parent_denominator,
+                    )
 
     else:
         # Compound phase
@@ -1456,6 +1755,29 @@ class StablePhaseSummaryDict(TypedDict, total=False):
 PhaseDict = Dict[str, PhaseResult]
 
 
+def _solver_status_fields(
+    status: SolverStatus,
+    *,
+    converged: bool | None = None,
+    failure_reason: SolverFailureReason | None = None,
+    error_message: str | None = None,
+) -> dict[str, Any]:
+    """Return public result fields from one immutable solver-status capture."""
+    return {
+        "converged": status.converged if converged is None else converged,
+        "thermo_status": status.thermo_status,
+        "gem_exit_status": status.gem_exit_status,
+        "phase_change_reason": status.phase_change_reason,
+        "pea_exit_status": status.pea_exit_status,
+        "pea_exit_reason": status.pea_exit_reason,
+        "grid_fallback_reason": status.grid_fallback_reason,
+        "failure_reason": (
+            status.failure_reason if failure_reason is None else failure_reason
+        ),
+        "error_message": error_message,
+    }
+
+
 class EquilibPoint(BaseModel):
     """
     Pydantic model for a single equilibrium calculation point.
@@ -1473,6 +1795,16 @@ class EquilibPoint(BaseModel):
     w_i: Dict[str, float] = Field(default_factory=dict)
     stable_phase_summary: StablePhaseSummaryDict = Field(default_factory=dict)
     phase_map: Dict[str, PhaseResult] = Field(default_factory=dict)
+    converged: bool = True
+    thermo_status: int = 0
+    gem_exit_status: int = 0
+    phase_change_reason: int = 0
+    pea_exit_status: int = 0
+    pea_exit_reason: int = 0
+    grid_fallback_reason: int = 0
+    failure_reason: Optional[SolverFailureReason] = None
+    error_message: Optional[str] = None
+    warnings: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -1502,9 +1834,19 @@ class EquilibPoint(BaseModel):
         return self.phases[name]
 
     @classmethod
-    def from_fortran(cls) -> "EquilibPoint":
+    def from_fortran(
+        cls,
+        *,
+        solver_status: SolverStatus | None = None,
+        converged: bool | None = None,
+        failure_reason: SolverFailureReason | None = None,
+        error_message: str | None = None,
+        warnings: List[str] | None = None,
+    ) -> "EquilibPoint":
         """Create an instance from the Fortran and variable modules."""
         try:
+            if solver_status is None:
+                solver_status = capture_solver_status()
             capture = FortranCaptureState.from_globals()
             G = float(fort.modulethermoio.dgibbsenergysys)
             H = float(fort.modulethermoio.denthalpysys)
@@ -1519,7 +1861,7 @@ class EquilibPoint(BaseModel):
                     all_phases[new_phase.name] = new_phase
                 var.iPhaseSys.append(new_phase.id)
 
-            stable_names = np.array(list(get_assemblage_name(capture.assemblage_ids)))
+            stable_names = np.array(_stable_assemblage_names(capture))
             stable_phase_summary = StablePhaseSummaryDict(
                 {
                     "id": capture.assemblage_ids,
@@ -1561,13 +1903,20 @@ class EquilibPoint(BaseModel):
                 Cp=Cp,
                 stable_phase_summary=stable_phase_summary,
                 phase_map=all_phases,
+                warnings=[] if warnings is None else warnings,
+                **_solver_status_fields(
+                    solver_status,
+                    converged=converged,
+                    failure_reason=failure_reason,
+                    error_message=error_message,
+                ),
             )
         except Exception as e:
             print(f"Error reading from Fortran, creating error row: {e}")
-            return cls.for_error()
+            return cls.for_error(EquilibError(str(e)))
 
     @classmethod
-    def for_error(cls) -> "EquilibPoint":
+    def for_error(cls, error: EquilibError | None = None) -> "EquilibPoint":
         """
         Create an instance representing a failed calculation.
 
@@ -1588,6 +1937,14 @@ class EquilibPoint(BaseModel):
         component_names = list(getattr(var, "cComponentNameSys", []))
         element_index = getattr(var, "iElementSysIndex", [])
         component_count = len(component_names)
+        solver_status = getattr(error, "solver_status", None)
+        if not isinstance(solver_status, SolverStatus):
+            solver_status = capture_solver_status()
+        failure_reason = getattr(error, "reason", None)
+        if failure_reason is None:
+            failure_reason = solver_status.failure_reason
+        if failure_reason is None:
+            failure_reason = SolverFailureReason.EQUILIBRIUM_FAILED
         mole_values = safe_error_component_values(
             getattr(fort.modulethermo, "dmoleselement", None),
             element_index,
@@ -1622,6 +1979,12 @@ class EquilibPoint(BaseModel):
             Cp=np.nan,
             stable_phase_summary=stable_phases_dict,
             phase_map={},
+            **_solver_status_fields(
+                solver_status,
+                converged=False,
+                failure_reason=failure_reason,
+                error_message=str(error) if error is not None else None,
+            ),
         )
 
 
@@ -1640,6 +2003,7 @@ class EquilibResult:
         self._phases_cache: PhaseCollection | None = None
         self._stable_phases_cache: PhaseCollection | None = None
         self._phase_species_property_cache: dict[str, PhaseSpeciesProperty] = {}
+        self._phase_constitution_overrides: list[dict[str, PhaseResult]] = []
 
     @property
     def data(self) -> Union[None, EquilibPoint, List[EquilibPoint]]:
@@ -1797,15 +2161,46 @@ class EquilibResult:
         elif isinstance(self.data, list):
             self.data = [*self.data, new_point]
 
-    def append_error(self):
+    def append_error(self, error: EquilibError | None = None):
         """Append an error result row."""
-        error_point = EquilibPoint.for_error()
+        error_point = EquilibPoint.for_error(error)
         if self.data is None:
             self.data = error_point
         elif isinstance(self.data, EquilibPoint):
             self.data = [self.data, error_point]
         elif isinstance(self.data, list):
             self.data = [*self.data, error_point]
+
+    def append_postprocess_warning(self, error: EquilibError) -> bool:
+        """Retain a certified equilibrium when only postprocess failed."""
+        equilibrium_status = getattr(error, "equilibrium_status", None)
+        postprocess_status = getattr(error, "solver_status", None)
+        if (
+            error.reason is not SolverFailureReason.POSTPROCESS_FAILED
+            or not isinstance(equilibrium_status, SolverStatus)
+            or equilibrium_status.failed
+            or not isinstance(postprocess_status, SolverStatus)
+        ):
+            return False
+
+        warning = (
+            "WARNING: reason=postprocess_failed; fixed-assemblage property "
+            "re-solve failed; certified requested-temperature equilibrium retained."
+        )
+        warning_point = EquilibPoint.from_fortran(
+            solver_status=postprocess_status,
+            converged=equilibrium_status.converged,
+            failure_reason=SolverFailureReason.POSTPROCESS_FAILED,
+            error_message=str(error),
+            warnings=[warning],
+        )
+        if self.data is None:
+            self.data = warning_point
+        elif isinstance(self.data, EquilibPoint):
+            self.data = [self.data, warning_point]
+        elif isinstance(self.data, list):
+            self.data = [*self.data, warning_point]
+        return True
 
     @property
     def n_i(self) -> Union[Dict[str, float], List[Dict[str, float]]]:
@@ -1880,6 +2275,40 @@ class EquilibResult:
         if isinstance(self.data, list):
             return [iter.Cp for iter in self.data]
         return None
+
+    @property
+    def converged(self) -> Union[bool, List[bool], None]:
+        """Return the raw convergence fact for each result point."""
+        if isinstance(self.data, EquilibPoint):
+            return self.data.converged
+        if isinstance(self.data, list):
+            return [point.converged for point in self.data]
+        return None
+
+    @property
+    def failure_reason(
+        self,
+    ) -> Union[SolverFailureReason, List[SolverFailureReason | None], None]:
+        """Return the named solver-stage failure reason for each point."""
+        if isinstance(self.data, EquilibPoint):
+            return self.data.failure_reason
+        if isinstance(self.data, list):
+            return [point.failure_reason for point in self.data]
+        return None
+
+    @property
+    def error_message(self) -> Union[str, List[str | None], None]:
+        """Return the captured solver error message for each point."""
+        if isinstance(self.data, EquilibPoint):
+            return self.data.error_message
+        if isinstance(self.data, list):
+            return [point.error_message for point in self.data]
+        return None
+
+    @property
+    def warnings(self) -> List[str]:
+        """Return warning messages attached to all result points."""
+        return [message for point in self.points for message in point.warnings]
 
     def _discover_phase_sub_keys(
         self, iterations: List[EquilibPoint], attribute_name: str
@@ -1995,7 +2424,7 @@ class EquilibResult:
         all_comp_keys = component_names_from_amount_maps(self.context, *amount_maps)
         all_phase_keys = unique_preserve_order(all_phase_keys)
 
-        for iter_data in iterations:
+        for row_index, iter_data in enumerate(iterations):
             dict_of_lists["T [K]"].append(iter_data.T)
             dict_of_lists["P [atm]"].append(iter_data.P)
             for key in all_comp_keys:
@@ -2010,6 +2439,26 @@ class EquilibResult:
             dict_of_lists["H [J]"].append(iter_data.H)
             dict_of_lists["S [J/K]"].append(iter_data.S)
             dict_of_lists["Cp [J/K]"].append(iter_data.Cp)
+            dict_of_lists["converged"].append(iter_data.converged)
+            dict_of_lists["thermo_status"].append(iter_data.thermo_status)
+            dict_of_lists["gem_exit_status"].append(iter_data.gem_exit_status)
+            dict_of_lists["phase_change_reason"].append(
+                iter_data.phase_change_reason
+            )
+            dict_of_lists["pea_exit_status"].append(iter_data.pea_exit_status)
+            dict_of_lists["pea_exit_reason"].append(iter_data.pea_exit_reason)
+            dict_of_lists["grid_fallback_reason"].append(
+                iter_data.grid_fallback_reason
+            )
+            dict_of_lists["failure_reason"].append(
+                iter_data.failure_reason.value
+                if iter_data.failure_reason is not None
+                else None
+            )
+            dict_of_lists["error_message"].append(iter_data.error_message)
+            # CSV-safe scalar column: nested lists break polars write_csv
+            # (Example03 regression); warnings join into one string per row.
+            dict_of_lists["warnings"].append("; ".join(iter_data.warnings))
 
             stable_summary = iter_data.stable_phase_summary
             dict_of_lists["stable_phase_names"].append(
@@ -2030,6 +2479,11 @@ class EquilibResult:
 
             for key in all_phase_keys:
                 phase = iter_data.phase_map.get(key)
+                constitution_phase = phase
+                if row_index < len(self._phase_constitution_overrides):
+                    constitution_phase = self._phase_constitution_overrides[
+                        row_index
+                    ].get(key, phase)
 
                 if phase:
                     dict_of_lists[f"{key}_amount_n [sp-mol]"].append(
@@ -2049,7 +2503,7 @@ class EquilibResult:
                 self._populate_flattened_phase_attribute(
                     dict_of_lists,
                     key,
-                    phase,
+                    constitution_phase,
                     endmembers_x[key],
                     "endmembers_x",
                     "_endmembers_x",
@@ -2057,7 +2511,7 @@ class EquilibResult:
                 self._populate_flattened_phase_attribute(
                     dict_of_lists,
                     key,
-                    phase,
+                    constitution_phase,
                     endmembers_w[key],
                     "endmembers_w",
                     "_endmembers_w",
@@ -2065,7 +2519,7 @@ class EquilibResult:
                 self._populate_flattened_phase_attribute(
                     dict_of_lists,
                     key,
-                    phase,
+                    constitution_phase,
                     elements_x[key],
                     "elements_x",
                     "_elements_x",
@@ -2073,7 +2527,7 @@ class EquilibResult:
                 self._populate_flattened_phase_attribute(
                     dict_of_lists,
                     key,
-                    phase,
+                    constitution_phase,
                     elements_w[key],
                     "elements_w",
                     "_elements_w",

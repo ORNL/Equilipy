@@ -14,14 +14,14 @@
 !> \sa      RecordGEMIterationDiagnostics.f90
 !> \sa      RegisterSUBOMTwoSetCandidateRows.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   07/03/2026      S.Y. Kwon           Original shared helper-alias classifier.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Classified order/disorder helper aliases from structural partition topology while rejecting ambiguous cases.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -71,15 +71,36 @@
 
 integer function OrderDisorderHelperAliasKind(iPhaseIndex)
     USE ModuleThermo
+    USE ModuleGEMSolver, ONLY: OD_TOPOLOGY_HELPER_STANDALONE, &
+        OD_TOPOLOGY_HELPER_ONLY, OD_TOPOLOGY_LEGACY_NO_METADATA
 
     implicit none
 
     integer, intent(in) :: iPhaseIndex
+    integer             :: iOrderedPhase
     character(30)       :: cUpperName
 
     OrderDisorderHelperAliasKind = 0
     if ((iPhaseIndex < 1).OR.(iPhaseIndex > nSolnPhasesSys)) return
 
+    if (allocated(iODTopologyClass).AND.allocated(iDisorderedPhase)) then
+        do iOrderedPhase = 1, MIN(nSolnPhasesSys, SIZE(iODTopologyClass), &
+            SIZE(iDisorderedPhase))
+            if ((iODTopologyClass(iOrderedPhase) /= OD_TOPOLOGY_HELPER_STANDALONE).AND.&
+                (iODTopologyClass(iOrderedPhase) /= OD_TOPOLOGY_HELPER_ONLY)) cycle
+            if (iDisorderedPhase(iOrderedPhase) /= iPhaseIndex) cycle
+            OrderDisorderHelperAliasKind = iOrderedPhase
+            return
+        end do
+
+        ! A typed non-legacy graph is authoritative.  Do not reinterpret an
+        ! ordinary phase through the historical spelling fallback.
+        if (ANY((iODTopologyClass > 0).AND.&
+            (iODTopologyClass /= OD_TOPOLOGY_LEGACY_NO_METADATA))) return
+    end if
+
+    ! Metadata-free DAT calculations retain their historical helper spelling
+    ! behavior exactly.  This branch is not used by typed TDB partition paths.
     cUpperName = UpperOrderDisorderAliasName(cSolnPhaseName(iPhaseIndex))
     select case (TRIM(cUpperName))
     case ('A2_BCC')

@@ -18,44 +18,10 @@
     ! Revisions:
     ! ==========
     !
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   04/25/2012      M.H.A. Piro         Original GEM solver initialization
-!   06/24/2026      S.Y. Kwon           Allocated Lagrangian diagnostic histories
-!   06/25/2026      S.Y. Kwon           Removed legacy SUBOM residual state initialization
-!   06/25/2026      S.Y. Kwon           Reset CEF site-fraction Lagrangian direction state
-!   06/25/2026      S.Y. Kwon           Enabled guarded CEF site-fraction Lagrangian for active CEF assemblages.
-!   06/25/2026      S.Y. Kwon           Reset the active CEF KKT flag used by GEM residual selection.
-!   06/26/2026      S.Y. Kwon           Reset PEA-internal Lagrangian polish diagnostics for each calculation.
-!   06/26/2026      S.Y. Kwon           Allocated per-iteration PEA diagnostics for active-set audits.
-!   06/26/2026      S.Y. Kwon           Allocated Subminimization candidate status for PEA pseudo-compound rows.
-!   06/28/2026      S.Y. Kwon           Allocated analytical non-CEF Lagrangian species directions.
-!   06/30/2026      S.Y. Kwon           Kept CEF site-fraction Lagrangian enabled for full-rank CEF sets.
-!   07/02/2026      S.Y. Kwon           Allocated passive KKT and scaffold-activation diagnostic histories.
-!   07/02/2026      S.Y. Kwon           Allocated passive active order/disorder pair diagnostic histories.
-!   07/02/2026      S.Y. Kwon           Allocated passive active-slot identity diagnostics for
-!                                       SUBOM helper-safe representation work.
-!   07/02/2026      S.Y. Kwon           Allocated Phase 0 line-search energy and split scaffold
-!                                       diagnostic histories.
-!   07/02/2026      S.Y. Kwon           Allocated passive per-active-slot constitution storage.
-!   07/02/2026      S.Y. Kwon           Initialized passive active-slot thermodynamic parent identity
-!                                       separately from display phase identity.
-!   07/02/2026      S.Y. Kwon           Allocated passive per-active-slot parent-site-fraction storage.
-!   07/03/2026      S.Y. Kwon           Deallocated split residual-LM and raw-negative diagnostic histories
-!                                       before reallocating them in repeated Scheil transition solves.
-!   07/03/2026      S.Y. Kwon           Allocated passive raw-negative CEF complementarity diagnostics.
-!   07/03/2026      S.Y. Kwon           Reset c2 SUBOM two-composition-set handoff counters while
-!                                       preserving the default-off control switch for focused probes.
-!   07/04/2026      S.Y. Kwon           Allocated split tiny-boundary removal diagnostics for C1-a census.
-!   07/04/2026      S.Y. Kwon           Allocated bounds-surgery event identity and rank-guard histories
-!                                       for C2-a census.
-!   07/04/2026      S.Y. Kwon           Reset and deallocated residual-LM event-buffer diagnostics for
-!                                       C3-a2 census.
-!   07/04/2026      S.Y. Kwon           Reset C3-c1 primal-inertia regularization counters.
-!   07/04/2026      S.Y. Kwon           Allocated C3-c2 funnel line-search diagnostics while
-!                                       preserving the default-off control switch for focused probes.
-!   07/05/2026      S.Y. Kwon           Reset explicit GEM exit status and max CEF exchange residual
-!                                       diagnostics for each calculation.
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   04/25/2012      M.H.A. Piro         Original GEM solver initialization
+    !   07/20/2026      S.Y. Kwon           Allocated typed candidate, order/disorder, reporting, grid-certificate, and atomic PEA generation state.
     !
     ! Purpose:
     ! ========
@@ -83,6 +49,8 @@
     ! dMolesSpecies        Solver species moles initialized for Leveling/Lagrangian.
     ! dElementPotential    Element potentials initialized for Leveling/Lagrangian.
     ! dGEM*History         Per-iteration Lagrangian diagnostic histories.
+    ! dPEATol              Named PEA residual tolerance available to RunLeveling.
+    ! dToleranceLevel      Signed phase-potential certificate tolerance.
     !
     !
     ! Called subroutines/functions:
@@ -107,6 +75,8 @@
     !   starts from classical Leveling.
     ! - Diagnostic histories must be reset here so repeated staged probes do
     !   not carry stale Lagrangian information.
+    ! - RunLeveling executes before InitCheckPhaseAssemblage, so both named
+    !   certificate tolerances must already hold their standard PEA values.
     !
     !-------------------------------------------------------------------------------------------------------------
 
@@ -121,6 +91,9 @@ subroutine InitGEMSolver
     ! Initialize variables:
 
     lPostProcess = .False.
+    nGridRecoveryAttempt = 0
+    lGridRecoveryPassActive = .FALSE.
+    if (allocated(lGridRecoveryPhase)) deallocate(lGridRecoveryPhase)
 !
     nSpeciesLevel = nSpecies
 
@@ -155,11 +128,17 @@ subroutine InitGEMSolver
     if (allocated(dMolFractionGEM))         deallocate(dMolFractionGEM)
     if (allocated(dActiveSlotMolFraction))  deallocate(dActiveSlotMolFraction)
     if (allocated(dActiveSlotSiteFraction)) deallocate(dActiveSlotSiteFraction)
+    if (allocated(dActiveSlotChemPot))       deallocate(dActiveSlotChemPot)
+    if (allocated(dActiveSlotPartialH))      deallocate(dActiveSlotPartialH)
+    if (allocated(dActiveSlotPartialS))      deallocate(dActiveSlotPartialS)
+    if (allocated(dActiveSlotPartialCp))     deallocate(dActiveSlotPartialCp)
+    if (allocated(lActiveSlotPropValid))     deallocate(lActiveSlotPropValid)
     if (allocated(dMolFraction))        deallocate(dMolFraction)
     if (allocated(iPhaseGEM))               deallocate(iPhaseGEM)
     if (allocated(iActiveSlotThermoPhase))  deallocate(iActiveSlotThermoPhase)
     if (allocated(iActiveSlotDisplayPhase)) deallocate(iActiveSlotDisplayPhase)
     if (allocated(iActiveSlotIdentityOrdinal)) deallocate(iActiveSlotIdentityOrdinal)
+    if (allocated(iActiveSlotODClass)) deallocate(iActiveSlotODClass)
 
     ! Allocate variables for GetFirstAssemblage and GetNewAssemblage
     allocate(iPhaseLevel(nSpeciesLevel),dStoichSpeciesLevel(nSpeciesLevel,nElements),&
@@ -167,9 +146,12 @@ subroutine InitGEMSolver
     dAtomFractionSpeciesGEM(nElements,nElements),dStoichSpeciesGEM(nElements,nElements),&
     dMolFractionGEM(nElements,nSpecies),dActiveSlotMolFraction(nElements,nSpecies),&
     dActiveSlotSiteFraction(nElements,nMaxSublatticeSys,nMaxConstituentSys),&
+    dActiveSlotChemPot(nElements,nSpecies),dActiveSlotPartialH(nElements,nSpecies),&
+    dActiveSlotPartialS(nElements,nSpecies),dActiveSlotPartialCp(nElements,nSpecies),&
+    lActiveSlotPropValid(nElements),&
     iPhaseGEM(nElements),dMolFraction(nSpecies),&
     iActiveSlotThermoPhase(nElements),iActiveSlotDisplayPhase(nElements),&
-    iActiveSlotIdentityOrdinal(nElements))
+    iActiveSlotIdentityOrdinal(nElements),iActiveSlotODClass(nElements))
     
     iPhaseLevel          = 0
     dStoichSpeciesLevel  = 0D0
@@ -179,10 +161,16 @@ subroutine InitGEMSolver
     dMolFractionGEM      = 1D0
     dActiveSlotMolFraction = 0D0
     dActiveSlotSiteFraction = 0D0
+    dActiveSlotChemPot = 0D0
+    dActiveSlotPartialH = 0D0
+    dActiveSlotPartialS = 0D0
+    dActiveSlotPartialCp = 0D0
+    lActiveSlotPropValid = .FALSE.
     dMolFraction = 1D0
     iActiveSlotThermoPhase = 0
     iActiveSlotDisplayPhase = 0
     iActiveSlotIdentityOrdinal = 0
+    iActiveSlotODClass = OD_CANDIDATE_NOT_EVALUATED
 
     call ApplyOrderDisorderLevelingPotentials
 
@@ -199,6 +187,11 @@ subroutine InitGEMSolver
                 do k = 1, MIN(nSolnPhasesSys, SIZE(iODCompanionPhase))
                     if (TRIM(cSolnPhaseType(k)) /= 'SUBOM') cycle
                     if (iODCompanionPhase(k) == iPhaseGEM(i)) then
+                        if (allocated(iODStandalonePhase)) then
+                            if (k <= SIZE(iODStandalonePhase)) then
+                                if (iODStandalonePhase(k) == iPhaseGEM(i)) cycle
+                            end if
+                        end if
                         iActiveSlotThermoPhase(i) = k
                         exit
                     end if
@@ -411,6 +404,8 @@ subroutine InitGEMSolver
     if(allocated(iGEMCEFVarSub)) deallocate(iGEMCEFVarSub)
     if(allocated(iGEMCEFVarCon)) deallocate(iGEMCEFVarCon)
     if(allocated(iGEMCEFVarRef)) deallocate(iGEMCEFVarRef)
+    if(allocated(nGEMCEFVarTie)) deallocate(nGEMCEFVarTie)
+    if(allocated(iGEMCEFVarTieSub)) deallocate(iGEMCEFVarTieSub)
     if(allocated(dGEMCEFPhaseDirection)) deallocate(dGEMCEFPhaseDirection)
     if(allocated(dGEMCEFSiteDirection)) deallocate(dGEMCEFSiteDirection)
     if(allocated(dGEMCEFElementDirection)) deallocate(dGEMCEFElementDirection)
@@ -420,6 +415,10 @@ subroutine InitGEMSolver
     if(allocated(dGEMAnalyticalSpeciesDirection)) deallocate(dGEMAnalyticalSpeciesDirection)
     if(allocated(lGEMAnalyticalSpeciesDirection)) deallocate(lGEMAnalyticalSpeciesDirection)
     if(allocated(iPEALevelIterHist)) deallocate(iPEALevelIterHist)
+    if(allocated(iPEAPlaneGenerationHist)) deallocate(iPEAPlaneGenerationHist)
+    if(allocated(iPEADFSweepGenerationHist)) deallocate(iPEADFSweepGenerationHist)
+    if(allocated(iPEADFSweepOutcomeHist)) deallocate(iPEADFSweepOutcomeHist)
+    if(allocated(iPEADFPendingWitnessHist)) deallocate(iPEADFPendingWitnessHist)
     if(allocated(iPEAPolishAttemptHist)) deallocate(iPEAPolishAttemptHist)
     if(allocated(iPEAPolishAcceptedHist)) deallocate(iPEAPolishAcceptedHist)
     if(allocated(iPEAPolishReasonHist)) deallocate(iPEAPolishReasonHist)
@@ -445,6 +444,8 @@ subroutine InitGEMSolver
     if(allocated(iSUBOMOrderingGateIterPEA)) deallocate(iSUBOMOrderingGateIterPEA)
     if(allocated(iSUBOMOrderingGateModeCount)) deallocate(iSUBOMOrderingGateModeCount)
     if(allocated(iSUBOMOrderingGateInfo)) deallocate(iSUBOMOrderingGateInfo)
+    if(allocated(iODCandidateClass)) deallocate(iODCandidateClass)
+    if(allocated(iODCandidateCompanionPhase)) deallocate(iODCandidateCompanionPhase)
     if(allocated(iPEAAssemblageHist)) deallocate(iPEAAssemblageHist)
     if(allocated(iPEALagrangianHandoffHist)) deallocate(iPEALagrangianHandoffHist)
     if(allocated(dPEAMinPhasePotentialHist)) deallocate(dPEAMinPhasePotentialHist)
@@ -458,6 +459,12 @@ subroutine InitGEMSolver
     if(allocated(dSUBOMTwoSetTraceMol)) deallocate(dSUBOMTwoSetTraceMol)
     if(allocated(dSUBOMTwoSetTraceSite)) deallocate(dSUBOMTwoSetTraceSite)
     if(allocated(dSUBOMOrderingGateEigenMin)) deallocate(dSUBOMOrderingGateEigenMin)
+    if(allocated(dODCandidateCurrentGibbs)) deallocate(dODCandidateCurrentGibbs)
+    if(allocated(dODCandidateDisorderedGibbs)) deallocate(dODCandidateDisorderedGibbs)
+    if(allocated(dODCandidateOrderingEigenMin)) deallocate(dODCandidateOrderingEigenMin)
+    if(allocated(dODCompanionEigenMin)) then
+        deallocate(dODCompanionEigenMin)
+    end if
     if(allocated(lSUBOMOrderingGateUnstable)) deallocate(lSUBOMOrderingGateUnstable)
     allocate(lPhaseChangeHistory(iterGlobalMax))
     allocate(iPhaseChangeReasonHistory(iterGlobalMax))
@@ -566,6 +573,10 @@ subroutine InitGEMSolver
     allocate(dGEMLSRawPhaseMolesHist(nElements,iterGlobalMax))
     allocate(dGEMLSFinalPhaseMolesHist(nElements,iterGlobalMax))
     allocate(iPEALevelIterHist(iterPEAMax))
+    allocate(iPEAPlaneGenerationHist(iterPEAMax))
+    allocate(iPEADFSweepGenerationHist(iterPEAMax))
+    allocate(iPEADFSweepOutcomeHist(iterPEAMax))
+    allocate(iPEADFPendingWitnessHist(iterPEAMax))
     allocate(iPEAPolishAttemptHist(iterPEAMax))
     allocate(iPEAPolishAcceptedHist(iterPEAMax))
     allocate(iPEAPolishReasonHist(iterPEAMax))
@@ -600,11 +611,17 @@ subroutine InitGEMSolver
     allocate(iSUBOMOrderingGateIterPEA(MAX(1,nSolnPhasesSys)))
     allocate(iSUBOMOrderingGateModeCount(MAX(1,nSolnPhasesSys)))
     allocate(iSUBOMOrderingGateInfo(MAX(1,nSolnPhasesSys)))
+    allocate(iODCandidateClass(MAX(1,nSolnPhasesSys)))
+    allocate(iODCandidateCompanionPhase(MAX(1,nSolnPhasesSys)))
     allocate(dSUBOMTwoSetTraceAmount(nSUBOMTwoSetTraceCapacity))
     allocate(dSUBOMTwoSetStoredMol(MAX(1,nSolnPhasesSys),nSpecies))
     allocate(dSUBOMTwoSetTraceMol(nSUBOMTwoSetTraceCapacity,nSpecies))
     allocate(dSUBOMTwoSetTraceSite(nSUBOMTwoSetTraceCapacity,nMaxSublatticeSys,nMaxConstituentSys))
     allocate(dSUBOMOrderingGateEigenMin(MAX(1,nSolnPhasesSys)))
+    allocate(dODCandidateCurrentGibbs(MAX(1,nSolnPhasesSys)))
+    allocate(dODCandidateDisorderedGibbs(MAX(1,nSolnPhasesSys)))
+    allocate(dODCandidateOrderingEigenMin(MAX(1,nSolnPhasesSys)))
+    allocate(dODCompanionEigenMin(MAX(1,nSolnPhasesSys)))
     allocate(lSUBOMOrderingGateUnstable(MAX(1,nSolnPhasesSys)))
     lPhaseChangeHistory = .FALSE.
     iPhaseChangeReasonHistory = PHASE_CHANGE_REASON_NONE
@@ -713,6 +730,10 @@ subroutine InitGEMSolver
     dGEMLSRawPhaseMolesHist = 0D0
     dGEMLSFinalPhaseMolesHist = 0D0
     iPEALevelIterHist = 0
+    iPEAPlaneGenerationHist = 0
+    iPEADFSweepGenerationHist = 0
+    iPEADFSweepOutcomeHist = PEA_DF_SWEEP_NOT_RUN
+    iPEADFPendingWitnessHist = 0
     iPEAPolishAttemptHist = 0
     iPEAPolishAcceptedHist = 0
     iPEAPolishReasonHist = PHASE_CHANGE_REASON_NONE
@@ -749,11 +770,18 @@ subroutine InitGEMSolver
     iSUBOMOrderingGateIterPEA = -1
     iSUBOMOrderingGateModeCount = 0
     iSUBOMOrderingGateInfo = 0
+    iODCandidateClass = OD_CANDIDATE_NOT_EVALUATED
+    lODCommittedOwnershipApplied = .FALSE.
+    iODCandidateCompanionPhase = 0
     dSUBOMTwoSetTraceAmount = 0D0
     dSUBOMTwoSetStoredMol = 0D0
     dSUBOMTwoSetTraceMol = 0D0
     dSUBOMTwoSetTraceSite = 0D0
     dSUBOMOrderingGateEigenMin = 0D0
+    dODCandidateCurrentGibbs = 0D0
+    dODCandidateDisorderedGibbs = 0D0
+    dODCandidateOrderingEigenMin = 0D0
+    dODCompanionEigenMin = 0D0
     lSUBOMOrderingGateUnstable = .FALSE.
 
     !Solution related variables
@@ -763,8 +791,23 @@ subroutine InitGEMSolver
     if (allocated(dEffStoichSolnPhase)) deallocate(dEffStoichSolnPhase)
     if (allocated(dDrivingForceSoln)) deallocate(dDrivingForceSoln)
     if (allocated(iSubMinCandidateStatusSoln)) deallocate(iSubMinCandidateStatusSoln)
+    if (allocated(iGEMCertPhase)) deallocate(iGEMCertPhase)
+    if (allocated(iGEMCertCopy)) deallocate(iGEMCertCopy)
+    if (allocated(iGEMCertLevelRow)) deallocate(iGEMCertLevelRow)
+    if (allocated(iGEMCertBasis)) deallocate(iGEMCertBasis)
+    if (allocated(iGEMCertNorm)) deallocate(iGEMCertNorm)
+    if (allocated(iGEMCertStatus)) deallocate(iGEMCertStatus)
+    if (allocated(iGEMCertProof)) deallocate(iGEMCertProof)
+    if (allocated(iGEMCertSubMinStatus)) deallocate(iGEMCertSubMinStatus)
+    if (allocated(iGEMCertRank)) deallocate(iGEMCertRank)
+    if (allocated(iGEMCertFirstSpecies)) deallocate(iGEMCertFirstSpecies)
+    if (allocated(iGEMCertLastSpecies)) deallocate(iGEMCertLastSpecies)
+    if (allocated(dGEMCertDrivingForce)) deallocate(dGEMCertDrivingForce)
+    if (allocated(dGEMCertTiming)) deallocate(dGEMCertTiming)
+    if (allocated(dGEMCertPlane)) deallocate(dGEMCertPlane)
     if (allocated(dSumMolFractionSoln)) deallocate(dSumMolFractionSoln)
 
+    nGEMCertCapacity = MAX(1, l*MAX(1,nElements))
     allocate(dUpdateVar(nElements*2),dUpdateVarLast(nElements*2))
     allocate(dGEMAnalyticalSpeciesDirection(nSpecies),lGEMAnalyticalSpeciesDirection(l))
     allocate(iterHistory(nElements,iterGlobalMax))
@@ -777,6 +820,21 @@ subroutine InitGEMSolver
         dPartialEnthalpyXS(nSpecies),&
         dPartialEntropyXS(nSpecies),&
         dPartialHeatCapacityXS(nSpecies))
+    allocate(&
+        iGEMCertPhase(nGEMCertCapacity),&
+        iGEMCertCopy(nGEMCertCapacity),&
+        iGEMCertLevelRow(nGEMCertCapacity),&
+        iGEMCertBasis(nGEMCertCapacity),&
+        iGEMCertNorm(nGEMCertCapacity),&
+        iGEMCertStatus(nGEMCertCapacity),&
+        iGEMCertProof(nGEMCertCapacity),&
+        iGEMCertSubMinStatus(nGEMCertCapacity),&
+        iGEMCertRank(nGEMCertCapacity),&
+        iGEMCertFirstSpecies(nGEMCertCapacity),&
+        iGEMCertLastSpecies(nGEMCertCapacity),&
+        dGEMCertDrivingForce(nGEMCertCapacity),&
+        dGEMCertTiming(nGEMCertCapacity),&
+        dGEMCertPlane(nGEMCertCapacity,nElements))
     lConverged              = .FALSE.
     lRevertSystem           = .FALSE.
     iPhaseChangeReason      = PHASE_CHANGE_REASON_NONE
@@ -872,6 +930,8 @@ subroutine InitGEMSolver
     dGEMNewtonDirGibbsSlope = 0D0
     dGEMNewtonDirMeritSlope = 0D0
     dMaxPotentialTol        = 1D-5
+    dPEATol                 = 1D-8
+    dToleranceLevel         = -dPEATol
     dUpdateVarLast       = 0D0
     dGEMAnalyticalSpeciesDirection = 0D0
     lGEMAnalyticalSpeciesDirection = .FALSE.
@@ -936,6 +996,12 @@ subroutine InitGEMSolver
     iPEARepeatExitReason = 0
     nPEARepeatExit = 0
     nPEARepeatGuard = 0
+    iPEAExitStatus = PEA_EXIT_STATUS_UNKNOWN
+    iPEAExitReason = PEA_EXIT_REASON_NONE
+    iPEAExitFreshMinPointSweep = 0
+    iPEAUncertifiedHandoffSeen = 0
+    dPEAExitMinPhasePotential = 0D0
+    dPEAExitTolerance = 0D0
     nPEARecorded = 0
     nSUBOMTwoSetTrace = 0
     nSUBOMTwoSetStored = 0
@@ -986,8 +1052,26 @@ subroutine InitGEMSolver
 
     dDrivingForceSoln =0d0
     iSubMinCandidateStatusSoln = SUBMIN_CANDIDATE_UNKNOWN
+    nGEMCertCount = 0
+    nGEMCertEmissionCount = 0
+    nGEMCertDropped = 0
+    iGEMCertPhase = 0
+    iGEMCertCopy = 0
+    iGEMCertLevelRow = 0
+    iGEMCertBasis = 0
+    iGEMCertNorm = GEM_CERT_NORMALIZATION_PER_MOLE_ATOMS
+    iGEMCertStatus = GEM_CERT_STATUS_UNKNOWN
+    iGEMCertProof = GEM_CERT_PROOF_UNKNOWN
+    iGEMCertSubMinStatus = SUBMIN_CANDIDATE_UNKNOWN
+    iGEMCertRank = 0
+    iGEMCertFirstSpecies = 0
+    iGEMCertLastSpecies = 0
+    dGEMCertDrivingForce = 9D5
+    dGEMCertTiming = 0D0
+    dGEMCertPlane = 0D0
 
     call InitTraceSpeciesMask
+    call InitPEADFSweepStorage
 
     return
 end subroutine InitGEMSolver

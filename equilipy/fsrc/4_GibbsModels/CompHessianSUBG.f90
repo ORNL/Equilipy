@@ -31,9 +31,7 @@ subroutine CompHessianSUBG(iSolnIndex, nPairDim, dPairChemicalPotential, dPairHe
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   06/27/2026      S.Y. Kwon           Added analytical SUBG/SUBQ base and one-anion Q-term Jacobian.
-    !   06/27/2026      S.Y. Kwon           Removed in-place quotient aliasing in analytical derivative setup.
-    !   06/27/2026      S.Y. Kwon           Added one-anion G-type SUBQ excess Jacobian support.
+    !   07/20/2026      S.Y. Kwon           Added analytical SUBG and SUBQ chemical-potential Jacobians without in-place derivative aliasing.
     !
     !
     ! Purpose:

@@ -13,11 +13,11 @@
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
     !   01/14/2013      M.H.A. Piro         Original code.
-!   02/05/2013      M.H.A. Piro         Sort solution species by the mole fraction and apply a cut off
-!                                        value.
-!   02/05/2013      M.H.A. Piro         Apply variable formatting to pure condensed phases to constrain
-!                                        output to 5 significant figures.
-!   06/26/2026      S.Y. Kwon           Allowed QKTOM species sorting in solution output.
+    !   02/05/2013      M.H.A. Piro         Sort solution species by the mole fraction and apply a cut off
+    !                                       value.
+    !   02/05/2013      M.H.A. Piro         Apply variable formatting to pure condensed phases to constrain
+    !                                       output to 5 significant figures.
+    !   07/20/2026      S.Y. Kwon           Allowed magnetic QKTO solution species to be sorted in equilibrium output.
     !
     !
     !

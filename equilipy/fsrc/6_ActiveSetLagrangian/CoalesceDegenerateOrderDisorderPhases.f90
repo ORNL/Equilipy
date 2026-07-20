@@ -15,14 +15,14 @@
 !> \sa      RunLagrangianGEM.f90
 !> \sa      GEMNewtonCEF.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/27/2026      S.Y. Kwon           Original order/disorder random-state coalescence rule.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Coalesced ordered and disordered phases when their equilibrium constitutions become physically degenerate.
+    !
+    !
 ! Purpose:
 ! ========
 !

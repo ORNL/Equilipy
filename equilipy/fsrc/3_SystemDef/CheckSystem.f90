@@ -25,26 +25,17 @@ subroutine CheckSystem
     !   02/17/2012      M.H.A. Piro         Check if allocatable arrays have been allocated and if so, have they
     !                                       changed in dimension.
     !   05/24/2012      M.H.A. Piro         Correct the minimum number of moles of an element allowed =
-    !                                        (normalizer) * (machine precision) / (mass balance tolerance)
+    !                                       (normalizer) * (machine precision) / (mass balance tolerance)
     !   08/21/2012      M.H.A. Piro         Redefine the tolerance for the minimum number of moles of a solution
-    !                                        phase that is introduced to the system by the minimum number of
-    !                                        moles of an element in the system.
+    !                                       phase that is introduced to the system by the minimum number of
+    !                                       moles of an element in the system.
     !   01/14/2013      M.H.A. Piro         Move code relavent to excess terms into a separate subroutine.
     !   02/05/2013      M.H.A. Piro         The check for the minimum number of system components now includes
-    !                                        constraints imposed by charge neutrality.
+    !                                       constraints imposed by charge neutrality.
     !   05/14/2013      M.H.A. Piro         Fixed bug in allocating arrays specific to ionic phases.  This was
-    !                                        done when the size of cSolnPhaseName changes. This should be independent.
+    !                                       done when the size of cSolnPhaseName changes. This should be independent.
     !   11/03/2021      S.Y. Kwon           Removed Compound variables
-    !   06/26/2026      S.Y. Kwon           Added dependent-element screening for pseudo-component bases.
-    !   06/28/2026      S.Y. Kwon           Moved pseudo-component dependent-element detection from input labels
-    !                                       to rank analysis of the screened species stoichiometry.
-    !   06/28/2026      S.Y. Kwon           Honored phase selection when screening pure condensed species.
-!   06/28/2026      S.Y. Kwon           Identified pseudo-component dependent elements from the coupled species
-!                                       submatrix and excluded species outside that active-bundle basis.
-!   07/02/2026      S.Y. Kwon           Added a separate order/disorder active-companion map for minimizer
-!                                       identity diagnostics.
-!   07/03/2026      S.Y. Kwon           Used the shared order/disorder helper-alias classifier when resolving
-!                                       active companion aliases.
+    !   07/20/2026      S.Y. Kwon           Resolved parser-declared order/disorder partition identities while preserving independent disordered phases.
     !
     !
     ! Purpose:
@@ -132,7 +123,10 @@ subroutine CheckSystem
     USE ModuleParseCS
     USE ModuleThermo
     USE ModuleThermoIO
-    USE ModuleGEMSolver, ONLY: lSolnPhases, lMiscibility
+    USE ModuleGEMSolver, ONLY: lSolnPhases, lMiscibility, lODPartitionUnifiedActive, &
+        OD_TOPOLOGY_NOT_EVALUATED, OD_TOPOLOGY_HELPER_STANDALONE, &
+        OD_TOPOLOGY_DIRECT_TARGET, OD_TOPOLOGY_HELPER_ONLY, OD_TOPOLOGY_AMBIGUOUS, &
+        OD_PROJECTION_TOPOLOGY_UNSUPPORTED, OD_TOPOLOGY_UNSUPPORTED_PROJECTION
 !
     implicit none
 !
@@ -550,7 +544,8 @@ subroutine CheckSystem
         if (k /= nSolnPhasesSys) then
             ! The number of solution phases in the system has changed.
             deallocate(nSpeciesPhase,nParamPhase,cSolnPhaseType,cSolnPhaseName,lSolnPhases,dGibbsSolnPhase, &
-                iDisorderedPhase, iODCompanionPhase, &
+                iDisorderedPhase, iODCompanionPhase, iODStandalonePhase, &
+                iODTopologyClass, iODProjectionTopology, &
                 lMiscibility,nMagParamPhase, STAT = n)
             if (n /= 0) then
                 INFOThermo = 19
@@ -560,7 +555,9 @@ subroutine CheckSystem
             allocate(nSpeciesPhase(0:nSolnPhasesSys),nParamPhase(0:nSolnPhasesSys),nMagParamPhase(0:nSolnPhasesSys))
             allocate(cSolnPhaseType(nSolnPhasesSys),cSolnPhaseName(nSolnPhasesSys))
             allocate(lSolnPhases(nSolnPhasesSys),dGibbsSolnPhase(nSolnPhasesSys),lMiscibility(nSolnPhasesSys))
-            allocate(iDisorderedPhase(nSolnPhasesSys), iODCompanionPhase(nSolnPhasesSys))
+            allocate(iDisorderedPhase(nSolnPhasesSys), iODCompanionPhase(nSolnPhasesSys), &
+                iODStandalonePhase(nSolnPhasesSys), iODTopologyClass(nSolnPhasesSys), &
+                iODProjectionTopology(nSolnPhasesSys))
 !
         end if
 !
@@ -608,7 +605,9 @@ subroutine CheckSystem
         allocate(nSpeciesPhase(0:nSolnPhasesSys),nParamPhase(0:nSolnPhasesSys),nMagParamPhase(0:nSolnPhasesSys))
         allocate(cSolnPhaseType(nSolnPhasesSys),cSolnPhaseName(nSolnPhasesSys))
         allocate(lSolnPhases(nSolnPhasesSys),dGibbsSolnPhase(nSolnPhasesSys),lMiscibility(nSolnPhasesSys))
-        allocate(iDisorderedPhase(nSolnPhasesSys), iODCompanionPhase(nSolnPhasesSys))
+        allocate(iDisorderedPhase(nSolnPhasesSys), iODCompanionPhase(nSolnPhasesSys), &
+            iODStandalonePhase(nSolnPhasesSys), iODTopologyClass(nSolnPhasesSys), &
+            iODProjectionTopology(nSolnPhasesSys))
 !
         ! Only allocate if there are charged phases:
         if (nCountSublattice > 0) then
@@ -656,6 +655,9 @@ subroutine CheckSystem
     dGibbsSolnPhase      = 0D0
     iDisorderedPhase     = 0
     iODCompanionPhase    = 0
+    iODStandalonePhase   = 0
+    iODTopologyClass     = OD_TOPOLOGY_NOT_EVALUATED
+    iODProjectionTopology = OD_PROJECTION_TOPOLOGY_UNSUPPORTED
     dCoeffGibbsMagnetic  = 0D0
     dMagGibbsEnergy      = 0D0
     dMagEnthalpy         = 0D0
@@ -712,149 +714,67 @@ subroutine CheckSystem
         end if
     end do
     iODCompanionPhase = iDisorderedPhase
-    call ResolveOrderDisorderCompanionAliases
 !
     ! Check the excess terms:
     call CheckSystemExcess
+    call ResolveOrderDisorderTopology
 !
     return
 !
 contains
 
-    subroutine ResolveOrderDisorderCompanionAliases
+    subroutine ResolveOrderDisorderTopology
 
         implicit none
 
-        integer :: iOrderedPhase, iHelperPhase, iAliasPhase
+        integer :: iCSPhase, iOrderedPhase, iStandaloneCS, iStandalonePhase
+        integer :: iProjectionClass
+        integer :: OrderDisorderProjectionTopologyClass
 
-        if (.NOT.allocated(iODCompanionPhase)) return
-        if (.NOT.allocated(iDisorderedPhase)) return
-
-        do iOrderedPhase = 1, nSolnPhasesSys
-            if (iOrderedPhase > SIZE(iDisorderedPhase)) exit
-            iHelperPhase = iDisorderedPhase(iOrderedPhase)
-            if (iHelperPhase <= 0) cycle
-            if (iHelperPhase > nSolnPhasesSys) cycle
-
-            iAliasPhase = FindOrderDisorderAliasPhase(iHelperPhase, iOrderedPhase)
-            if (iAliasPhase > 0) iODCompanionPhase(iOrderedPhase) = iAliasPhase
-        end do
-
-        return
-
-    end subroutine ResolveOrderDisorderCompanionAliases
-
-
-    integer function FindOrderDisorderAliasPhase(iHelperPhase, iOrderedPhase)
-
-        implicit none
-
-        integer, intent(in) :: iHelperPhase, iOrderedPhase
-        integer             :: iCandidatePhase
-
-        FindOrderDisorderAliasPhase = 0
-
-        do iCandidatePhase = 1, nSolnPhasesSys
-            if (iCandidatePhase == iOrderedPhase) cycle
-            if (iCandidatePhase == iHelperPhase) cycle
-            if (OrderDisorderHelperAliasMatch(iHelperPhase, iCandidatePhase)) then
-                FindOrderDisorderAliasPhase = iCandidatePhase
-                return
-            end if
-        end do
-
-        return
-
-    end function FindOrderDisorderAliasPhase
-
-
-    logical function OrderDisorderHelperAliasMatch(iHelperPhase, iCandidatePhase)
-
-        implicit none
-
-        integer, intent(in) :: iHelperPhase, iCandidatePhase
-        integer             :: iHelperCSPhase, iCandidateCSPhase
-        integer             :: iHelperKind, iCandidateKind
-        integer             :: OrderDisorderHelperAliasKind
-        character(25)       :: cHelperName, cCandidateName
-
-        OrderDisorderHelperAliasMatch = .FALSE.
-        if ((iHelperPhase <= 0).OR.(iHelperPhase > nSolnPhasesSys)) return
-        if ((iCandidatePhase <= 0).OR.(iCandidatePhase > nSolnPhasesSys)) return
-
-        iHelperCSPhase = SystemPhaseToCSPhase(iHelperPhase)
-        iCandidateCSPhase = SystemPhaseToCSPhase(iCandidatePhase)
-        if ((iHelperCSPhase <= 0).OR.(iCandidateCSPhase <= 0)) return
-
-        cHelperName = UpperPhaseName(cSolnPhaseNameCS(iHelperCSPhase))
-        cCandidateName = UpperPhaseName(cSolnPhaseNameCS(iCandidateCSPhase))
-
-        if (TRIM(cHelperName) == TRIM(cCandidateName)) then
-            OrderDisorderHelperAliasMatch = .TRUE.
-            return
-        end if
-
-        iHelperKind = OrderDisorderHelperAliasKind(iHelperPhase)
-        iCandidateKind = OrderDisorderHelperAliasKind(iCandidatePhase)
-
-        if ((iHelperKind == 1).AND.(TRIM(cCandidateName) == 'BCC_A2')) then
-            OrderDisorderHelperAliasMatch = .TRUE.
-        else if ((iCandidateKind == 1).AND.(TRIM(cHelperName) == 'BCC_A2')) then
-            OrderDisorderHelperAliasMatch = .TRUE.
-        else if ((iHelperKind == 2).AND.(TRIM(cCandidateName) == 'FCC_A1')) then
-            OrderDisorderHelperAliasMatch = .TRUE.
-        else if ((iCandidateKind == 2).AND.(TRIM(cHelperName) == 'FCC_A1')) then
-            OrderDisorderHelperAliasMatch = .TRUE.
-        end if
-
-        return
-
-    end function OrderDisorderHelperAliasMatch
-
-
-    integer function SystemPhaseToCSPhase(iSystemPhase)
-
-        implicit none
-
-        integer, intent(in) :: iSystemPhase
-        integer             :: iCSPhase
-
-        SystemPhaseToCSPhase = 0
-        if (iSystemPhase <= 0) return
+        lODPartitionUnifiedActive = .FALSE.
+        if (.NOT.allocated(iODTopologyClass)) return
+        if (.NOT.allocated(iOrderDisorderTopologyCS)) return
 
         do iCSPhase = 1, nSolnPhasesSysCS
-            if (iSolnPhaseCS2Sys(iCSPhase) == iSystemPhase) then
-                SystemPhaseToCSPhase = iCSPhase
-                return
+            iOrderedPhase = iSolnPhaseCS2Sys(iCSPhase)
+            if (iOrderedPhase <= 0) cycle
+            if (iDisorderedPhaseCS(iCSPhase) <= 0) cycle
+            if (TRIM(cSolnPhaseType(iOrderedPhase)) /= 'SUBOM') cycle
+
+            iODTopologyClass(iOrderedPhase) = iOrderDisorderTopologyCS(iCSPhase)
+            if ((iODTopologyClass(iOrderedPhase) == OD_TOPOLOGY_HELPER_STANDALONE).OR.&
+                (iODTopologyClass(iOrderedPhase) == OD_TOPOLOGY_DIRECT_TARGET)) then
+                if (.NOT.allocated(iOrderDisorderStandalonePhaseCS)) then
+                    iODTopologyClass(iOrderedPhase) = OD_TOPOLOGY_AMBIGUOUS
+                    cycle
+                end if
+                iStandaloneCS = iOrderDisorderStandalonePhaseCS(iCSPhase)
+                if ((iStandaloneCS < 1).OR.(iStandaloneCS > nSolnPhasesSysCS)) then
+                    iODTopologyClass(iOrderedPhase) = OD_TOPOLOGY_AMBIGUOUS
+                    cycle
+                end if
+                iStandalonePhase = iSolnPhaseCS2Sys(iStandaloneCS)
+                if (iStandalonePhase <= 0) then
+                    iODTopologyClass(iOrderedPhase) = OD_TOPOLOGY_AMBIGUOUS
+                    cycle
+                end if
+                iODStandalonePhase(iOrderedPhase) = iStandalonePhase
             end if
+
+            if ((iODTopologyClass(iOrderedPhase) < OD_TOPOLOGY_HELPER_STANDALONE).OR.&
+                (iODTopologyClass(iOrderedPhase) > OD_TOPOLOGY_HELPER_ONLY)) cycle
+            iProjectionClass = OrderDisorderProjectionTopologyClass(iOrderedPhase)
+            iODProjectionTopology(iOrderedPhase) = iProjectionClass
+            if (iProjectionClass == OD_PROJECTION_TOPOLOGY_UNSUPPORTED) then
+                iODTopologyClass(iOrderedPhase) = OD_TOPOLOGY_UNSUPPORTED_PROJECTION
+                cycle
+            end if
+            lODPartitionUnifiedActive = .TRUE.
         end do
 
         return
 
-    end function SystemPhaseToCSPhase
-
-
-    character(25) function UpperPhaseName(cName)
-
-        implicit none
-
-        character(*), intent(in) :: cName
-        integer                  :: iChar, iCode, nChar
-
-        UpperPhaseName = ' '
-        nChar = MIN(LEN_TRIM(cName), LEN(UpperPhaseName))
-        do iChar = 1, nChar
-            iCode = IACHAR(cName(iChar:iChar))
-            if ((iCode >= IACHAR('a')).AND.(iCode <= IACHAR('z'))) then
-                UpperPhaseName(iChar:iChar) = ACHAR(iCode - 32)
-            else
-                UpperPhaseName(iChar:iChar) = cName(iChar:iChar)
-            end if
-        end do
-
-        return
-
-    end function UpperPhaseName
+    end subroutine ResolveOrderDisorderTopology
 
     subroutine DetectRankDependentElements(iDependentElementLocal)
 

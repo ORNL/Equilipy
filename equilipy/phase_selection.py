@@ -9,7 +9,6 @@ import numpy as np
 import equilipy.equilifort as fort
 import equilipy.variables as var
 
-from .database_ir.tdb_canonical import DISORDERED_PHASE_CANONICAL_NAMES
 from .exceptions import InputConditionError
 
 
@@ -226,12 +225,14 @@ def _expand_required_disordered_phases(phases: list[str]) -> list[str]:
         if disordered_phase not in selected:
             expanded.append(disordered_phase)
             selected.add(disordered_phase)
-        canonical_phase = DISORDERED_PHASE_CANONICAL_NAMES.get(
-            disordered_phase.upper()
+        standalone_ids = getattr(var, "iOrderDisorderStandalonePhaseCS", [])
+        standalone_id = (
+            int(standalone_ids[index]) if index < len(standalone_ids) else 0
         )
-        if canonical_phase in var.PhaseNameSys and canonical_phase not in selected:
-            expanded.append(canonical_phase)
-            selected.add(canonical_phase)
+        standalone_phase = name_by_soln_id.get(standalone_id)
+        if standalone_phase is not None and standalone_phase not in selected:
+            expanded.append(standalone_phase)
+            selected.add(standalone_phase)
 
     return expanded
 
@@ -316,14 +317,34 @@ def _public_phase_selection_names(phases: list[str]) -> list[str]:
         str(name).strip()
         for name in getattr(var, "cOrderDisorderHelperPhaseNames", [])
     }
+    name_by_soln_id = {
+        int(phase_info[1]): str(phase_name)
+        for phase_name, phase_info in var.PhaseNameSys.items()
+        if len(phase_info) == 2 and phase_info[0] == "soln"
+    }
+    helper_public_names: dict[str, str | None] = {}
+    disordered = getattr(var, "iDisorderedPhaseCS", [])
+    standalone = getattr(var, "iOrderDisorderStandalonePhaseCS", [])
+    for ordered_index, helper_id_raw in enumerate(disordered):
+        helper_id = int(helper_id_raw)
+        if helper_id <= 0:
+            continue
+        helper_name = name_by_soln_id.get(helper_id)
+        if helper_name is None or helper_name not in hidden_helpers:
+            continue
+        standalone_id = (
+            int(standalone[ordered_index]) if ordered_index < len(standalone) else 0
+        )
+        helper_public_names[helper_name] = name_by_soln_id.get(standalone_id)
+
     public_names: list[str] = []
     selected: set[str] = set()
     for phase in phases:
         public_phase = phase
         if phase in hidden_helpers:
-            canonical_phase = DISORDERED_PHASE_CANONICAL_NAMES.get(phase.upper())
-            if canonical_phase in var.PhaseNameSys:
-                public_phase = canonical_phase
+            public_phase = helper_public_names.get(phase)
+            if public_phase is None:
+                continue
         if public_phase in selected:
             continue
         public_names.append(public_phase)

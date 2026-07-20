@@ -63,6 +63,8 @@ from .table import ResultTable
 _PHASE_ENDMEMBER_EXPORT_MARKERS = (
     "_endmembers_x_",
     "_endmembers_w_",
+    "_elements_x_",
+    "_elements_w_",
     "_partial_gibbs_",
     "_standard_gibbs_energy_",
     "_activity_",

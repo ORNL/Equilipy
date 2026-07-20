@@ -1,4 +1,4 @@
-!> \brief Register switch-gated same-parent SUBOM composition-set candidates.
+!> \brief Register same-parent SUBOM composition-set candidates.
 !!
 !! \details Adds optional second PEA pseudo-compound rows for ordered SUBOM
 !! parents when the passive ordering-mode diagnostic reports an instability.
@@ -14,31 +14,16 @@
 !> \sa      CompInitMinSolnPoint.f90
 !> \sa      CompMinSolnPoint.f90
 !> \sa      SetLevelingSolutionCandidateRow.f90
+!> \sa      ProjectOrderDisorderCompanionFraction.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   07/03/2026      S.Y. Kwon           Original switch-gated PEA candidate-pool identity persistence helper.
-!   07/03/2026      S.Y. Kwon           Suppressed the companion Leveling row when a valid parent ordinal-2
-!                                       row is available, so the helper is not an independent competitor.
-!   07/03/2026      S.Y. Kwon           Refreshed existing ordinal-2 rows from active slot-local constitutions
-!                                       instead of reseeding them from the disordered-manifold start.
-!   07/03/2026      S.Y. Kwon           Removed companion suppression so same-parent ordinal rows compete with,
-!                                       but never replace, physical disordered phase candidates.
-!   07/03/2026      S.Y. Kwon           Cached the ordering-instability gate per PEA iteration and skipped it
-!                                       when the candidate source cannot become Leveling evidence.
-!   07/03/2026      S.Y. Kwon           Allowed ordinal-2 rows to own known helper-only DIS_PART aliases while
-!                                       preserving compete-only behavior for physical disordered phases.
-!   07/03/2026      S.Y. Kwon           Kept the companion helper row available when adding ordinal-2 evidence.
-!   07/03/2026      S.Y. Kwon           Skipped ordinal-row evidence when the companion helper row is valid.
-!   07/03/2026      S.Y. Kwon           Limited ordinal-row evidence to nonphysical helper aliases.
-!   07/03/2026      S.Y. Kwon           Disabled ordinal-row evidence when a physical DIS_PART phase is present.
-!   07/03/2026      S.Y. Kwon           Replaced name-scanned physical-companion detection with the central
-!                                       order/disorder companion map and shared helper-alias classifier.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Registered structurally distinct order/disorder companion constitutions as typed parent composition sets through central grid row layout.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -51,7 +36,8 @@
 ! Required input variables:
 ! =========================
 !
-! lSUBOMTwoSetCandidateEnabled Switch enabling the experimental two-set path.
+! lSUBOMTwoSetCandidateEnabled Switch enabling the optional helper-only path.
+! lODPartitionUnifiedActive    Per-system activation for parser-declared physical DIS_PART pairs.
 ! iODCompanionPhase            Active disordered-companion map for ordered SUBOM parents.
 ! iSubMinCandidateStatusSoln   Subminimization status for each solution candidate row.
 ! dMolFraction                 Current phase-local fractions after solution candidate refresh.
@@ -73,6 +59,8 @@
 !
 ! CompOrderingModeSUBOM          Supplies the c1 ordering-instability gate.
 ! CompExcessGibbsEnergy          Evaluates the ordered parent at the projected disordered-manifold start.
+! ProjectOrderDisorderCompanionFraction
+!                                Maps a companion constitution into the ordered parent.
 ! SetLevelingSolutionCandidateRow Writes the actual PEA pseudo-compound row.
 !
 !
@@ -86,18 +74,22 @@
 ! Numerical assumptions:
 ! ======================
 !
-! - The second row is created only under lSUBOMTwoSetCandidateEnabled.
+! - Physical DIS_PART pairs use the canonical path whenever the active system
+!   contains such a pair.  The unrelated optional helper-only path remains
+!   controlled by lSUBOMTwoSetCandidateEnabled.
 ! - The extra row index is nSpecies + nSolnPhasesSys + parent phase id.
-! - Candidate validity requires an ordering-mode negative eigenvalue, a valid
-!   constitution source, and a parent-constitution distance above the duplicate
-!   tolerance.
+! - Canonical partition candidates require typed ordered-parent evidence and an
+!   accepted, exactly distinct physical-companion constitution.  A companion
+!   ordering-instability fact remains typed; it does not erase the physical
+!   composition-set candidate before the coupled active-set solve.
+! - The optional helper-only path retains its historical instability and
+!   duplicate-distance checks.
 ! - The first ordinal-2 row is created from the disordered companion.  Once an
 !   ordinal-2 active slot exists, refreshes use that slot-local constitution so
 !   the candidate pool tracks the accepted PEA-Lagrangian state.
-! - A valid parent ordinal-2 row is helper-only additional Leveling evidence.
-!   It must not remove or replace a physical disordered companion row.  When a
-!   physical companion is available, ordinal-2 evidence is disabled and the
-!   ordinary disordered row owns that branch.
+! - A canonical ordinal-2 row is emitted only when no separately declared
+!   standalone disordered phase exists.  Otherwise the standalone and the
+!   genuinely ordered parent remain independent physical candidates.
 ! - The ordered parent is evaluated temporarily at the projected fraction and
 !   then restored to its original selected constitution.
 !
@@ -108,19 +100,21 @@
 subroutine RegisterSUBOMTwoSetCandidateRows
     USE ModuleThermo
     USE ModuleGEMSolver
+    USE GridDiscovery, ONLY: GridTangentRowIndex, GridPartitionRowIndex
 
     implicit none
 
     integer :: iOrderedPhase, iHelperPhase, iLevelRow, iFirst, iLast, nLocal
-    integer :: iTraceStage, iActiveSlotSource
+    integer :: iTraceStage, iActiveSlotSource, iProjectionStatus
     integer :: iCand
     logical :: lHasInstability, lHelperValid, lProjected, lDistinct, lCandidateValid
-    logical :: lFromActiveSlot, lSourceValid
+    logical :: lFromActiveSlot, lSourceValid, lCanonicalPair, lStandaloneExists
+    logical :: lOrderedCompanionMayEnter
     real(8) :: dDistance
     real(8), dimension(:), allocatable :: dProjectedFraction, dOrderedFractionSave
     logical :: OrderDisorderPhaseIsEligible, IsOrderDisorderHelperAliasPhase
 
-    if (.NOT.lSUBOMTwoSetCandidateEnabled) return
+    if ((.NOT.lSUBOMTwoSetCandidateEnabled).AND.(.NOT.lODPartitionUnifiedActive)) return
     if (nSpeciesLevel < nSpecies + 2*nSolnPhasesSys) return
     if (.NOT.allocated(iLevelCandidateFromLevel)) return
     if (.NOT.allocated(iSubMinCandidateStatusSoln)) return
@@ -128,12 +122,28 @@ subroutine RegisterSUBOMTwoSetCandidateRows
     do iOrderedPhase = 1, nSolnPhasesSys
         if (TRIM(cSolnPhaseType(iOrderedPhase)) /= 'SUBOM') cycle
         if (.NOT.OrderDisorderPhaseIsEligible(iOrderedPhase)) cycle
+        if (.NOT.lSUBOMTwoSetCandidateEnabled) then
+            if (.NOT.allocated(iODTopologyClass)) cycle
+            if ((iODTopologyClass(iOrderedPhase) < OD_TOPOLOGY_HELPER_STANDALONE).OR.&
+                (iODTopologyClass(iOrderedPhase) > OD_TOPOLOGY_HELPER_ONLY)) cycle
+        end if
 
         iHelperPhase = TwoSetCompanionPhase(iOrderedPhase)
         if (iHelperPhase <= 0) cycle
         if (iHelperPhase == iOrderedPhase) cycle
+        lCanonicalPair = lODPartitionUnifiedActive.AND.allocated(iODCompanionPhase).AND.&
+            allocated(iODTopologyClass)
+        if (lCanonicalPair) then
+            lCanonicalPair = iOrderedPhase <= SIZE(iODCompanionPhase)
+            if (lCanonicalPair) lCanonicalPair = &
+                iODCompanionPhase(iOrderedPhase) == iHelperPhase
+            if (lCanonicalPair) lCanonicalPair = &
+                (iODTopologyClass(iOrderedPhase) >= OD_TOPOLOGY_HELPER_STANDALONE).AND.&
+                (iODTopologyClass(iOrderedPhase) <= OD_TOPOLOGY_HELPER_ONLY)
+        end if
+        lStandaloneExists = StandaloneDisorderedPhase(iOrderedPhase) > 0
 
-        iLevelRow = nSpecies + nSolnPhasesSys + iOrderedPhase
+        iLevelRow = GridPartitionRowIndex(iOrderedPhase)
         if ((iLevelRow < 1).OR.(iLevelRow > nSpeciesLevel)) cycle
 
         iFirst = nSpeciesPhase(iOrderedPhase-1) + 1
@@ -155,18 +165,35 @@ subroutine RegisterSUBOMTwoSetCandidateRows
         lProjected = lFromActiveSlot
         lHelperValid = CandidatePhaseHasAcceptedSubminResult(iHelperPhase)
         if (.NOT.lFromActiveSlot) then
-            call ProjectCompanionToOrderedSUBOMFraction(iHelperPhase, iOrderedPhase, &
-                dProjectedFraction, lProjected)
+            call ProjectOrderDisorderCompanionFraction(iHelperPhase, iOrderedPhase, &
+                nLocal, dProjectedFraction, lProjected, iProjectionStatus)
         end if
 
         dDistance = SUM(DABS(dProjectedFraction - dOrderedFractionSave)) / DBLE(MAX(1,nLocal))
-        lDistinct = dDistance > 1D-8
+        if (lCanonicalPair) then
+            ! A parser-declared companion is a second representation of the
+            ! same parent model.  Typed branch classification, not a numeric
+            ! constitution-distance cutoff, decides whether it supplies a row.
+            lDistinct = ANY(dProjectedFraction /= dOrderedFractionSave)
+        else
+            lDistinct = dDistance > 1D-8
+        end if
         lSourceValid = lFromActiveSlot.OR.(lHelperValid.AND.lProjected)
-        if (lSourceValid.AND.lProjected.AND.lDistinct) then
+        if ((.NOT.lCanonicalPair).AND.lSourceValid.AND.lProjected.AND.lDistinct) then
             lHasInstability = SUBOMCandidateHasOrderingInstability(iOrderedPhase)
         end if
-        lCandidateValid = lHasInstability.AND.lSourceValid.AND.lProjected.AND.lDistinct.AND.&
-            TwoSetCompanionIsHelperAliasOnly(iOrderedPhase, iHelperPhase)
+        if (lCanonicalPair) then
+            lOrderedCompanionMayEnter = (.NOT.lStandaloneExists).OR.lGridFrontEndActive
+            lCandidateValid = lOrderedCompanionMayEnter.AND.&
+                lSourceValid.AND.lProjected.AND.lDistinct.AND.&
+                ((iODCandidateClass(iOrderedPhase) == OD_CANDIDATE_ORDERED).OR.&
+                (iODCandidateClass(iOrderedPhase) == &
+                    OD_CANDIDATE_ORDERED_COMPANION_UNSTABLE))
+        else
+            lOrderedCompanionMayEnter = .FALSE.
+            lCandidateValid = lHasInstability.AND.lSourceValid.AND.lProjected.AND.lDistinct.AND.&
+                TwoSetCompanionIsHelperAliasOnly(iOrderedPhase, iHelperPhase)
+        end if
 
         if (lCandidateValid) then
             dMolFraction(iFirst:iLast) = dProjectedFraction
@@ -176,7 +203,7 @@ subroutine RegisterSUBOMTwoSetCandidateRows
 
         call SetLevelingSolutionCandidateRow(iLevelRow, iOrderedPhase, &
             dProjectedFraction, lCandidateValid)
-        call MarkTwoSetCandidateIdentity(iLevelRow, iOrderedPhase)
+        call MarkTwoSetCandidateIdentity(iLevelRow, iOrderedPhase, iHelperPhase, lCanonicalPair)
         if (lCandidateValid) then
             iTraceStage = SUBOM_TRACE_REFRESH
             if (iterPEA <= 0) iTraceStage = SUBOM_TRACE_REGISTER
@@ -220,6 +247,19 @@ contains
 
         return
     end function TwoSetCompanionPhase
+
+
+    integer function StandaloneDisorderedPhase(iOrderedPhaseIn)
+        integer, intent(in) :: iOrderedPhaseIn
+
+        StandaloneDisorderedPhase = 0
+        if (.NOT.allocated(iODStandalonePhase)) return
+        if ((iOrderedPhaseIn < 1).OR.(iOrderedPhaseIn > SIZE(iODStandalonePhase))) return
+        if (iODStandalonePhase(iOrderedPhaseIn) == iOrderedPhaseIn) return
+        StandaloneDisorderedPhase = iODStandalonePhase(iOrderedPhaseIn)
+
+        return
+    end function StandaloneDisorderedPhase
 
 
     logical function CandidatePhaseHasAcceptedSubminResult(iSolnPhaseIn)
@@ -367,7 +407,7 @@ contains
         integer :: iHelperRow
 
         if (.NOT.IsOrderDisorderHelperAliasPhase(iHelperPhaseIn)) return
-        iHelperRow = nSpecies + iHelperPhaseIn
+        iHelperRow = GridTangentRowIndex(iHelperPhaseIn)
         if ((iHelperRow < 1).OR.(iHelperRow > nSpeciesLevel)) return
 
         dChemicalPotential(iHelperRow) = 5D9
@@ -395,73 +435,10 @@ contains
     end function TwoSetCompanionIsHelperAliasOnly
 
 
-    subroutine ProjectCompanionToOrderedSUBOMFraction(iHelperPhaseIn, iOrderedPhaseIn, &
-        dProjectedFractionOut, lProjectedOut)
-        integer, intent(in) :: iHelperPhaseIn, iOrderedPhaseIn
-        real(8), dimension(:), intent(out) :: dProjectedFractionOut
-        logical, intent(out) :: lProjectedOut
-
-        integer :: i, j, s, m, iHelperFirst, iHelperLast, iOrderedFirst, iOrderedLast
-        integer :: iOrderedLocal, iSublPhase, iElement
-        real(8) :: dHelperTotal, dNorm, dProduct, dX
-        real(8), dimension(nElements) :: dHelperElementFraction
-
-        dProjectedFractionOut = 0D0
-        lProjectedOut = .FALSE.
-        dHelperElementFraction = 0D0
-        if ((iHelperPhaseIn < 1).OR.(iHelperPhaseIn > nSolnPhasesSys)) return
-        if ((iOrderedPhaseIn < 1).OR.(iOrderedPhaseIn > nSolnPhasesSys)) return
-
-        iHelperFirst = nSpeciesPhase(iHelperPhaseIn-1) + 1
-        iHelperLast  = nSpeciesPhase(iHelperPhaseIn)
-        do i = iHelperFirst, iHelperLast
-            dX = DMAX1(dMolFraction(i), 0D0)
-            do j = 1, nElements
-                dHelperElementFraction(j) = dHelperElementFraction(j) + dX * DMAX1(dStoichSpecies(i,j), 0D0)
-            end do
-        end do
-
-        dHelperTotal = SUM(dHelperElementFraction)
-        if (dHelperTotal <= 1D-300) return
-        dHelperElementFraction = dHelperElementFraction / dHelperTotal
-
-        iSublPhase = iPhaseSublattice(iOrderedPhaseIn)
-        iOrderedFirst = nSpeciesPhase(iOrderedPhaseIn-1) + 1
-        iOrderedLast  = nSpeciesPhase(iOrderedPhaseIn)
-        if (SIZE(dProjectedFractionOut) /= (iOrderedLast - iOrderedFirst + 1)) return
-
-        do i = iOrderedFirst, iOrderedLast
-            iOrderedLocal = i - iOrderedFirst + 1
-            dProduct = 1D0
-            do s = 1, nSublatticePhase(iSublPhase)
-                m = iConstituentSublattice(iSublPhase,s,iOrderedLocal)
-                if (m <= 0) cycle
-                if (IsVacancyName(cConstituentNameSUB(iSublPhase,s,m))) then
-                    if (nConstituentSublattice(iSublPhase,s) > 1) dProduct = 0D0
-                    cycle
-                end if
-
-                iElement = ConstituentElementIndex(cConstituentNameSUB(iSublPhase,s,m))
-                if (iElement <= 0) then
-                    dProduct = 0D0
-                else
-                    dProduct = dProduct * DMAX1(dHelperElementFraction(iElement), 0D0)
-                end if
-            end do
-            dProjectedFractionOut(iOrderedLocal) = dProduct
-        end do
-
-        dNorm = SUM(dProjectedFractionOut)
-        if (dNorm <= 1D-300) return
-        dProjectedFractionOut = dProjectedFractionOut / dNorm
-        lProjectedOut = .TRUE.
-
-        return
-    end subroutine ProjectCompanionToOrderedSUBOMFraction
-
-
-    subroutine MarkTwoSetCandidateIdentity(iLevelRowIn, iOrderedPhaseIn)
-        integer, intent(in) :: iLevelRowIn, iOrderedPhaseIn
+    subroutine MarkTwoSetCandidateIdentity(iLevelRowIn, iOrderedPhaseIn, &
+        iCompanionPhaseIn, lCanonicalPairIn)
+        integer, intent(in) :: iLevelRowIn, iOrderedPhaseIn, iCompanionPhaseIn
+        logical, intent(in) :: lCanonicalPairIn
 
         iCand = 0
         if (allocated(iLevelCandidateFromLevel)) then
@@ -473,58 +450,12 @@ contains
 
         iLevelCandidateParentPhase(iCand) = iOrderedPhaseIn
         iLevelCandidateDisplayPhase(iCand) = iOrderedPhaseIn
+        if (lCanonicalPairIn) iLevelCandidateDisplayPhase(iCand) = iCompanionPhaseIn
         iLevelCandidateIdentityOrdinal(iCand) = 2
         iLevelCandidateSource(iCand) = 2
 
         return
     end subroutine MarkTwoSetCandidateIdentity
 
-
-    logical function IsVacancyName(cName)
-        character(*), intent(in) :: cName
-        character(8)             :: cUpper
-
-        cUpper = UpperName(cName)
-        IsVacancyName = (TRIM(cUpper) == 'VA').OR.(TRIM(cUpper) == 'VACANCY')
-
-        return
-    end function IsVacancyName
-
-
-    integer function ConstituentElementIndex(cName)
-        character(*), intent(in) :: cName
-        integer                  :: iElement
-        character(8)             :: cTarget, cElement
-
-        ConstituentElementIndex = 0
-        cTarget = UpperName(cName)
-        do iElement = 1, nElements
-            cElement = UpperName(cElementName(iElement))
-            if (TRIM(cTarget) == TRIM(cElement)) then
-                ConstituentElementIndex = iElement
-                return
-            end if
-        end do
-
-        return
-    end function ConstituentElementIndex
-
-
-    character(8) function UpperName(cName)
-        character(*), intent(in) :: cName
-        integer                  :: iChar, iCode
-
-        UpperName = '        '
-        do iChar = 1, MIN(LEN(cName), LEN(UpperName))
-            iCode = IACHAR(cName(iChar:iChar))
-            if ((iCode >= IACHAR('a')).AND.(iCode <= IACHAR('z'))) then
-                UpperName(iChar:iChar) = ACHAR(iCode - 32)
-            else
-                UpperName(iChar:iChar) = cName(iChar:iChar)
-            end if
-        end do
-
-        return
-    end function UpperName
 
 end subroutine RegisterSUBOMTwoSetCandidateRows

@@ -12,16 +12,14 @@
 !> \sa      CheckPhaseAssemblage.f90
 !> \sa      PEALagrangianPolish.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/26/2026      S.Y. Kwon           Original per-PEA-iteration diagnostic recorder.
-!   07/04/2026      S.Y. Kwon           Recorded passive C4-a PEA gate, direct-witness, and
-!                                       repeated-handoff exit counters.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Recorded driving-force planes, candidate generations, outcomes, and pending phase witnesses for each PEA iteration.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -115,6 +113,10 @@ subroutine RecordPEAIterationDiagnostics(iterLevel, iPolishAttempted)
 
     if (allocated(iPEAAssemblageHist)) iPEAAssemblageHist(:,iIter) = iAssemblage
     if (allocated(iPEALevelIterHist)) iPEALevelIterHist(iIter) = iterLevel
+    if (allocated(iPEAPlaneGenerationHist)) iPEAPlaneGenerationHist(iIter) = iPEAPlaneGeneration
+    if (allocated(iPEADFSweepGenerationHist)) iPEADFSweepGenerationHist(iIter) = iPEADFSweepGeneration
+    if (allocated(iPEADFSweepOutcomeHist)) iPEADFSweepOutcomeHist(iIter) = iPEADFSweepOutcome
+    if (allocated(iPEADFPendingWitnessHist)) iPEADFPendingWitnessHist(iIter) = nPEADFPendingWitness
     if (allocated(iPEAPolishAttemptHist)) iPEAPolishAttemptHist(iIter) = iPolishAttempted
     if (allocated(iPEAPolishAcceptedHist)) then
         if ((iPolishAttempted > 0).AND.lPEALagrangianPolishAccepted) then

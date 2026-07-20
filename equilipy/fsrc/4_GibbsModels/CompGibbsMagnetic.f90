@@ -18,9 +18,9 @@ subroutine CompGibbsMagnetic(i,j)
     ! Revisions:
     ! ==========
     !
-    !    Date          Programmer        Description of change
-    !    ----          ----------        ---------------------
-    !    10/20/2011    M.H.A. Piro       Original code
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   10/20/2011      M.H.A. Piro         Original code
     !
     !
     ! Purpose:

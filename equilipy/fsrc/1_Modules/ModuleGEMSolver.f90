@@ -10,80 +10,15 @@
 !> \sa      TraceSpeciesControl.f90
 !> \sa      CompFunctionNorm.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   04/25/2012      M.H.A. Piro         Original GEM solver state module
-!   06/23/2026      S.Y. Kwon           Added phase-change reasons and trace-species controls
-!   06/23/2026      S.Y. Kwon           Collapsed immutable trace/stagnation defaults into parameters
-!   06/23/2026      S.Y. Kwon           Organized declarations by rank and role
-!   06/23/2026      S.Y. Kwon           Consolidated GEM active-set and PEA candidate state
-!   06/24/2026      S.Y. Kwon           Added line-search diagnostics for Lagrangian stagnation analysis
-!   06/24/2026      S.Y. Kwon           Added per-iteration Lagrangian residual and line-search histories
-!   06/25/2026      S.Y. Kwon           Removed legacy SUBOM residual state after moving order/disorder
-!                                        refinement to site-fraction minimization
-!   06/25/2026      S.Y. Kwon           Renamed trace-species enable flag for production use
-!   06/25/2026      S.Y. Kwon           Added CEF site-fraction Lagrangian direction state
-!   06/25/2026      S.Y. Kwon           Kept CEF site-fraction Lagrangian disabled by default pending
-!                                        multiphase KKT validation.
-!   06/25/2026      S.Y. Kwon           Added raw CEF phase-removal target state for Lagrangian active-set repair.
-!   06/25/2026      S.Y. Kwon           Added an active CEF KKT flag so residual norms match the solver
-!                                        coordinates used for the current fixed assemblage.
-!   06/26/2026      S.Y. Kwon           Added Level2Lagrange handoff diagnostics for the embedded PEA-Lagrangian
-!                                        minimizer implementation path.
-!   06/26/2026      S.Y. Kwon           Added PEA-internal Lagrangian polish controls and diagnostics.
-!   06/26/2026      S.Y. Kwon           Clarified that PEA-polish accepts converged Lagrangian planes
-!                                        without bounding them to the PEA Leveling plane.
-!   06/26/2026      S.Y. Kwon           Removed inactive sampled/grid repair controls from the production
-!                                        minimizer state.
-!   06/26/2026      S.Y. Kwon           Added per-iteration PEA diagnostics for Lagrangian-polished
-!                                        active-set development.
-!   06/26/2026      S.Y. Kwon           Added explicit Subminimization candidate status so PEA Leveling can
-!                                        reject unknown pseudo-compound rows.
-!   06/27/2026      S.Y. Kwon           Generalized negative driving-force witnesses for PEA candidate rows.
-!   06/28/2026      S.Y. Kwon           Added an elemental-potential plateau gate before PEA-Lagrangian polish.
-!   06/30/2026      S.Y. Kwon           Tightened GEM stagnation detection to avoid premature active-set repair.
-!   07/01/2026      S.Y. Kwon           Documented that Leveling/PEA endmember vectors are handoff state,
-!                                        while active CEF directions are site-fraction KKT state.
-!   07/02/2026      S.Y. Kwon           Added passive KKT, pivot, and scaffold-activation diagnostics
-!                                        for the minimizer Phase 0 baseline.
-!   07/02/2026      S.Y. Kwon           Added passive active order/disorder pair diagnostics for
-!                                        A2/B2 representation-null debugging.
-!   07/02/2026      S.Y. Kwon           Added passive active-slot model/display/identity arrays for
-!                                        SUBOM helper-safe representation work.
-!   07/02/2026      S.Y. Kwon           Added Phase 0 directional-derivative and line-search energy
-!                                        diagnostics, and split scaffold counters by activation type.
-!   07/02/2026      S.Y. Kwon           Renamed the active-slot composition-set placeholder to an
-!                                        identity ordinal until real parent composition sets are built.
-!   07/02/2026      S.Y. Kwon           Added passive per-active-slot constitution storage for the
-!                                        SUBOM helper-safe identity scaffold.
-!   07/02/2026      S.Y. Kwon           Split passive active-slot thermodynamic parent identity from
-!                                        display phase identity for order/disorder scaffolding.
-!   07/02/2026      S.Y. Kwon           Added passive per-active-slot parent-site-fraction storage.
-!   07/03/2026      S.Y. Kwon           Added pre-residual-LM CEF line-search diagnostics for
-!                                        class-1 no-descent trials.
-!   07/03/2026      S.Y. Kwon           Added a default-off SUBOM two-composition-set handoff
-!                                        switch and diagnostics for Phase 2e-c slice c2.
-!   07/04/2026      S.Y. Kwon           Split tiny-boundary phase-removal diagnostics from
-!                                        boundary-pinned removals for C1-a passive census.
-!   07/04/2026      S.Y. Kwon           Added default-off standalone SUBG/SUBQ CEF-routing switch
-!                                        for C1-b0 plumbing.
-!   07/04/2026      S.Y. Kwon           Promoted standalone SUBG/SUBQ mixed-coordinate routing to
-!                                        the production default after C1 validation.
-!   07/04/2026      S.Y. Kwon           Added call-site-stable residual-LM event storage for C3-a2
-!                                        globalization diagnostics.
-!   07/04/2026      S.Y. Kwon           Added C3-c1 primal-inertia regularization counters.
-!   07/04/2026      S.Y. Kwon           Added default-off C3-c2 funnel line-search switch and counters.
-!   07/05/2026      S.Y. Kwon           Added passive MultiPhaseMinimizer timing buckets for Scheil
-!                                        warm-start expected-value census.
-!   07/05/2026      S.Y. Kwon           Added passive inactive-candidate certification timing and
-!                                        sweep count for WS-a2.
-!   07/05/2026      S.Y. Kwon           Added explicit GEM exit status and max CEF exchange residual
-!                                        diagnostics for trace-phase Scheil failures.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   04/25/2012      M.H.A. Piro         Original GEM solver state module
+    !   07/20/2026      S.Y. Kwon           Added typed static-grid discovery, candidate certification, order/disorder identity, batch-pricing, and atomic PEA generation state.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -222,6 +157,11 @@
 !                                 derivative-basis validation and C1 routing gates.
 ! iSUBOMOrderingGate*             Per-PEA-iteration cache for the expensive projected ordering-mode
 !                                 eigenvalue used only by the two-set candidate gate.
+! iODCandidateClass               Structural order/disorder identity verdict for each ordered SUBOM phase.
+! iODCandidateCompanionPhase      Canonical disordered companion used by the candidate-identity verdict.
+! dODCandidate*                   Current/disordered same-parent energies and disordered-manifold curvature.
+! lODPartitionUnifiedActive       True only when the active system contains a parser-declared DIS_PART pair.
+! iActiveSlotODClass              Exact structural ordered/disordered/ambiguous classification per active slot.
 ! nLevel2LagrangeTwoSetCreated    Number of second SUBOM composition-set handoff slots created
 !                                 during the latest Level2Lagrange call.
 ! iActiveSlotThermoPhase          Thermodynamic model phase id for each active Lagrangian slot.
@@ -229,12 +169,33 @@
 ! iActiveSlotIdentityOrdinal      Passive per-thermodynamic-parent composition-set ordinal for each active slot.
 ! dActiveSlotMolFraction          Passive per-active-slot solution endmember/product-fraction snapshot.
 ! dActiveSlotSiteFraction         Passive per-active-slot parent-model site-fraction snapshot.
+! dActiveSlotChemPot              Slot-local constituent chemical potentials for reporting composition sets.
+! dActiveSlotPartialH/S/Cp        Slot-local constituent partial properties for reporting composition sets.
+! lActiveSlotPropValid            True when the current thermodynamic state populated a slot property row.
 ! lPEALagrangianPolish*           Flags for embedded Lagrangian polishing inside PEA.
 ! nPEALagrangianPolish*           Counters and iteration diagnostics for PEA-internal polishing.
 ! dPEALagrangianPolish*           Norm and elemental-potential diagnostics for PEA-internal polishing.
 ! iSubMinCandidateStatusSoln      Per-solution validity/status of the latest subminimized PEA candidate row.
+! iGEMCert*/dGEMCert*             Passive records for each fresh candidate-certificate subminimization.
 ! iPEA*Hist                       Per-PEA-iteration assemblage, Leveling, and polish status diagnostics.
 ! dPEA*Hist                       Per-PEA-iteration potential, driving-force, and polish norm diagnostics.
+! nGEMInitialLevelingPass         Number of exchanges attempted by the latest initial Leveling solve.
+! lGridFrontEndActive             Public default-on switch for static-grid discovery (eligibility-gated per solve).
+! lGridBatchKernelActive          Selects phase-block G-only evaluation; false retains the scalar reference path.
+! lGridPreviousSolutionSeedActive Independent default-off switch for prior active constitutions.
+! nGridPoint/nGridFraction        Ragged static-grid row and stored-constitution sizes.
+! iGridPhaseEvaluationMode        Typed per-phase batch-kernel or scalar-fallback outcome.
+! nGrid*Pass                      Static and fixed-plane refinement Leveling exchange counts.
+! iGridPhaseClass/Status          Structural generator class and typed per-phase outcome.
+! iGridPhaseLayerRung             Selected budget rung for each phase and dimensional layer.
+! nGridProjectionFailure*         Total, per-phase, and typed-status counts for fatal
+!                                 companion-projection failures during grid emission.
+! nGridFallback/iGridFallbackReason
+!                                 One-shot fallback request and typed reason.  Static-grid discovery
+!                                 fails closed because no reentrant production solve boundary exists.
+! iGridSwallowedInfo/Stage        Bounded record of nonzero INFOThermo values translated into grid outcomes.
+! lLevelingRowExcluded            Typed eligibility mask consumed while Leveling prices candidate rows.
+! dGEMTimingGrid*                 Grid generation and fixed-plane refinement CPU-time buckets.
 !
 !
 ! Numerical parameters:
@@ -261,11 +222,14 @@
 ! nPEADirectHandoff*          C4-a passive counters for direct inactive-witness PEA handoffs.
 ! nPEARepeatExit*           C4-a passive counters for repeated-handoff PEA exits.
 ! nPEARepeatGuard        C4-a context counter for the KEEP repeated-Leveling-assemblage guard.
+! iPEAExitStatus/Reason  Final CheckPhaseAssemblage exit certificate status and path reason.
 ! dGEMTiming*             Per-minimization passive CPU-time buckets for Leveling, direct
 !                         Level2Lagrange handoff, CheckPhaseAssemblage/PEA, and
 !                         fixed-active-set Lagrangian GEM.
 ! nGEMCertificationSweep  Per-minimization count of inactive-candidate driving-force
 !                         refresh/certification sweeps.
+! nSUBLHessianEndmemberProjectionCall
+!                         Per-minimization count of full CEF site-to-endmember Hessian projections.
 !
 !
 ! Primary callers/users:
@@ -313,16 +277,114 @@ module ModuleGEMSolver
     integer, parameter                         :: PHASE_CHANGE_REASON_LAGRANGIAN_UNCONVERGED = 7
     integer, parameter                         :: GEM_EXIT_STATUS_OK = 0
     integer, parameter                         :: GEM_EXIT_STATUS_LAGRANGIAN_UNCONVERGED = 1
+    integer, parameter                         :: GEM_EXIT_STATUS_PEA_UNCERTIFIED_HANDOFF = 2
+    integer, parameter                         :: PEA_EXIT_STATUS_UNKNOWN = 0
+    integer, parameter                         :: PEA_EXIT_STATUS_CERTIFIED_SETTLED = 1
+    integer, parameter                         :: PEA_EXIT_STATUS_UNSETTLED = 2
+    integer, parameter                         :: PEA_EXIT_REASON_NONE = 0
+    integer, parameter                         :: PEA_EXIT_REASON_ERROR_DIRECT_HANDOFF = 1
+    integer, parameter                         :: PEA_EXIT_REASON_ERROR_LEVELING = 2
+    integer, parameter                         :: PEA_EXIT_REASON_COMPOUNDS_ONLY = 3
+    integer, parameter                         :: PEA_EXIT_REASON_SINGLE_PHASE_UNITY = 4
+    integer, parameter                         :: PEA_EXIT_REASON_SETTLED = 5
+    integer, parameter                         :: PEA_EXIT_REASON_POLISH_HANDOFF = 6
+    integer, parameter                         :: PEA_EXIT_REASON_REPEATED_HANDOFF = 7
+    integer, parameter                         :: PEA_EXIT_REASON_MAX_ITER = 8
     integer, parameter                         :: SUBMIN_CANDIDATE_UNKNOWN = 0
     integer, parameter                         :: SUBMIN_CANDIDATE_CONVERGED = 1
     integer, parameter                         :: SUBMIN_CANDIDATE_NEGATIVE_WITNESS = 2
     integer, parameter                         :: SUBMIN_CANDIDATE_REJECTED = 3
     integer, parameter                         :: SUBMIN_CANDIDATE_DUPLICATE = 4
     integer, parameter                         :: SUBMIN_CANDIDATE_MAX_ITER = 5
+    integer, parameter                         :: PEA_CANDIDATE_PROVISIONAL_GRID_SEED = 6
+    integer, parameter                         :: PEA_DF_SWEEP_NOT_RUN = 0
+    integer, parameter                         :: PEA_DF_SWEEP_COMMITTED = 1
+    integer, parameter                         :: PEA_DF_SWEEP_UNKNOWN = 2
+    integer, parameter                         :: PEA_DF_SWEEP_FAILED = 3
+    integer, parameter                         :: GEM_CERT_STATUS_UNKNOWN = 0
+    integer, parameter                         :: GEM_CERT_STATUS_FRESH_NEGATIVE = 1
+    integer, parameter                         :: GEM_CERT_STATUS_FAVORABLE = 2
+    integer, parameter                         :: GEM_CERT_STATUS_FAILED = 3
+    integer, parameter                         :: GEM_CERT_STATUS_DUPLICATE = 4
+    integer, parameter                         :: GEM_CERT_BASIS_ENDMEMBER_FRACTION = 1
+    integer, parameter                         :: GEM_CERT_BASIS_SITE_FRACTION = 2
+    integer, parameter                         :: GEM_CERT_BASIS_PAIR_FRACTION = 3
+    integer, parameter                         :: GEM_CERT_BASIS_QUADRUPLET_FRACTION = 4
+    integer, parameter                         :: GEM_CERT_NORMALIZATION_PER_MOLE_ATOMS = 1
+    integer, parameter                         :: GEM_CERT_PROOF_UNKNOWN = 0
+    integer, parameter                         :: GEM_CERT_PROOF_SUBMIN_CONVERGED = 1
+    integer, parameter                         :: GEM_CERT_PROOF_NEGATIVE_WITNESS = 2
+    integer, parameter                         :: GEM_CERT_PROOF_MAX_ITER = 3
+    integer, parameter                         :: GEM_CERT_PROOF_REJECTED = 4
+    integer, parameter                         :: GEM_CERT_PROOF_DUPLICATE = 5
     integer, parameter                         :: SUBOM_TRACE_REGISTER = 1
     integer, parameter                         :: SUBOM_TRACE_REFRESH = 2
     integer, parameter                         :: SUBOM_TRACE_HANDOFF = 3
     integer, parameter                         :: SUBOM_TRACE_SOLVER_SLOT = 4
+    integer, parameter                         :: OD_CANDIDATE_NOT_EVALUATED = 0
+    integer, parameter                         :: OD_CANDIDATE_DISORDERED = 1
+    integer, parameter                         :: OD_CANDIDATE_ORDERED = 2
+    integer, parameter                         :: OD_CANDIDATE_AMBIGUOUS_UNSTABLE = 3
+    integer, parameter                         :: OD_CANDIDATE_AMBIGUOUS_COMPANION = 4
+    integer, parameter                         :: OD_CANDIDATE_EVALUATION_FAILED = 5
+    integer, parameter                         :: OD_CANDIDATE_ORDERED_COMPANION_UNSTABLE = 6
+    integer, parameter                         :: OD_CANDIDATE_DISORDERED_PROJECTED = 7
+    integer, parameter                         :: OD_CANDIDATE_AMBIGUOUS_ROUNDOFF = 8
+    integer, parameter                         :: OD_CANDIDATE_AMBIGUOUS_NODE = 9
+    integer, parameter                         :: OD_TOPOLOGY_NOT_EVALUATED = 0
+    integer, parameter                         :: OD_TOPOLOGY_HELPER_STANDALONE = 1
+    integer, parameter                         :: OD_TOPOLOGY_DIRECT_TARGET = 2
+    integer, parameter                         :: OD_TOPOLOGY_HELPER_ONLY = 3
+    integer, parameter                         :: OD_TOPOLOGY_AMBIGUOUS = 4
+    integer, parameter                         :: OD_TOPOLOGY_LEGACY_NO_METADATA = 5
+    integer, parameter                         :: OD_TOPOLOGY_UNSUPPORTED_PROJECTION = 6
+    integer, parameter                         :: OD_PROJECTION_TOPOLOGY_UNSUPPORTED = 0
+    integer, parameter                         :: OD_PROJECTION_TOPOLOGY_B2 = 1
+    integer, parameter                         :: OD_PROJECTION_TOPOLOGY_L1 = 2
+    integer, parameter                         :: OD_PROJECTION_SUCCESS = 0
+    integer, parameter                         :: OD_PROJECTION_INVALID_INPUT = 1
+    integer, parameter                         :: OD_PROJECTION_EMPTY_COMPOSITION = 2
+    integer, parameter                         :: OD_PROJECTION_AMBIGUOUS_TOPOLOGY = 3
+    integer, parameter                         :: LEVEL_CANDIDATE_SOURCE_SUBMIN = 1
+    integer, parameter                         :: LEVEL_CANDIDATE_SOURCE_GRID = 2
+    integer, parameter                         :: GRID_PHASE_CLASS_NONE = 0
+    integer, parameter                         :: GRID_PHASE_CLASS_SIMPLEX = 1
+    integer, parameter                         :: GRID_PHASE_CLASS_ENDMEMBER_MIX = 2
+    integer, parameter                         :: GRID_PHASE_CLASS_DISORDERED_MANIFOLD = 3
+    integer, parameter                         :: GRID_PHASE_STATUS_NOT_EVALUATED = 0
+    integer, parameter                         :: GRID_PHASE_STATUS_GENERATED = 1
+    integer, parameter                         :: GRID_PHASE_STATUS_HELPER_SKIPPED = 2
+    integer, parameter                         :: GRID_PHASE_STATUS_UNSUPPORTED = 3
+    integer, parameter                         :: GRID_PHASE_STATUS_VERTEX_OVERFLOW = 4
+    integer, parameter                         :: GRID_PHASE_STATUS_PROJECTION_FAILED = 5
+    integer, parameter                         :: GRID_EVALUATION_NOT_RUN = 0
+    integer, parameter                         :: GRID_EVALUATION_BATCH_CEF = 1
+    integer, parameter                         :: GRID_EVALUATION_BATCH_RKMP = 2
+    integer, parameter                         :: GRID_EVALUATION_SCALAR_REFERENCE = 3
+    integer, parameter                         :: GRID_EVALUATION_SCALAR_UNSUPPORTED = 4
+    integer, parameter                         :: GRID_EVALUATION_SCALAR_KERNEL_ERROR = 5
+    integer, parameter                         :: GRID_FALLBACK_NONE = 0
+    integer, parameter                         :: GRID_FALLBACK_EMPTY_GRID = 1
+    integer, parameter                         :: GRID_FALLBACK_LAGRANGIAN = 2
+    integer, parameter                         :: GRID_FALLBACK_CERTIFICATE = 3
+    integer, parameter                         :: GRID_FALLBACK_WORKFLOW_ERROR = 4
+    integer, parameter                         :: GRID_FALLBACK_STATE_SHAPE = 5
+    integer, parameter                         :: GRID_INFO_STAGE_ENTRY = 1
+    integer, parameter                         :: GRID_INFO_STAGE_REFINEMENT = 2
+    integer, parameter                         :: GRID_INFO_STAGE_HANDOFF = 3
+    integer, parameter                         :: GRID_INFO_STAGE_CERTIFICATE = 4
+    integer, parameter                         :: GRID_SWALLOWED_INFO_CAP = 8
+    integer, parameter                         :: GRID_REFINEMENT_STATUS_NONE = 0
+    integer, parameter                         :: GRID_REFINEMENT_STATUS_SETTLED = 1
+    integer, parameter                         :: GRID_REFINEMENT_STATUS_REPEATED_SINGULAR_HANDOFF = 2
+    integer, parameter                         :: GRID_REFINEMENT_STATUS_UNDERFILLED_SINGULAR_HANDOFF = 3
+    integer, parameter                         :: GRID_REFINEMENT_STATUS_ERROR = 4
+    integer, parameter                         :: GRID_LAYER_VERTICES = 1
+    integer, parameter                         :: GRID_LAYER_EDGES = 2
+    integer, parameter                         :: GRID_LAYER_TERNARY = 3
+    integer, parameter                         :: GRID_LAYER_QUATERNARY = 4
+    integer, parameter                         :: GRID_LAYER_INTERIOR = 5
+    integer, parameter                         :: GRID_PHASE_POINT_CAP = 4096
     integer, parameter                         :: iterGlobalMax = 1000
     integer, parameter                         :: iTraceSpeciesSlowProgressWindow = 3
     integer, parameter                         :: iTraceSpeciesMinIterBeforeReinject = 3
@@ -387,6 +449,7 @@ module ModuleGEMSolver
     integer                                    :: iGEMPreLMODOrdPhase
     integer                                    :: iGEMPreLMODCompPhase
     integer                                    :: iGEMAnalyticalHessianFallbackCount
+    integer                                    :: nSUBLHessianEndmemberProjectionCall = 0
     integer                                    :: iGEMCEFResidualLMFallbackCount
     integer                                    :: iGEMResidualLMUsed
     integer                                    :: iGEMResidualLMRawNegativeUsed
@@ -478,12 +541,63 @@ module ModuleGEMSolver
     integer                                    :: iPEARepeatExitReason = 0
     integer                                    :: nPEARepeatExit = 0
     integer                                    :: nPEARepeatGuard = 0
+    integer                                    :: iPEAExitStatus = PEA_EXIT_STATUS_UNKNOWN
+    integer                                    :: iPEAExitReason = PEA_EXIT_REASON_NONE
+    integer                                    :: iPEAExitFreshMinPointSweep = 0
+    integer                                    :: iPEAUncertifiedHandoffSeen = 0
     integer                                    :: nPEARecorded = 0
     integer                                    :: nSUBOMTwoSetStored = 0
     integer                                    :: nSUBOMTwoSetTrace = 0
     integer                                    :: nSUBOMTwoSetTraceCapacity = 0
     integer                                    :: nSUBOMOrderingGateEvaluated = 0
     integer                                    :: nGEMCertificationSweep = 0
+    integer                                    :: iGridPoolGeneration = 0
+    integer                                    :: iPEAPlaneGeneration = 0
+    integer                                    :: iPEADFSweepGeneration = 0
+    integer                                    :: iPEADFSweepCommittedPlaneGeneration = 0
+    integer                                    :: iPEADFSweepOutcome = PEA_DF_SWEEP_NOT_RUN
+    integer                                    :: nPEADFSweepAttempted = 0
+    integer                                    :: nPEADFSweepCommitted = 0
+    integer                                    :: nPEADFSweepUnknown = 0
+    integer                                    :: nPEADFSweepFailed = 0
+    integer                                    :: nPEADFPendingWitness = 0
+    integer                                    :: nPEADFSweepRecordCapacity = 0
+    integer                                    :: nPEADFSweepFractionCapacity = 0
+    integer                                    :: nPEADFSweepStagingRecord = 0
+    integer                                    :: nPEADFSweepStagingFraction = 0
+    integer                                    :: nPEADFSweepCommittedRecord = 0
+    integer                                    :: nPEADFSweepCommittedFraction = 0
+    integer                                    :: iPEADFSweepInjectFailureAfter = 0
+    integer                                    :: iPEADFSweepInjectUnknownAfter = 0
+    integer                                    :: iPEADFSweepCapacityOverride = 0
+    integer                                    :: nGEMCertCapacity = 0
+    integer                                    :: nGEMCertCount = 0
+    integer                                    :: nGEMCertEmissionCount = 0
+    integer                                    :: nGEMCertDropped = 0
+    integer                                    :: nGEMInitialLevelingPass = 0
+    integer                                    :: nGridPoint = 0
+    integer                                    :: nGridFraction = 0
+    integer                                    :: nGridLevelingPass = 0
+    integer                                    :: nGridRefinementLevelingPass = 0
+    integer                                    :: iGridRefinementStatus = GRID_REFINEMENT_STATUS_NONE
+    integer                                    :: iGridLevelingRepeatedAssemblage = 0
+    integer                                    :: nGridBudgetCoarsening = 0
+    integer                                    :: nGridBudgetDroppedPoint = 0
+    integer                                    :: nGridPreviousSeed = 0
+    integer                                    :: nGridPreviousSeedAccepted = 0
+    integer                                    :: nGridPreviousSeedDropped = 0
+    integer                                    :: nGridFallback = 0
+    integer                                    :: iGridFallbackReason = GRID_FALLBACK_NONE
+    integer                                    :: nGridCertificateSweep = 0
+    integer                                    :: nGridRecoveryAttempt = 0
+    integer                                    :: nGridSwallowedInfo = 0
+    integer                                    :: nGridSwallowedInfoDropped = 0
+    integer                                    :: nGridProjectionFailure = 0
+    integer                                    :: nGridBatchPhase = 0
+    integer                                    :: nGridScalarFallbackPhase = 0
+    integer, dimension(OD_PROJECTION_AMBIGUOUS_TOPOLOGY) :: nGridProjectionFailureStatus = 0
+    integer, dimension(GRID_SWALLOWED_INFO_CAP) :: iGridSwallowedInfo = 0
+    integer, dimension(GRID_SWALLOWED_INFO_CAP) :: iGridSwallowedInfoStage = 0
 
     ! Real scalars:
     real(8)                                    :: dGEMFunctionNorm, dGEMFunctionNormLast
@@ -554,17 +668,26 @@ module ModuleGEMSolver
     real(8)                                    :: dPEALagrangianPolishNormBefore = 0D0
     real(8)                                    :: dPEALagrangianPolishNormAfter = 0D0
     real(8)                                    :: dPEALagrangianPolishPotentialChange = 0D0
+    real(8)                                    :: dPEAExitMinPhasePotential = 0D0
+    real(8)                                    :: dPEAExitTolerance = 0D0
     real(8)                                    :: dGEMTimingLeveling = 0D0
     real(8)                                    :: dGEMTimingHandoff = 0D0
     real(8)                                    :: dGEMTimingPEA = 0D0
     real(8)                                    :: dGEMTimingLagrangian = 0D0
     real(8)                                    :: dGEMTimingCertification = 0D0
+    real(8)                                    :: dGEMTimingGridGeneration = 0D0
+    real(8)                                    :: dGEMTimingGridRefinement = 0D0
 
     ! Logical scalars:
     logical                                    :: lDebugMode, lRevertSystem, lConverged, lSubConverged
     logical                                    :: lNegativeMolesPhase, lGibbsMinCheck, lPhaseChange
     logical                                    :: lCompbdOnly, lPostProcess, lTraceSpeciesControlEnabled
     logical                                    :: lSampledLevelingThermoExtended = .FALSE.
+    logical                                    :: lGridFrontEndActive = .TRUE.
+    logical                                    :: lGridBatchKernelActive = .TRUE.
+    logical                                    :: lGridPreviousSolutionSeedActive = .FALSE.
+    logical                                    :: lGridRefinementSweepActive = .FALSE.
+    logical                                    :: lGridRecoveryPassActive = .FALSE.
     logical                                    :: lGEMCEFSiteLagrangianEnabled = .FALSE.
     logical                                    :: lGEMCEFSiteLagrangianActive = .FALSE.
     logical                                    :: lGEMCEFSiteDirectionActive = .FALSE.
@@ -572,10 +695,17 @@ module ModuleGEMSolver
     logical                                    :: lGEMCEFInertiaRegularizationEnabled = .FALSE.
     logical                                    :: lGEMCEFInertiaRegularizationActive = .FALSE.
     logical                                    :: lGEMCEFBndPhaseActive = .FALSE.
+    logical                                    :: lSUBLHessianSiteOnlyActive = .FALSE.
+    logical                                    :: lGridPoolValid = .FALSE.
+    logical                                    :: lPEADFSweepStagingActive = .FALSE.
+    logical                                    :: lPEADFSweepReversePhaseOrder = .FALSE.
     logical                                    :: lPEALagrangianPolishEnabled = .TRUE.
     logical                                    :: lPEALagrangianPolishActive = .FALSE.
     logical                                    :: lPEALagrangianPolishAccepted = .FALSE.
     logical                                    :: lSUBOMTwoSetCandidateEnabled = .FALSE.
+    logical                                    :: lODPartitionUnifiedActive = .FALSE.
+    logical                                    :: lODCandidateClassifyActive = .FALSE.
+    logical                                    :: lODCommittedOwnershipApplied = .FALSE.
     logical                                    :: lSUBQStandaloneEnabled = .TRUE.
 
 
@@ -657,9 +787,22 @@ module ModuleGEMSolver
     integer, dimension(:), allocatable         :: iLevelCandidateIdentityOrdinal
     integer, dimension(:), allocatable         :: iLevelCandidateFromLevel
     integer, dimension(:), allocatable         :: iSubMinCandidateStatusSoln
+    integer, dimension(:), allocatable         :: iGEMCertPhase
+    integer, dimension(:), allocatable         :: iGEMCertCopy
+    integer, dimension(:), allocatable         :: iGEMCertLevelRow
+    integer, dimension(:), allocatable         :: iGEMCertBasis
+    integer, dimension(:), allocatable         :: iGEMCertNorm
+    integer, dimension(:), allocatable         :: iGEMCertStatus
+    integer, dimension(:), allocatable         :: iGEMCertProof
+    integer, dimension(:), allocatable         :: iGEMCertSubMinStatus
+    integer, dimension(:), allocatable         :: iGEMCertRank
+    integer, dimension(:), allocatable         :: iGEMCertFirstSpecies
+    integer, dimension(:), allocatable         :: iGEMCertLastSpecies
     integer, dimension(:), allocatable         :: iGEMCEFPhaseSlot, iGEMCEFPhaseSoln, iGEMCEFPhaseSpecies
     integer, dimension(:), allocatable         :: iGEMCEFVarPhaseVar, iGEMCEFVarSolnPhase, iGEMCEFVarPhaseID
     integer, dimension(:), allocatable         :: iGEMCEFVarSub, iGEMCEFVarCon, iGEMCEFVarRef
+    integer, dimension(:), allocatable         :: nGEMCEFVarTie
+    integer, dimension(:,:), allocatable       :: iGEMCEFVarTieSub
     integer, dimension(:), allocatable         :: iLevel2LagrangeInputAssemblage
     integer, dimension(:), allocatable         :: iLevel2LagrangeInputPhase
     integer, dimension(:), allocatable         :: iLevel2LagrangeInputCandidate
@@ -668,7 +811,12 @@ module ModuleGEMSolver
     integer, dimension(:), allocatable         :: iActiveSlotThermoPhase
     integer, dimension(:), allocatable         :: iActiveSlotDisplayPhase
     integer, dimension(:), allocatable         :: iActiveSlotIdentityOrdinal
+    integer, dimension(:), allocatable         :: iActiveSlotODClass
     integer, dimension(:), allocatable         :: iPEALevelIterHist
+    integer, dimension(:), allocatable         :: iPEAPlaneGenerationHist
+    integer, dimension(:), allocatable         :: iPEADFSweepGenerationHist
+    integer, dimension(:), allocatable         :: iPEADFSweepOutcomeHist
+    integer, dimension(:), allocatable         :: iPEADFPendingWitnessHist
     integer, dimension(:), allocatable         :: iPEAPolishAttemptHist
     integer, dimension(:), allocatable         :: iPEAPolishAcceptedHist
     integer, dimension(:), allocatable         :: iPEAPolishReasonHist
@@ -694,6 +842,39 @@ module ModuleGEMSolver
     integer, dimension(:), allocatable         :: iSUBOMOrderingGateIterPEA
     integer, dimension(:), allocatable         :: iSUBOMOrderingGateModeCount
     integer, dimension(:), allocatable         :: iSUBOMOrderingGateInfo
+    integer, dimension(:), allocatable         :: iODCandidateClass
+    integer, dimension(:), allocatable         :: iODCandidateCompanionPhase
+    integer, dimension(:), allocatable         :: iGridPointPhase, iGridPointDisplayPhase
+    integer, dimension(:), allocatable         :: iGridPointStatus, iGridPointIdentityOrdinal
+    integer, dimension(:), allocatable         :: iGridPointLevelRow
+    integer, dimension(:), allocatable         :: iGridPointFractionOffset
+    integer, dimension(:), allocatable         :: iGridPointFractionSize
+    integer, dimension(:), allocatable         :: iGridPointFromLevel
+    integer, dimension(:), allocatable         :: nGridPhasePoint
+    integer, dimension(:), allocatable         :: nGridPhaseProjectionFailure
+    integer, dimension(:), allocatable         :: iGridPhaseClass, iGridPhaseStatus
+    integer, dimension(:), allocatable         :: iGridPhaseEvaluationMode
+    integer, dimension(:,:), allocatable       :: iGridPhaseLayerRung
+    integer, dimension(:), allocatable         :: iGridPreviousSeedPhase
+    integer, dimension(:), allocatable         :: iGridPreviousSeedFractionOffset
+    integer, dimension(:), allocatable         :: iGridPreviousSeedFractionSize
+    integer, dimension(:), allocatable         :: iLevelCandidateSubMinStatus
+    integer, dimension(:), allocatable         :: iLevelCandidateStaticRow
+    integer, dimension(:), allocatable         :: iPEADFSweepStagingParent, iPEADFSweepStagingDisplay
+    integer, dimension(:), allocatable         :: iPEADFSweepStagingRepresentation
+    integer, dimension(:), allocatable         :: iPEADFSweepStagingOrdinal, iPEADFSweepStagingStartRank
+    integer, dimension(:), allocatable         :: iPEADFSweepStagingStatus, iPEADFSweepStagingProof
+    integer, dimension(:), allocatable         :: iPEADFSweepStagingBasis
+    integer, dimension(:), allocatable         :: iPEADFSweepStagingFractionOffset
+    integer, dimension(:), allocatable         :: iPEADFSweepStagingFractionSize
+    integer, dimension(:), allocatable         :: iPEADFSweepCommittedParent, iPEADFSweepCommittedDisplay
+    integer, dimension(:), allocatable         :: iPEADFSweepCommittedRepresentation
+    integer, dimension(:), allocatable         :: iPEADFSweepCommittedOrdinal, iPEADFSweepCommittedStartRank
+    integer, dimension(:), allocatable         :: iPEADFSweepCommittedStatus, iPEADFSweepCommittedProof
+    integer, dimension(:), allocatable         :: iPEADFSweepCommittedBasis
+    integer, dimension(:), allocatable         :: iPEADFSweepCommittedFractionOffset
+    integer, dimension(:), allocatable         :: iPEADFSweepCommittedFractionSize
+    integer, dimension(:), allocatable         :: iPEADFSweepCommittedWitnessPending
 
     ! Real 1D arrays:
     real(8), dimension(:), allocatable         :: dSumMolFractionSoln, dMolesPhaseLast
@@ -786,12 +967,31 @@ module ModuleGEMSolver
     real(8), dimension(:), allocatable         :: dPEAPolishPotentialChangeHist
     real(8), dimension(:), allocatable         :: dSUBOMTwoSetTraceAmount
     real(8), dimension(:), allocatable         :: dSUBOMOrderingGateEigenMin
+    real(8), dimension(:), allocatable         :: dODCandidateCurrentGibbs
+    real(8), dimension(:), allocatable         :: dODCandidateDisorderedGibbs
+    real(8), dimension(:), allocatable         :: dODCandidateOrderingEigenMin
+    real(8), dimension(:), allocatable         :: dODCompanionEigenMin
+    real(8), dimension(:), allocatable         :: dGEMCertDrivingForce
+    real(8), dimension(:), allocatable         :: dGEMCertTiming
+    real(8), dimension(:), allocatable         :: dGridPointFraction
+    real(8), dimension(:), allocatable         :: dGridPointGibbs
+    real(8), dimension(:,:), allocatable       :: dGridPointComposition, dGridPointStoich
+    real(8), dimension(:), allocatable         :: dPEADFSweepStagingDF, dPEADFSweepStagingTiming
+    real(8), dimension(:), allocatable         :: dPEADFSweepStagingFraction
+    real(8), dimension(:,:), allocatable       :: dPEADFSweepStagingPlane
+    real(8), dimension(:), allocatable         :: dPEADFSweepCommittedDF, dPEADFSweepCommittedTiming
+    real(8), dimension(:), allocatable         :: dPEADFSweepCommittedFraction
+    real(8), dimension(:,:), allocatable       :: dPEADFSweepCommittedPlane
+    real(8), dimension(:), allocatable         :: dGridPreviousSeedFraction
 
     ! Logical 1D arrays:
     logical, dimension(:), allocatable         :: lSolnPhases, lMiscibility, lPhaseChangeHistory
+    logical, dimension(:), allocatable         :: lGridRecoveryPhase
+    logical, dimension(:), allocatable         :: lLevelingRowExcluded
     logical, dimension(:), allocatable         :: lTraceSpeciesInactive, lTraceSpeciesReinjected
     logical, dimension(:), allocatable         :: lGEMAnalyticalSpeciesDirection
     logical, dimension(:), allocatable         :: lSUBOMOrderingGateUnstable
+    logical, dimension(:), allocatable         :: lActiveSlotPropValid
 
 
     ! Integer 2D arrays:
@@ -805,10 +1005,15 @@ module ModuleGEMSolver
     real(8), dimension(:,:), allocatable       :: dMolesPhaseHistory, dEffStoichSolnPhase
     real(8), dimension(:,:), allocatable       :: dMolFractionGEM
     real(8), dimension(:,:), allocatable       :: dActiveSlotMolFraction
+    real(8), dimension(:,:), allocatable       :: dActiveSlotChemPot
+    real(8), dimension(:,:), allocatable       :: dActiveSlotPartialH
+    real(8), dimension(:,:), allocatable       :: dActiveSlotPartialS
+    real(8), dimension(:,:), allocatable       :: dActiveSlotPartialCp
     real(8), dimension(:,:,:), allocatable     :: dActiveSlotSiteFraction
     real(8), dimension(:,:), allocatable       :: dStoichSpeciesGEMinit, dAtomFractionSpeciesGEMinit
     real(8), dimension(:,:), allocatable       :: dMolFractionGEMinit
     real(8), dimension(:,:), allocatable       :: dLevelCandidateMolFraction
+    real(8), dimension(:,:), allocatable       :: dGEMCertPlane
     real(8), dimension(:,:), allocatable       :: dSUBOMTwoSetStoredMol
     real(8), dimension(:,:), allocatable       :: dGEMLSRawPhaseMolesHist
     real(8), dimension(:,:), allocatable       :: dGEMLSFinalPhaseMolesHist
@@ -819,5 +1024,8 @@ module ModuleGEMSolver
     real(8), dimension(:,:,:), allocatable     :: dGEMCEFSiteLast
     real(8), dimension(:,:,:), allocatable     :: dGEMCEFPhaseSiteLast
     real(8), dimension(:,:,:), allocatable     :: dSUBOMTwoSetTraceSite
+
+    ! Character arrays:
+    character(25), dimension(:), allocatable   :: cGridPreviousSeedPhaseName
 
 end module ModuleGEMSolver

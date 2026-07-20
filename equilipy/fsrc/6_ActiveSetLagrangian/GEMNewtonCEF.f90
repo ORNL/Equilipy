@@ -9,37 +9,14 @@
 !> \sa      CompGradientSUBL.f90
 !> \sa      CompHessianSUBL.f90
 !
-! Revisions:
-! ==========
-!
-!   Date            Programmer          Description of change
-!   ----            ----------          ---------------------
-!   06/25/2026      S.Y. Kwon           Added mixed-coordinate CEF Lagrangian Newton direction.
-!   06/25/2026      S.Y. Kwon           Computed CEF composition and mass Jacobian terms from numeric
-!                                        species stoichiometry.
-!   06/28/2026      S.Y. Kwon           Generalized the guarded site-fraction path to mixed active sets
-!                                        with CEF site variables and supported non-CEF fraction variables.
-!   06/28/2026      S.Y. Kwon           Corrected non-CEF phase-row residuals to use molar solution Gibbs
-!                                        energy on the same basis as the phase-composition plane.
-!   07/01/2026      S.Y. Kwon           Documented the CEF handoff-to-site-fraction conversion contract.
-!   07/01/2026      S.Y. Kwon           Excluded lower-bound CEF trace site variables from the Newton map
-!                                        unless their exchange residual indicates growth.
-!   07/01/2026      S.Y. Kwon           Added an optional residual Levenberg direction for CEF KKT
-!                                        stagnation after the analytical site Hessian gives no descent.
-!   07/02/2026      S.Y. Kwon           Added passive KKT pivot and direction-norm diagnostics for
-!                                        main and residual-LM CEF solves.
-!   07/02/2026      S.Y. Kwon           Reported 2x2 pivot scale from eigenvalues so near-null
-!                                        Bunch-Kaufman blocks are not hidden by large off-diagonal entries.
-!   07/02/2026      S.Y. Kwon           Counted SUBG/SUBQ ride-along activation in mixed CEF active sets.
-!   07/03/2026      S.Y. Kwon           Stored phase stationarity residuals for passive lower-bound
-!                                        complementarity diagnostics.
-!   07/03/2026      S.Y. Kwon           Added a bound-active phase-amount KKT retry for
-!                                        complementarity-valid raw negative CEF phase directions.
-!   07/04/2026      S.Y. Kwon           Added C3-c1 primal-block Levenberg retries when KKT inertia is wrong.
-!   07/05/2026      S.Y. Kwon           Seeded lower-bound CEF site constituents with growth residuals
-!                                        so trace components can leave the numerical floor.
-!
-!
+    ! Revisions:
+    ! ==========
+    !
+    !   Date            Programmer          Description of change
+    !   ----            ----------          ---------------------
+    !   07/20/2026      S.Y. Kwon           Preserved tied-sublattice composition-set identities and requested only the site Hessian consumed by CEF Newton.
+    !
+    !
 ! Purpose:
 ! ========
 !
@@ -132,16 +109,7 @@ subroutine UseCEFLagrangian(lUseCEF)
     !
     !   Date            Programmer          Description of change
     !   ----            ----------          ---------------------
-    !   07/02/2026      S.Y. Kwon           Activated the mixed-coordinate path for RKMP/QKTO-only active
-    !                                        sets so ordinary solution fractions are solved explicitly.
-    !   07/04/2026      S.Y. Kwon           Added default-off standalone SUBG/SUBQ routing switch for
-    !                                        C1-b0 plumbing.
-    !   07/04/2026      S.Y. Kwon           Counted SUBG/SUBQ ride-along whenever any supported
-    !                                        mixed-coordinate route is active.
-    !   07/04/2026      S.Y. Kwon           Allowed IDMX gas phases to join the switched SUBG/SUBQ
-    !                                        mixed-coordinate route.
-    !   07/04/2026      S.Y. Kwon           Promoted standalone SUBG/SUBQ mixed-coordinate routing to
-    !                                        the production default.
+    !   07/20/2026      S.Y. Kwon           Routed supported non-CEF solutions through the mixed-coordinate Newton system alongside CEF phases.
     !
     !
     ! Purpose:
@@ -288,6 +256,7 @@ subroutine GEMNewtonCEF(INFOLocal)
     real(8), allocatable :: dPhaseComp(:), dSiteCompDeriv(:)
     real(8), allocatable :: dSiteResidualByVar(:)
     logical :: lCEFPhaseLocal, lInitialInertiaWrong, lRegularizationAccepted
+    logical :: lSiteOnlySave
     logical :: lInertiaRegularized
 
     INFOLocal = 0
@@ -417,8 +386,11 @@ subroutine GEMNewtonCEF(INFOLocal)
                 INFOLocal = iInfo
                 exit
             end if
+            lSiteOnlySave = lSUBLHessianSiteOnlyActive
+            lSUBLHessianSiteOnlyActive = .TRUE.
             call CompHessianSUBL(k, nSiteCapacity, nSpeciesCapacity, dSiteHessian, &
                 dAmountHessian, dJacobian, nSiteOut, nSpeciesOut, iInfo)
+            lSUBLHessianSiteOnlyActive = lSiteOnlySave
             if (iInfo /= 0) then
                 INFOLocal = iInfo
                 exit
@@ -440,10 +412,9 @@ subroutine GEMNewtonCEF(INFOLocal)
             if (lCEFPhaseLocal) then
                 iPhaseID = iGEMCEFVarPhaseID(iSiteVar)
                 s = iGEMCEFVarSub(iSiteVar)
-                call ComputeCEFCompositionDerivative(k, iPhaseID, s, c, r, &
+                call ComputeCEFVariableCompositionDerivative(iSiteVar, &
                     dGEMCEFPhaseSiteLast(p,:,:), dSiteCompDeriv)
-                dSiteResidual = dSiteGradient(LocalCEFIndex(iPhaseID,s,c)) - &
-                    dSiteGradient(LocalCEFIndex(iPhaseID,s,r)) - &
+                dSiteResidual = CEFVariableGradientDifference(iSiteVar, dSiteGradient) - &
                     SUM(dElementPotential(1:nElements) * dSiteCompDeriv(1:nElements))
             else
                 call ComputeNonCEFCompositionDerivative(k, c, r, dSiteCompDeriv)
@@ -470,8 +441,8 @@ subroutine GEMNewtonCEF(INFOLocal)
                 if (iGEMCEFVarPhaseVar(j) /= p) cycle
                 q = nGEMCEFPhaseVariables + j
                 if (lCEFPhaseLocal) then
-                    A(iSiteRow,q) = dPhaseAmount * ProjectCEFHessian(dSiteHessian, iPhaseID, &
-                        s, c, r, iGEMCEFVarSub(j), iGEMCEFVarCon(j), iGEMCEFVarRef(j))
+                    A(iSiteRow,q) = dPhaseAmount * &
+                        ProjectCEFVariableHessian(dSiteHessian, iPhaseID, iSiteVar, j)
                 else
                     A(iSiteRow,q) = dPhaseAmount * ProjectNonCEFHessian(dAmountHessian, &
                         c, r, iGEMCEFVarCon(j), iGEMCEFVarRef(j))
@@ -522,7 +493,7 @@ subroutine GEMNewtonCEF(INFOLocal)
         r = iGEMCEFVarRef(iSiteVar)
         if (iPhaseID > 0) then
             s = iGEMCEFVarSub(iSiteVar)
-            call ComputeCEFCompositionDerivative(iGEMCEFVarSolnPhase(iSiteVar), iPhaseID, s, c, r, &
+            call ComputeCEFVariableCompositionDerivative(iSiteVar, &
                 dGEMCEFPhaseSiteLast(p,:,:), dSiteCompDeriv)
         else
             call ComputeNonCEFCompositionDerivative(iGEMCEFVarSolnPhase(iSiteVar), c, r, dSiteCompDeriv)
@@ -1139,11 +1110,9 @@ contains
                     iInfoOut = iInfoLocal
                     exit
                 end if
-                call ComputeCEFCompositionDerivative(iSolnPhaseLocal, iPhaseIDLocal, iSubLocal, &
-                    iConLocal, iRefLocal, &
+                call ComputeCEFVariableCompositionDerivative(iSiteVar, &
                     dGEMCEFPhaseSiteLast(iGEMCEFVarPhaseVar(iSiteVar),:,:), dSiteDerivativeLocal)
-                dResidualOut(iRowLocal) = dGradientLocal(LocalCEFIndex(iPhaseIDLocal,iSubLocal,iConLocal)) - &
-                    dGradientLocal(LocalCEFIndex(iPhaseIDLocal,iSubLocal,iRefLocal)) - &
+                dResidualOut(iRowLocal) = CEFVariableGradientDifference(iSiteVar, dGradientLocal) - &
                     SUM(dElementPotential(1:nElements) * dSiteDerivativeLocal(1:nElements))
             else
                 call ComputeNonCEFCompositionDerivative(iSolnPhaseLocal, iConLocal, iRefLocal, &
@@ -1235,7 +1204,7 @@ contains
         real(8), intent(in) :: dStepIn
         logical, intent(out) :: lFeasibleOut
 
-        integer :: iSiteVariableLocal, iElementLocal, iPhaseVariableLocal
+        integer :: iSiteVariableLocal, iElementLocal, iPhaseVariableLocal, iTieLocal, nTieLocal
         integer :: iSlotLocal, iSolnPhaseLocal, iPhaseIDLocal, iSubLocal, iConLocal, iRefLocal
         integer :: iFirstPerturb, iLastPerturb, iSpeciesLocal, iSpeciesRefLocal
         real(8) :: dTrialValue, dSiteFloorLocal
@@ -1262,17 +1231,20 @@ contains
             iConLocal = iGEMCEFVarCon(iSiteVariableLocal)
             iRefLocal = iGEMCEFVarRef(iSiteVariableLocal)
             if (iPhaseIDLocal > 0) then
-                iSubLocal = iGEMCEFVarSub(iSiteVariableLocal)
                 iPhaseVariableLocal = iGEMCEFVarPhaseVar(iSiteVariableLocal)
-                dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iConLocal) = &
-                    dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iConLocal) + dStepIn
-                dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iRefLocal) = &
-                    dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iRefLocal) - dStepIn
-                if ((dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iConLocal) <= dSiteFloorLocal).OR.&
-                    (dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iRefLocal) <= dSiteFloorLocal)) then
-                    lFeasibleOut = .FALSE.
-                    return
-                end if
+                nTieLocal = CEFVariableTieCount(iSiteVariableLocal)
+                do iTieLocal = 1, nTieLocal
+                    iSubLocal = CEFVariableTiedSublattice(iSiteVariableLocal, iTieLocal)
+                    dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iConLocal) = &
+                        dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iConLocal) + dStepIn
+                    dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iRefLocal) = &
+                        dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iRefLocal) - dStepIn
+                    if ((dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iConLocal) <= dSiteFloorLocal).OR.&
+                        (dGEMCEFPhaseSiteLast(iPhaseVariableLocal,iSubLocal,iRefLocal) <= dSiteFloorLocal)) then
+                        lFeasibleOut = .FALSE.
+                        return
+                    end if
+                end do
                 call RebuildCEFResidualLMPhaseMoles(iPhaseVariableLocal)
             else
                 iFirstPerturb = nSpeciesPhase(iSolnPhaseLocal-1) + 1
@@ -1428,6 +1400,7 @@ contains
         real(8), allocatable :: dMapSiteCompDeriv(:)
         logical :: lIncludeSiteVariable, lActiveSetContainsOrderDisorderMapped
         logical :: lTraceElementEdgeSystem
+        logical :: lDisorderedChart
 
         nPhaseMax = nConPhases + nSolnPhases
         nSiteMax = MAX(1,nSpecies + nSolnPhases * nMaxSublatticeSys * nMaxConstituentSys)
@@ -1445,6 +1418,8 @@ contains
         if (allocated(iGEMCEFVarSub)) deallocate(iGEMCEFVarSub)
         if (allocated(iGEMCEFVarCon)) deallocate(iGEMCEFVarCon)
         if (allocated(iGEMCEFVarRef)) deallocate(iGEMCEFVarRef)
+        if (allocated(nGEMCEFVarTie)) deallocate(nGEMCEFVarTie)
+        if (allocated(iGEMCEFVarTieSub)) deallocate(iGEMCEFVarTieSub)
         if (allocated(dGEMCEFPhaseDirection)) deallocate(dGEMCEFPhaseDirection)
         if (allocated(dGEMCEFSiteDirection)) deallocate(dGEMCEFSiteDirection)
         if (allocated(dGEMCEFElementDirection)) deallocate(dGEMCEFElementDirection)
@@ -1457,6 +1432,7 @@ contains
         allocate(iGEMCEFVarPhaseVar(nSiteMax), iGEMCEFVarSolnPhase(nSiteMax), &
             iGEMCEFVarPhaseID(nSiteMax), iGEMCEFVarSub(nSiteMax), &
             iGEMCEFVarCon(nSiteMax), iGEMCEFVarRef(nSiteMax))
+        allocate(nGEMCEFVarTie(nSiteMax), iGEMCEFVarTieSub(nSiteMax,nMaxSublatticeSys))
         allocate(dGEMCEFPhaseDirection(nPhaseMax), dGEMCEFSiteDirection(nSiteMax), &
             dGEMCEFElementDirection(nElements))
         allocate(dGEMCEFPhaseResidual(nPhaseMax))
@@ -1475,6 +1451,8 @@ contains
         iGEMCEFVarSub = 0
         iGEMCEFVarCon = 0
         iGEMCEFVarRef = 0
+        nGEMCEFVarTie = 0
+        iGEMCEFVarTieSub = 0
         dGEMCEFPhaseDirection = 0D0
         dGEMCEFSiteDirection = 0D0
         dGEMCEFElementDirection = 0D0
@@ -1522,6 +1500,8 @@ contains
                         dGEMCEFPhaseSiteLast(nGEMCEFPhaseVariables,:,:))
                 end if
                 call NormalizeCEFSite(iPhaseID, dGEMCEFPhaseSiteLast(nGEMCEFPhaseVariables,:,:))
+                lDisorderedChart = DisorderedCompositionSetChart(iSlot, k, &
+                    dGEMCEFPhaseSiteLast(nGEMCEFPhaseVariables,:,:))
                 dGEMCEFSiteLast(iPhaseID,:,:) = dGEMCEFPhaseSiteLast(nGEMCEFPhaseVariables,:,:)
                 call SetCEFMolFractionFromSite(k, iPhaseID, dGEMCEFPhaseSiteLast(nGEMCEFPhaseVariables,:,:))
                 call CompGradientSUBL(k, nMapSiteCapacity, dMapSiteGradient, dMapScalarGibbs, &
@@ -1529,6 +1509,7 @@ contains
                     dMapScalarH, dMapScalarS, dMapScalarCp, nMapSiteOut, iMapInfo)
 
                 do s = 1, nSublatticePhase(iPhaseID)
+                    if (lDisorderedChart.AND.HasEarlierEquivalentSublattice(iPhaseID,s)) cycle
                     iRef = 1
                     dRefValue = dGEMCEFPhaseSiteLast(nGEMCEFPhaseVariables,s,1)
                     do c = 2, nConstituentSublattice(iPhaseID,s)
@@ -1572,6 +1553,11 @@ contains
                                     end do
                                     call NormalizeCEFSite(iPhaseID, &
                                         dGEMCEFPhaseSiteLast(nGEMCEFPhaseVariables,:,:))
+                                    if (lDisorderedChart) then
+                                        call CopyEquivalentOrderingSublattices(&
+                                            iPhaseID, s, &
+                                            dGEMCEFPhaseSiteLast(nGEMCEFPhaseVariables,:,:))
+                                    end if
                                     dGEMCEFSiteLast(iPhaseID,:,:) = &
                                         dGEMCEFPhaseSiteLast(nGEMCEFPhaseVariables,:,:)
                                     call SetCEFMolFractionFromSite(k, iPhaseID, &
@@ -1592,6 +1578,8 @@ contains
                         iGEMCEFVarSub(nGEMCEFSiteVariables) = s
                         iGEMCEFVarCon(nGEMCEFSiteVariables) = c
                         iGEMCEFVarRef(nGEMCEFSiteVariables) = iRef
+                        call StoreCEFVariableSublatticeTie(nGEMCEFSiteVariables, iPhaseID, &
+                            s, lDisorderedChart)
                     end do
                 end do
             else
@@ -1617,6 +1605,7 @@ contains
                     iGEMCEFVarSub(nGEMCEFSiteVariables) = 0
                     iGEMCEFVarCon(nGEMCEFSiteVariables) = iLocal
                     iGEMCEFVarRef(nGEMCEFSiteVariables) = iRef
+                    nGEMCEFVarTie(nGEMCEFSiteVariables) = 1
                 end do
             end if
         end do
@@ -1685,6 +1674,334 @@ contains
         return
 
     end function ActiveSetContainsOrderDisorderMapped
+
+
+    logical function DisorderedCompositionSetChart(iSlotIn, iParentPhaseIn, dSiteIn)
+
+        implicit none
+
+        integer, intent(in) :: iSlotIn, iParentPhaseIn
+        real(8), intent(in) :: dSiteIn(nMaxSublatticeSys,nMaxConstituentSys)
+        integer :: iClassLocal, iCompanionLocal, iPriorClass
+        logical :: lExplicitCompanionSet
+
+        DisorderedCompositionSetChart = .FALSE.
+        if (.NOT.lODPartitionUnifiedActive) return
+        if (.NOT.allocated(iActiveSlotDisplayPhase)) return
+        if ((iSlotIn <= 0).OR.(iSlotIn > SIZE(iActiveSlotDisplayPhase))) return
+
+        call ClassifyOrderDisorderActiveSlot(iParentPhaseIn, dSiteIn, &
+            iClassLocal, iCompanionLocal)
+        if ((iClassLocal == OD_CANDIDATE_EVALUATION_FAILED).OR.&
+            (iClassLocal == OD_CANDIDATE_AMBIGUOUS_COMPANION)) return
+        if (iClassLocal /= OD_CANDIDATE_DISORDERED) return
+        if (iCompanionLocal <= 0) return
+        if (iActiveSlotDisplayPhase(iSlotIn) /= iCompanionLocal) return
+
+        lExplicitCompanionSet = RepeatedParentCompositionSetsActive(&
+            iSlotIn, iParentPhaseIn)
+        iPriorClass = OD_CANDIDATE_NOT_EVALUATED
+        if (allocated(iODCandidateClass)) then
+            if ((iParentPhaseIn >= 1).AND.&
+                (iParentPhaseIn <= SIZE(iODCandidateClass))) then
+                iPriorClass = iODCandidateClass(iParentPhaseIn)
+            end if
+        end if
+        if (allocated(iActiveSlotODClass)) then
+            if ((iPriorClass == OD_CANDIDATE_NOT_EVALUATED).AND.&
+                (iSlotIn <= SIZE(iActiveSlotODClass))) then
+                iPriorClass = iActiveSlotODClass(iSlotIn)
+            end if
+        end if
+        if (.NOT.lExplicitCompanionSet) then
+            if ((iPriorClass /= OD_CANDIDATE_DISORDERED).AND.&
+                (iPriorClass /= OD_CANDIDATE_DISORDERED_PROJECTED).AND.&
+                (iPriorClass /= OD_CANDIDATE_AMBIGUOUS_ROUNDOFF)) return
+        end if
+        ! Candidate reconciliation selected this slot's explicit companion
+        ! identity.  Keep the ordered-parent Newton map on the tied disordered
+        ! chart; rebuilding product fractions must not turn representation
+        ! roundoff into a physical ordering decision.
+        if (allocated(iActiveSlotODClass)) then
+            if (iSlotIn <= SIZE(iActiveSlotODClass)) then
+                iActiveSlotODClass(iSlotIn) = OD_CANDIDATE_DISORDERED
+            end if
+        end if
+        DisorderedCompositionSetChart = .TRUE.
+
+        return
+
+    end function DisorderedCompositionSetChart
+
+
+    logical function RepeatedParentCompositionSetsActive(iSlotIn, iParentPhaseIn)
+
+        implicit none
+
+        integer, intent(in) :: iSlotIn, iParentPhaseIn
+        integer :: iSlotLocal, nParentSlots
+
+        RepeatedParentCompositionSetsActive = .FALSE.
+        if (.NOT.allocated(iActiveSlotThermoPhase)) return
+        if ((iSlotIn < 1).OR.(iSlotIn > SIZE(iActiveSlotThermoPhase))) return
+
+        nParentSlots = 0
+        do iSlotLocal = 1, MIN(nElements, SIZE(iActiveSlotThermoPhase))
+            if (iAssemblage(iSlotLocal) >= 0) cycle
+            if (iActiveSlotThermoPhase(iSlotLocal) /= iParentPhaseIn) cycle
+            nParentSlots = nParentSlots + 1
+            if (nParentSlots > 1) then
+                RepeatedParentCompositionSetsActive = .TRUE.
+                return
+            end if
+        end do
+
+        return
+
+    end function RepeatedParentCompositionSetsActive
+
+
+    subroutine CopyEquivalentOrderingSublattices(iPhaseIDIn, iSourceSubIn, dSiteInOut)
+
+        implicit none
+
+        integer, intent(in) :: iPhaseIDIn, iSourceSubIn
+        real(8), intent(inout) :: dSiteInOut(nMaxSublatticeSys,nMaxConstituentSys)
+
+        integer :: iSubLocal, nConstituentLocal
+
+        nConstituentLocal = nConstituentSublattice(iPhaseIDIn,iSourceSubIn)
+        do iSubLocal = 1, nSublatticePhase(iPhaseIDIn)
+            if (iSubLocal == iSourceSubIn) cycle
+            if (.NOT.EquivalentOrderingSublattices(&
+                iPhaseIDIn, iSourceSubIn, iSubLocal)) cycle
+            dSiteInOut(iSubLocal,1:nConstituentLocal) = &
+                dSiteInOut(iSourceSubIn,1:nConstituentLocal)
+        end do
+
+        return
+
+    end subroutine CopyEquivalentOrderingSublattices
+
+
+    logical function EquivalentOrderingSublattices(iPhaseIDIn, iSubAIn, iSubBIn)
+
+        implicit none
+
+        integer, intent(in) :: iPhaseIDIn, iSubAIn, iSubBIn
+        integer :: iConLocal
+
+        EquivalentOrderingSublattices = .FALSE.
+        if (nConstituentSublattice(iPhaseIDIn,iSubAIn) /= &
+            nConstituentSublattice(iPhaseIDIn,iSubBIn)) return
+        do iConLocal = 1, nConstituentSublattice(iPhaseIDIn,iSubAIn)
+            if (TRIM(cConstituentNameSUB(iPhaseIDIn,iSubAIn,iConLocal)) /= &
+                TRIM(cConstituentNameSUB(iPhaseIDIn,iSubBIn,iConLocal))) return
+        end do
+        EquivalentOrderingSublattices = .TRUE.
+
+        return
+
+    end function EquivalentOrderingSublattices
+
+
+    logical function HasEarlierEquivalentSublattice(iPhaseIDIn, iSubIn)
+
+        implicit none
+
+        integer, intent(in) :: iPhaseIDIn, iSubIn
+        integer :: iSubLocal
+
+        HasEarlierEquivalentSublattice = .FALSE.
+        do iSubLocal = 1, iSubIn - 1
+            if (SameCEFConstituentList(iPhaseIDIn,iSubLocal,iSubIn)) then
+                HasEarlierEquivalentSublattice = .TRUE.
+                return
+            end if
+        end do
+
+        return
+
+    end function HasEarlierEquivalentSublattice
+
+
+    subroutine StoreCEFVariableSublatticeTie(iVarIn, iPhaseIDIn, iSubIn, lTieEquivalent)
+
+        implicit none
+
+        integer, intent(in) :: iVarIn, iPhaseIDIn, iSubIn
+        logical, intent(in) :: lTieEquivalent
+        integer :: iSubLocal
+
+        nGEMCEFVarTie(iVarIn) = 0
+        iGEMCEFVarTieSub(iVarIn,:) = 0
+        if (lTieEquivalent) then
+            do iSubLocal = 1, nSublatticePhase(iPhaseIDIn)
+                if (.NOT.SameCEFConstituentList(iPhaseIDIn,iSubIn,iSubLocal)) cycle
+                nGEMCEFVarTie(iVarIn) = nGEMCEFVarTie(iVarIn) + 1
+                iGEMCEFVarTieSub(iVarIn,nGEMCEFVarTie(iVarIn)) = iSubLocal
+            end do
+        end if
+        if (nGEMCEFVarTie(iVarIn) <= 0) then
+            nGEMCEFVarTie(iVarIn) = 1
+            iGEMCEFVarTieSub(iVarIn,1) = iSubIn
+        end if
+
+        return
+
+    end subroutine StoreCEFVariableSublatticeTie
+
+
+    logical function SameCEFConstituentList(iPhaseIDIn, iSubAIn, iSubBIn)
+
+        implicit none
+
+        integer, intent(in) :: iPhaseIDIn, iSubAIn, iSubBIn
+        integer :: iConLocal
+
+        SameCEFConstituentList = .FALSE.
+        if (nConstituentSublattice(iPhaseIDIn,iSubAIn) /= &
+            nConstituentSublattice(iPhaseIDIn,iSubBIn)) return
+        do iConLocal = 1, nConstituentSublattice(iPhaseIDIn,iSubAIn)
+            if (TRIM(UpperCEFName(cConstituentNameSUB(iPhaseIDIn,iSubAIn,iConLocal))) /= &
+                TRIM(UpperCEFName(cConstituentNameSUB(iPhaseIDIn,iSubBIn,iConLocal)))) return
+        end do
+        SameCEFConstituentList = .TRUE.
+
+        return
+
+    end function SameCEFConstituentList
+
+
+    character(8) function UpperCEFName(cNameIn)
+
+        implicit none
+
+        character(*), intent(in) :: cNameIn
+        integer :: iChar, iCode, nChar
+
+        UpperCEFName = ' '
+        nChar = MIN(LEN_TRIM(cNameIn), LEN(UpperCEFName))
+        do iChar = 1, nChar
+            iCode = IACHAR(cNameIn(iChar:iChar))
+            if ((iCode >= IACHAR('a')).AND.(iCode <= IACHAR('z'))) then
+                UpperCEFName(iChar:iChar) = ACHAR(iCode - 32)
+            else
+                UpperCEFName(iChar:iChar) = cNameIn(iChar:iChar)
+            end if
+        end do
+
+        return
+
+    end function UpperCEFName
+
+
+    integer function CEFVariableTieCount(iVarIn)
+
+        implicit none
+
+        integer, intent(in) :: iVarIn
+
+        CEFVariableTieCount = 1
+        if (.NOT.allocated(nGEMCEFVarTie)) return
+        if ((iVarIn <= 0).OR.(iVarIn > SIZE(nGEMCEFVarTie))) return
+        if (nGEMCEFVarTie(iVarIn) > 0) CEFVariableTieCount = nGEMCEFVarTie(iVarIn)
+
+        return
+
+    end function CEFVariableTieCount
+
+
+    integer function CEFVariableTiedSublattice(iVarIn, iTieIn)
+
+        implicit none
+
+        integer, intent(in) :: iVarIn, iTieIn
+
+        CEFVariableTiedSublattice = iGEMCEFVarSub(iVarIn)
+        if (.NOT.allocated(iGEMCEFVarTieSub)) return
+        if ((iVarIn <= 0).OR.(iVarIn > SIZE(iGEMCEFVarTieSub,1))) return
+        if ((iTieIn <= 0).OR.(iTieIn > SIZE(iGEMCEFVarTieSub,2))) return
+        if (iGEMCEFVarTieSub(iVarIn,iTieIn) > 0) then
+            CEFVariableTiedSublattice = iGEMCEFVarTieSub(iVarIn,iTieIn)
+        end if
+
+        return
+
+    end function CEFVariableTiedSublattice
+
+
+    real(8) function CEFVariableGradientDifference(iVarIn, dGradientIn)
+
+        implicit none
+
+        integer, intent(in) :: iVarIn
+        real(8), intent(in) :: dGradientIn(nSiteCapacity)
+        integer :: iTieLocal, iSubLocal, iConLocal, iRefLocal
+
+        CEFVariableGradientDifference = 0D0
+        iConLocal = iGEMCEFVarCon(iVarIn)
+        iRefLocal = iGEMCEFVarRef(iVarIn)
+        do iTieLocal = 1, CEFVariableTieCount(iVarIn)
+            iSubLocal = CEFVariableTiedSublattice(iVarIn,iTieLocal)
+            CEFVariableGradientDifference = CEFVariableGradientDifference + &
+                dGradientIn(LocalCEFIndex(iGEMCEFVarPhaseID(iVarIn),iSubLocal,iConLocal)) - &
+                dGradientIn(LocalCEFIndex(iGEMCEFVarPhaseID(iVarIn),iSubLocal,iRefLocal))
+        end do
+
+        return
+
+    end function CEFVariableGradientDifference
+
+
+    subroutine ComputeCEFVariableCompositionDerivative(iVarIn, dSiteIn, dDerivativeOut)
+
+        implicit none
+
+        integer, intent(in) :: iVarIn
+        real(8), intent(in) :: dSiteIn(nMaxSublatticeSys,nMaxConstituentSys)
+        real(8), intent(out) :: dDerivativeOut(nElements)
+        integer :: iTieLocal, iSubLocal
+        real(8) :: dDerivativeLocal(nElements)
+
+        dDerivativeOut = 0D0
+        do iTieLocal = 1, CEFVariableTieCount(iVarIn)
+            iSubLocal = CEFVariableTiedSublattice(iVarIn,iTieLocal)
+            call ComputeCEFCompositionDerivative(iGEMCEFVarSolnPhase(iVarIn), &
+                iGEMCEFVarPhaseID(iVarIn), iSubLocal, iGEMCEFVarCon(iVarIn), &
+                iGEMCEFVarRef(iVarIn), dSiteIn, dDerivativeLocal)
+            dDerivativeOut = dDerivativeOut + dDerivativeLocal
+        end do
+
+        return
+
+    end subroutine ComputeCEFVariableCompositionDerivative
+
+
+    real(8) function ProjectCEFVariableHessian(dHessianIn, iPhaseIDIn, iVarA, iVarB)
+
+        implicit none
+
+        real(8), intent(in) :: dHessianIn(nSiteCapacity,nSiteCapacity)
+        integer, intent(in) :: iPhaseIDIn, iVarA, iVarB
+        integer :: iTieA, iTieB, iSubA, iSubB
+
+        ProjectCEFVariableHessian = 0D0
+        do iTieA = 1, CEFVariableTieCount(iVarA)
+            iSubA = CEFVariableTiedSublattice(iVarA,iTieA)
+            do iTieB = 1, CEFVariableTieCount(iVarB)
+                iSubB = CEFVariableTiedSublattice(iVarB,iTieB)
+                ProjectCEFVariableHessian = ProjectCEFVariableHessian + &
+                    ProjectCEFHessian(dHessianIn, iPhaseIDIn, iSubA, &
+                    iGEMCEFVarCon(iVarA), iGEMCEFVarRef(iVarA), iSubB, &
+                    iGEMCEFVarCon(iVarB), iGEMCEFVarRef(iVarB))
+            end do
+        end do
+
+        return
+
+    end function ProjectCEFVariableHessian
+
 
     logical function TraceElementEdgeSystem()
 
